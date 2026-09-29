@@ -171,6 +171,55 @@ def panel(ax, s):
     ax.set_title(f"({s}) " + ax.get_title(), fontsize=ax.title.get_fontsize())
 
 
+COL = {"thr3": "#d35400", "logmid": "#1f4e9c", "maxgrad": "#7f8c8d", "bel": "#6a3d9a"}   # one colour per method
+
+
+def xwin(x, v, lo=130.0, hi=450.0):
+    """Mask a lens-base line / band outside the headline window x = 130–450 m."""
+    return np.where((np.asarray(x) >= lo) & (np.asarray(x) <= hi), v, np.nan)
+
+
+def lambert72_to_lonlat(x, y):
+    """Belgian Lambert 72 (EPSG:31370) → lon/lat (International 1924 ellipsoid, no datum shift: ~100 m; inset only)."""
+    a, f = 6378388.0, 1 / 297.0
+    e = np.sqrt(2 * f - f * f)
+    p1, p2 = np.radians(49.8333339), np.radians(51.16666723333333)
+    lam0 = np.radians(4.367486666666666); E0, N0 = 150000.013, 5400088.438
+    m = lambda ph: np.cos(ph) / np.sqrt(1 - (e * np.sin(ph)) ** 2)
+    t = lambda ph: np.tan(np.pi / 4 - ph / 2) / ((1 - e * np.sin(ph)) / (1 + e * np.sin(ph))) ** (e / 2)
+    n = (np.log(m(p1)) - np.log(m(p2))) / (np.log(t(p1)) - np.log(t(p2)))
+    Fc = m(p1) / (n * t(p1) ** n)
+    dx, dy = x - E0, -(y - N0)
+    tt = (np.hypot(dx, dy) / (a * Fc)) ** (1 / n)
+    phi = np.pi / 2 - 2 * np.arctan(tt)
+    for _ in range(10):
+        phi = np.pi / 2 - 2 * np.arctan(tt * ((1 - e * np.sin(phi)) / (1 + e * np.sin(phi))) ** (e / 2))
+    return float(np.degrees(np.arctan2(dx, dy) / n + lam0)), float(np.degrees(phi))
+
+
+# schematic coastline and borders (approximate, hand-digitised; location inset only)
+COAST = [(1.60, 50.87), (1.72, 50.93), (1.86, 50.96), (2.13, 51.01), (2.37, 51.05), (2.546, 51.09), (2.73, 51.15),
+         (2.92, 51.23), (3.13, 51.32), (3.29, 51.35), (3.37, 51.37), (3.55, 51.41), (3.60, 51.44), (3.90, 51.42)]
+BORDERS = [[(2.546, 51.09), (2.60, 51.00), (2.64, 50.85)], [(3.37, 51.37), (3.53, 51.28), (3.90, 51.22)]]
+
+
+def location_inset(ax, lon, lat):
+    ins = ax.inset_axes([0.02, 0.02, 0.40, 0.36])
+    cx, cy = zip(*COAST)
+    ins.fill(list(cx) + [3.90, 1.60], list(cy) + [50.80, 50.80], color="#efe6cf", lw=0)
+    ins.plot(cx, cy, color="0.35", lw=0.7)
+    for b in BORDERS:
+        bx, by = zip(*b); ins.plot(bx, by, color="0.35", lw=0.6, ls="--")
+    ins.plot(lon, lat, "*", color="#c0392b", ms=8, mec="k", mew=0.4)
+    for tx, ty, lab in ((2.05, 50.88, "FR"), (3.15, 51.02, "BE"), (3.62, 51.29, "NL")):
+        ins.text(tx, ty, lab, fontsize=6, color="0.25")
+    ins.text(2.35, 51.42, "North Sea", fontsize=6, style="italic", color="#1f4e9c")
+    ins.set_xlim(1.60, 3.90); ins.set_ylim(50.80, 51.62); ins.set_aspect(1 / np.cos(np.radians(51.2)))
+    ins.set_xticks([]); ins.set_yticks([]); ins.set_facecolor("#dbe9f6")
+    ins.set_title("location (schematic)", fontsize=5.8, pad=1.5)
+    return ins
+
+
 def rho_norm():
     import matplotlib.colors as mcolors
     return mcolors.LogNorm(0.5, 500)
@@ -249,19 +298,18 @@ def fig_site():
     dx_, dy_ = a1[0] + u[0] * DUNE_X * L_land / ex[-1], a1[1] + u[1] * DUNE_X * L_land / ex[-1]
     ax.plot([a1[0], dx_], [a1[1], dy_], "-", color="0.45", lw=6, alpha=0.35, solid_capstyle="butt",
             label="dunes x < 90 m (weakly constrained)")
-    ax.text(25, 75, "dunes (SE)", fontsize=6.5, color="0.25")
-    ax.text(-480, 330, "North Sea\n(NW)", fontsize=7, style="italic", color="#1f4e9c", ha="center")
+    ax.text(-18, -48, "dunes (SE)", fontsize=6.5, color="0.25", ha="right")
+    ax.text(-480, 380, "North Sea\n(NW)", fontsize=7, style="italic", color="#1f4e9c", ha="center")
     ax.annotate("", xy=(0.93, 0.95), xytext=(0.93, 0.78), xycoords="axes fraction",
                 arrowprops=dict(arrowstyle="-|>", color="k", lw=1.2))
     ax.text(0.93, 0.72, "N", transform=ax.transAxes, ha="center", fontsize=8, fontweight="bold")
     ax.set_xlim(-600, 120); ax.set_ylim(-60, 660)
+    location_inset(ax, *lambert72_to_lonlat(gps[1][0], gps[1][1]))
     ax.set_aspect("equal"); ax.set_xlabel(f"Easting − {x0:.0f} m (Belgian Lambert 72)")
     ax.set_ylabel(f"Northing − {y0:.0f} m"); ax.grid(True, alpha=0.25)
     leg = ax.legend(loc="upper left", bbox_to_anchor=(1.04, 1.0), fontsize=6.5, facecolor="white", edgecolor="0.6")
     ax.text(1.04, 0.5, "Wells K0, K1 (Paepen et al. 2020):\npositions to be added once located", transform=ax.transAxes,
             fontsize=6.5, va="top", bbox=dict(boxstyle="round,pad=0.3", fc="#fff6d5", ec="0.5"))
-    ax.text(1.04, 0.3, f"land: {len(ex)} electrodes, {ex[-1]:.0f} m, multiple gradient,\nlow tide (−0.15 mTAW); {nq} quadrupoles",
-            transform=ax.transAxes, fontsize=6.3, va="top", linespacing=1.4)
     ax.set_title("Land and marine ERT profiles, Westhoek (De Panne)"); panel(ax, "a")
     ax = fig.add_subplot(gs[1])
     ax.fill_between(ex, ez, -1.5, color="#e8d9b0", lw=0)
@@ -274,7 +322,8 @@ def fig_site():
     ax.text(x_lw - 3, 6.2, "low-water line\n(end of line)", fontsize=6.5, ha="right", color="navy")
     ax.set_xlim(-5, 510); ax.set_ylim(-1.5, 8.5); ax.set_aspect(10)
     dune_hatch(ax)
-    ax.text(0.62, 0.9, "tidal range ≈ 5 m (field description)", transform=ax.transAxes, ha="center", fontsize=6.5)
+    ax.text(0.99, 0.62, "spring tidal range ≈ 5 m;\nlines show survey-day levels", transform=ax.transAxes, ha="right",
+            va="center", fontsize=6.3)
     ax.set_xlabel("Distance along profile x (m)"); ax.set_ylabel("Elevation (mTAW)")
     ve_text(ax, 10); legend_below(ax, ncol=2, dy=-0.32)
     ax.set_title("Topography, electrodes and tide levels"); panel(ax, "b")
@@ -325,19 +374,20 @@ def fig_outliers():
     ax.bar(exx[~fl], 100 * rate[~fl], width=4, color="0.55", label="electrodes")
     ax.bar(exx[fl], 100 * rate[fl], width=4, color="#c0392b", label="flagged electrodes (G2 drops their data)")
     ax.axvline(x_hw, color="steelblue", ls="--", lw=1.0, label=f"high-water line (x = {x_hw:.0f} m)")
-    ax.axvspan(x_hw, x_lw, color="steelblue", alpha=0.07, label="intertidal zone")
+    ax.axvspan(x_hw, x_lw, color="steelblue", alpha=0.18, lw=0, label="intertidal zone")
     ax.axhline(100 * is_out.mean(), color="k", lw=0.7, ls=":", label=f"all data ({100*is_out.mean():.1f} %)")
     ax.set_xlim(-5, 510); ax.set_ylim(0, max(60, 100 * np.nanmax(rate) + 5))
     dune_hatch(ax, label=False)
     ax.set_ylabel("outlier rate of data\nusing the electrode (%)"); ax.set_xlabel("Electrode position x (m)")
-    ax.set_title(f"Per-datum outliers of run F (|r| > 3·1.4826·MAD = {thr:.3f}; {len(drop)} of {len(r)})")
+    ax.set_title(f"Per-datum outlier rate by electrode, run F ({len(drop)} of {len(r)} data)")
     legend_below(ax, ncol=3, dy=-0.3); panel(ax, "a")
     ax = axes[1]
     pc = wc.draw_cells(ax, ctx["polys"], G1["model"], "RdBu_r", rho_norm())
     wc.hatch_cells(ax, ctx["polys"], G1["res_radius"] > 10)
     xl = ctx["cs_line"].x
-    ax.plot(xl, bl1, color="k", lw=1.4, label="lens base G1 (drop outlier data)", zorder=9)
-    ax.plot(xl, bl2, color="#e67e22", lw=1.4, ls="--", label="lens base G2 (drop flagged electrodes)", zorder=9)
+    ax.plot(xl, xwin(xl, bl1), color=COL["logmid"], lw=1.5, label="log-midpoint lens base, G1 (drop outlier data)", zorder=9)
+    ax.plot(xl, xwin(xl, bl2), color=COL["logmid"], lw=1.5, ls="--", dashes=(4, 2),
+            label="log-midpoint lens base, G2 (drop flagged electrodes)", zorder=9)
     wc.setup_section(ax, None, ve=3, z_floor=-40)
     dune_hatch(ax, label=False)
     ax.set_title("G1 (λ = 20) with the log-midpoint lens base of G1 and G2 (hatched: r > 10 m)")
@@ -412,7 +462,7 @@ def fig_linearised():
     plt = mpl()
     ctx = ref_ctx(); ref = ctx["ref"]
     v3 = np.load(LIN_V3); v4 = np.load(LIN_V4)
-    fig, axes = plt.subplots(2, 1, figsize=(7.2, 6.0), gridspec_kw=dict(hspace=0.5))
+    fig, axes = plt.subplots(2, 1, figsize=(7.2, 6.2), gridspec_kw=dict(hspace=0.42))
     ax = axes[0]
     import matplotlib.colors as mcolors
     pc = wc.draw_cells(ax, ctx["polys"], v3["P_lt3_pooled"], "Blues", mcolors.Normalize(0, 1))
@@ -424,8 +474,8 @@ def fig_linearised():
     legend_below(ax, ncol=1, dy=-0.2); panel(ax, "a")
     ax = axes[1]
     x = v4["x"]
-    for key, col, lab in (("pooled_thr3", "#d35400", "3 Ω·m contour"), ("pooled_logmid", "#1f4e9c", "log-midpoint")):
-        b = v4[key]; ok = b[0] >= 0.5
+    for key, col, lab in (("pooled_thr3", COL["thr3"], "3 Ω·m contour"), ("pooled_logmid", COL["logmid"], "log-midpoint")):
+        b = v4[key]; ok = (b[0] >= 0.5) & (x >= 130) & (x <= 450)
         ax.fill_between(x, np.where(ok, b[2], np.nan), np.where(ok, b[3], np.nan), color=col, alpha=0.22, lw=0)
         ax.plot(x, np.where(ok, b[1], np.nan), color=col, lw=1.4, label=f"{lab}: median, 90 % (λ-pooled)")
     ex, ez = wc.land_surface()
@@ -435,7 +485,7 @@ def fig_linearised():
     ax.set_xlabel("Distance along profile (m)"); ax.set_ylabel("Elevation (mTAW)"); ve_text(ax, 3)
     ax.set_title("Lens base: 3 Ω·m contour vs log-midpoint (linearised, λ-pooled)")
     cbar_space(fig, ax, pc)
-    legend_below(ax, ncol=3, dy=-0.25); panel(ax, "b")
+    legend_below(ax, ncol=3, dy=-0.36); panel(ax, "b")
     save(fig, "F4_linearised")
     fn, src = "fig_linearised", "`results/runs/g1_lam50_v4/interface_definitions_bands.npz`"
     rep = "results/runs/g1_lam50_v4/interface_definitions_report.md"
@@ -552,7 +602,7 @@ def fig_synthetic():
     plt = mpl()
     rows = synthetic_rows(); summ = a2_summary(rows); relb = reliability(); a1 = a1_bias()
     fig, axes = plt.subplots(3, 2, figsize=(7.2, 8.6), gridspec_kw=dict(hspace=0.62, wspace=0.3))
-    cols = {"thr3": "#d35400", "maxgrad": "#7f8c8d", "logmid": "#1f4e9c"}
+    cols = COL
     names = {"thr3": "3 Ω·m", "maxgrad": "max-gradient", "logmid": "log-midpoint"}
     ax = axes[0, 0]; w = 0.25
     for k, dname in enumerate(c11.DEFS):
@@ -589,14 +639,14 @@ def fig_synthetic():
         ax.set_xscale("log"); ax.set_xticks(lams); ax.set_xticklabels([str(l) for l in lams]); ax.minorticks_off()
         ax.set_xlabel("λ"); ax.set_ylabel(ylab); ax.set_title(f"{ttl} (realisations 0–4)"); ax.grid(True, alpha=0.3)
         if key == "cov":
-            ax.set_ylim(0, 105); legend_below(ax, ncol=2, dy=-0.3, fontsize=6)
+            ax.set_ylim(0, 105); ax.legend(loc="lower left", fontsize=5.8, facecolor="white", framealpha=0.95)
         panel(ax, "cd"[col_i])
     for col_i, grp in enumerate(("≤10", "10–15")):
         ax = axes[2, col_i]
         ax.plot([0, 1], [0, 1], "k--", lw=0.8, label="perfect reliability")
-        for mode, col in (("single", "#1f77b4"), ("pooled", "#d62728")):
+        for mode, col, ls in (("single", "k", "-"), ("pooled", "0.5", "--")):
             mp, ob, n = relb[(mode, grp)]
-            ax.plot(mp, ob, "-o", ms=3, color=col, label="λ = 50" if mode == "single" else "λ-pooled")
+            ax.plot(mp, ob, ls, marker="o", ms=3, color=col, label="λ = 50" if mode == "single" else "λ-pooled")
         ax.set_xlim(0, 1); ax.set_ylim(0, 1); ax.set_aspect("equal")
         ax.set_xlabel("predicted P(ρ < 3 Ω·m)"); ax.set_ylabel("observed frequency")
         ax.set_title(f"Reliability, cells with r {grp.replace('≤', '≤ ')} m"); ax.grid(True, alpha=0.3)
@@ -759,7 +809,7 @@ def fig_bel_calibration(B):
         ax.plot(ex, ez, "k-", lw=0.6)
         ax.set_xlim(0, 505); ax.set_ylim(-45, 9); ax.set_aspect("auto")
         dune_hatch(ax, text=False)
-        ax.set_title(f"prior sample {i+1}" + (" (with discharge zone)" if th["dis_present"] else ""), fontsize=7)
+        ax.set_title(f"sample {i+1}" + (", discharge zone" if th["dis_present"] else ""), fontsize=7)
         ax.tick_params(labelsize=6); ax.set_xlabel("x (m)", fontsize=6.5)
         if i == 0:
             ax.set_ylabel("mTAW"); panel(ax, "a")
@@ -816,35 +866,66 @@ def fig_bel_calibration(B):
                 "training samples (site + physical, prior v3)", fn, src)
 
 
+def lens_presence():
+    """P(lens present) at x = 100–120 m: the Gate-A classifier (prior v2, 14_gateA_sensitivity.cmd_nuisance) reproduced —
+    x_L is not affected by the site / physical filters. Cached in DPAP/lens_presence_v2.json."""
+    p = os.path.join(DPAP, "lens_presence_v2.json")
+    if os.path.exists(p) and not RECOMPUTE:
+        return json.load(open(p, encoding="utf-8"))
+    A = g14.load_all(); bel = b13.BEL(A["Dtr"], A["Ttr"])
+    obs, _ = b13.observed_sets()
+    sd = np.sqrt(bel.Sd.var(0, ddof=1))
+    Xtr = bel.Sd / sd; Xho = bel.pd.fwd(A["Dho"]) / sd; xf = bel.pd.fwd(obs["field"]) / sd
+    thtr = [A["th"][i] for i in A["ktr"]]; thho = [A["th"][i] for i in A["kho"]]
+    out = {}
+    for x in (100, 110, 120):
+        ytr = np.array([float(t["x_L"] <= x) for t in thtr]); yho = np.array([float(t["x_L"] <= x) for t in thho])
+        predict, C, _ = g14.logistic_cv(Xtr, ytr)
+        ph = predict(Xho); brier = float(np.mean((ph - yho) ** 2)); p0 = float(yho.mean())
+        out[str(x)] = dict(p=float(predict(xf)[0]), brier=brier, noskill=p0 * (1 - p0), C=float(C))
+    json.dump(out, open(p, "w", encoding="utf-8"), indent=1)
+    return out
+
+
 def fig_field_base(B):
     plt = mpl()
     v4 = np.load(LIN_V4)
-    fig, axes = plt.subplots(2, 1, figsize=(7.2, 5.4), gridspec_kw=dict(hspace=0.2))
+    fig, axes = plt.subplots(2, 1, figsize=(7.2, 6.0), gridspec_kw=dict(hspace=0.5))
     ex, ez = wc.land_surface()
+    surf = lambda x: np.interp(x, ex, ez)
+    clip = lambda x, v: np.minimum(v, surf(x))                      # bands and medians clipped at the land surface
+    pres = lens_presence()
+    h = TX >= 130
     ax = axes[0]
-    b = v4["pooled_logmid"]; ok = b[0] >= 0.5
-    ax.fill_between(v4["x"], np.where(ok, b[2], np.nan), np.where(ok, b[3], np.nan), color="#e67e22", alpha=0.25, lw=0)
-    ax.plot(v4["x"], np.where(ok, b[1], np.nan), color="#e67e22", lw=1.3, label="linearised log-midpoint, λ-pooled: median, 90 %")
+    x4 = v4["x"]; b = v4["pooled_logmid"]; ok = b[0] >= 0.5
+    ax.fill_between(x4, np.where(ok, clip(x4, b[2]), np.nan), np.where(ok, clip(x4, b[3]), np.nan), color=COL["logmid"],
+                    alpha=0.2, lw=0)
+    ax.plot(x4, np.where(ok, clip(x4, b[1]), np.nan), color=COL["logmid"], lw=1.2,
+            label="linearised log-midpoint, λ-pooled: median, 90 %")
     lo, md, hi = np.percentile(B["Pf"], [5, 50, 95], 0)
-    ax.fill_between(TX, lo, hi, color="#1f4e9c", alpha=0.25, lw=0)
-    ax.plot(TX, md, color="#1f4e9c", lw=1.6, label="BEL-KDE (site + physical, prior v3): median, 90 %")
+    ax.fill_between(TX[h], clip(TX[h], lo[h]), clip(TX[h], hi[h]), color=COL["bel"], alpha=0.25, lw=0)
+    ax.plot(TX[h], clip(TX[h], md[h]), color=COL["bel"], lw=1.7, label="BEL-KDE (site + physical, prior v3): median, 90 %")
+    xs = np.array([100.0, 110.0, 120.0]); ps = [pres[str(int(x))]["p"] for x in xs]
+    ax.plot(xs, surf(xs) + 1.5, "v", color=COL["bel"], ms=4.5, mec="k", mew=0.4,
+            label=f"P(lens present), x = 100–120 m: {min(ps):.2f}")
     ax.plot(ex, ez, "k-", lw=0.8, label="land surface")
-    ax.set_xlim(-5, 510); ax.set_ylim(-32, 8); ax.set_aspect(3); dune_hatch(ax)
+    ax.set_xlim(-5, 510); ax.set_ylim(-32, 9); ax.set_aspect(3); dune_hatch(ax)
     ax.set_ylabel("Elevation (mTAW)"); ve_text(ax, 3)
     ax.set_title("Field lens base: BEL vs linearised")
-    legend_below(ax, ncol=2, dy=-0.12); panel(ax, "a")
+    legend_below(ax, ncol=2, dy=-0.14); panel(ax, "a")
     ax = axes[1]
-    colsb = ["#c0392b", "#8e44ad", "#16a085"]
-    for k, ((lo_, hi_), col) in enumerate(zip(B["bins"], colsb)):
-        l, m, h = np.percentile(B["Pbins"][k], [5, 50, 95], 0)
-        ax.fill_between(TX, l, h, color=col, alpha=0.18, lw=0)
-        ax.plot(TX, m, color=col, lw=1.4, label=f"ρ_below {lo_}–{hi_} Ω·m (held-out cov. {100*B['bins_cov'][k]:.0f} %)")
-    ax.plot(TX, md, "k--", lw=1.0, label="all ρ_below (panel a)")
+    styles = [("#b2182b", "-"), ("#1b9e77", "--"), ("#8c6d31", "-.")]
+    for k, ((lo_, hi_), (col, ls)) in enumerate(zip(B["bins"], styles)):
+        l, m, hh = np.percentile(B["Pbins"][k], [5, 50, 95], 0)
+        ax.fill_between(TX[h], clip(TX[h], l[h]), clip(TX[h], hh[h]), color=col, alpha=0.14, lw=0)
+        ax.plot(TX[h], clip(TX[h], m[h]), color=col, ls=ls, lw=1.5,
+                label=f"ρ_below {lo_}–{hi_} Ω·m (held-out cov. {100*B['bins_cov'][k]:.0f} %)")
+    ax.plot(TX[h], clip(TX[h], md[h]), color=COL["bel"], ls=":", lw=1.6, label="all ρ_below (panel a)")
     ax.plot(ex, ez, "k-", lw=0.8)
-    ax.set_xlim(-5, 510); ax.set_ylim(-32, 8); ax.set_aspect(3); dune_hatch(ax, label=False)
+    ax.set_xlim(-5, 510); ax.set_ylim(-32, 9); ax.set_aspect(3); dune_hatch(ax, label=False)
     ax.set_xlabel("Distance along profile (m)"); ax.set_ylabel("Elevation (mTAW)"); ve_text(ax, 3)
     ax.set_title("BEL lens base conditional on the resistivity of the water below the lens")
-    legend_below(ax, ncol=2, dy=-0.25); panel(ax, "b")
+    legend_below(ax, ncol=2, dy=-0.3); panel(ax, "b")
     save(fig, "F7_field_lens_base")
     fn, src = "bel_products / fig_field_base", "`data/processed/bel/v2/train`, `data/processed/bel_prior_v3/train` (site + physical subset)"
     rep = "results/stage6/1_prior_v3_refit.md"
@@ -898,9 +979,19 @@ def fig_salinity():
     for i, (key, cmap, ttl) in enumerate((("Psal", "Blues", "P(% seawater > 50)"),
                                           ("Pfresh", "Oranges", "P(EC25 < 1500 μS/cm) — fresh"))):
         ax = fig.add_subplot(gs[i])
-        M = np.where(z["Nv"] > 0.5 * z["base"].shape[0], z[key], np.nan)
+        M = np.where(z["Nv"] > 0, z[key], np.nan)
+        for j in range(M.shape[1]):                     # extend the top / bottom valid value of each column outward
+            col = M[:, j]; ok = np.where(np.isfinite(col))[0]
+            if ok.size:
+                col[:ok[0]] = col[ok[0]]; col[ok[-1] + 1:] = col[ok[-1]]
         pc = ax.pcolormesh(XG, ZG, np.ma.masked_invalid(M), cmap=cmap, norm=mcolors.Normalize(0, 1), shading="auto",
                            rasterized=True)
+        # smooth clip: median water table / land surface on top, median deep-unit top below (no cell stair-steps)
+        from matplotlib.patches import Polygon
+        top = np.minimum(np.interp(XG, ex, ez), np.median(z["par_z_wt"]))
+        clip_poly = Polygon(np.column_stack([np.r_[XG, XG[::-1]], np.r_[top, np.full_like(XG, np.median(z["par_z_deep"]))]]),
+                            closed=True, facecolor="none", edgecolor="none", transform=ax.transData)
+        ax.add_patch(clip_poly); pc.set_clip_path(clip_poly)
         ax.plot(ex, ez, "k-", lw=0.8)
         ax.set_xlim(-5, 510); ax.set_ylim(-45, 9); ax.set_aspect(3); dune_hatch(ax)
         ax.set_ylabel("Elevation (mTAW)"); ve_text(ax, 3)
@@ -930,8 +1021,6 @@ def fig_salinity():
     ax.set_xscale("log"); ax.set_xlim(0.3, 120); ax.set_xlabel("% seawater (median; 50 % and 90 % intervals)")
     ax.set_title(f"Per-unit salinity (ρ_sw {sm['rsw']['min']:.3f}–{sm['rsw']['max']:.3f} Ω·m tied to T; "
                  "draws > 100 % seawater rejected)")
-    fig.text(0.5, 0.005, "Maps: cells shown where saturated in > 50 % of the joint BEL samples; V.E. 3×; grey hatch: dune "
-             "zone x < 90 m, weakly constrained.", ha="center", fontsize=6.3)
     panel(ax, "c")
     save(fig, "F8_salinity")
     # appendix A1: isohaline vs parametric base
@@ -1166,11 +1255,142 @@ def tables(B, summ):
 
 
 # ─────────────────────────────────────────────────────────────────────────────
+# ─────────────────────────────────────────────────────────────────────────────
+# numbers added in v1.0.1 (appended after all v1.0 numbers so that existing rows keep their position)
+# ─────────────────────────────────────────────────────────────────────────────
+def extra_numbers():
+    import scipy.linalg as sla
+    fn = "extra_numbers"
+    F = run_npz("deep_all")
+    NUM.add("run_F_chi2", f"{float(F['chi2']):.4f}", "run F (all 2331 data, λ = 20, paraDepth 60 m): χ² (log space)", fn,
+            "`data/processed/runs/deep_all`", ref=("results/deep_all_misfit_report.txt", "chi2 (log space)", f"{float(F['chi2']):.4f}"))
+    Au = run_npz("deep_auto")
+    NUM.add("auto_depth_chi2", f"{float(Au['chi2']):.2f} (paraDepth {float(Au['para_depth_used']):.0f} m)",
+            "run with pyGIMLi's automatic mesh depth (all data, λ = 20, paraDX 0.33): χ² (log space)", fn,
+            "`data/processed/runs/deep_auto`",
+            ref=("data/processed/runs/deep_auto/westhoek_inversion_results.npz", "npz:chi2:.2f", f"{float(Au['chi2']):.2f}"))
+    ref = run_npz("g1_lam50")
+    L_, A_, _, _ = wc.cholesky_A(ref)
+    Z = np.random.default_rng(20260927).standard_normal((A_.shape[0], 1000))      # = 09_posterior_sampling.py, first draw
+    ratio = sla.solve_triangular(L_, Z, lower=True, trans="T").std(axis=1, ddof=1) / ref["sigma_log_m"]
+    rep9 = "results/runs/g1_lam50_v3/posterior_sampling_report.txt"
+    NUM.add("posterior_samples", "1000 per run (seed 20260927); 5000 pooled over λ = 5, 10, 20, 50, 100",
+            "linearised posterior samples (Cholesky of A = JᵀWd²J + λCᵀC)", fn, "`data/processed/runs/g1_lam*`",
+            ref=(rep9, "Samples:", "Samples: 1000, seed 20260927"))
+    NUM.add("posterior_std_check", f"{np.median(ratio):.4f} (min {ratio.min():.4f}, max {ratio.max():.4f})",
+            "sample std / √diag(A⁻¹) per cell, g1_lam50 (median, range)", fn, "`data/processed/runs/g1_lam50`",
+            ref=(rep9, "CHECK sample std", f"median {np.median(ratio):.4f}, min {ratio.min():.4f}, max {ratio.max():.4f}"))
+    spec = sb.load_spec()
+    for t in ("T1", "T1h"):
+        v = spec["values"][t]
+        row = " | ".join(f"{v[k]:.2f}" for k in ("cap", "fresh", "lens", "brackish", "discharge", "deep"))
+        NUM.add(f"truth_rho_{t}", row.replace(" | ", " / "), f"synthetic truth {t}: ρ of cap / fresh aquifer / lens / "
+                "brackish / discharge / deep (Ω·m)" + ("; T2a–T6 use the T1 values" if t == "T1" else ""), fn,
+                "`data/processed/synthetic/truth_spec.json`", ref=("results/synthetic/truth_models.md", f"| {t} |", f"| {t} | {row} |"))
+    import pygimli.meshtools as mt
+    scheme = b13.pilot.build_scheme()
+    with contextlib.redirect_stdout(io.StringIO()):
+        nf = mt.createParaMesh(scheme.sensors(), **sb.FWD).cellCount()
+        nm = mt.createParaMesh(scheme.sensors(), **b13.MESH["medium"]).cellCount()
+    NUM.add("fwd_mesh_cells_fine", f"{nf:,}".replace(",", " "), "fine forward mesh (synthetic truths, dual prior samples, "
+            "forward-accuracy check): cells", fn, "pyGIMLi createParaMesh with 10_synthetic_benchmark.FWD",
+            ref=("results/bel_v3/3_forward_accuracy.md", "fine forward mesh", f"{nf:,}".replace(",", " ") + " cells"))
+    NUM.add("fwd_mesh_cells_medium", f"{nm:,}".replace(",", " "), "medium forward mesh (BEL prior samples): cells", fn,
+            "pyGIMLi createParaMesh with 13_bel_full.MESH['medium']")
+    pres = lens_presence()
+    for x in (100, 110, 120):
+        v = pres[str(x)]
+        NUM.add(f"lens_present_x{x}", f"{v['p']:.2f} (held-out Brier {v['brier']:.3f} vs no-skill {v['noskill']:.3f})",
+                f"P(lens present | field) at x = {x} m (Gate-A classifier, prior v2)", "lens_presence",
+                "`data/processed/bel/v2/train`",
+                ref=("results/bel_v3/2_nuisance.md", f"lens present at x = {x} m",
+                     f"| {v['brier']:.3f} | {v['noskill']:.3f} | {1 - v['brier']/v['noskill']:+.2f} | {v['p']:.2f} |"))
+    gps = read_gps()
+    brg = lambda a, b: np.degrees(np.arctan2(gps[b][0] - gps[a][0], gps[b][1] - gps[a][1])) % 360
+    bl, bm = brg(1, 102), brg(103, 538)
+    u = np.array([np.sin(np.radians(bl)), np.cos(np.radians(bl))]); nvec = np.array([u[1], -u[0]])
+    off = [float(np.dot(np.array(gps[e][:2]) - np.array(gps[1][:2]), nvec)) for e in (103, 538)]
+    NUM.add("marine_line_geometry", f"bearings {bl:.1f}° (land) vs {bm:.1f}° (marine), difference {abs(bm - bl):.1f}°; "
+            f"marine end points {abs(off[0]):.0f} m and {abs(off[1]):.0f} m off the land line",
+            "land (electrodes 1–102) vs marine profile (103–538) geometry: not collinear", fn, "`data/raw/GPS_coordinate.xlsx`")
+    z = np.load(os.path.join(DS6, "field_v2.npz"))
+    dis = (z["XG"] >= 330)[None, :] & (z["Nv"] > 0.5 * z["base"].shape[0])
+    NUM.add("pfresh_cell_max_discharge", f"{np.nanmax(np.where(dis, z['Pfresh'], np.nan)):.2f}",
+            "largest cell-wise P(EC25 < 1500 μS/cm) at x ≥ 330 m (the unit value P(fresh) of the discharge water is "
+            "`unit_dis`)", fn, "`data/processed/stage6_v2/field_v2.npz`")
+
+
+def captions():
+    """results/paper/captions.md — one caption per figure; numbers taken from the registry (numbers.md)."""
+    N = {r["key"]: r["value"] for r in NUM.rows}
+    g = lambda k: N[k]
+    ts = {k[len("bel_truth_"):]: v for k, v in N.items() if k.startswith("bel_truth_")}
+    C = ["# Figure captions (v1.0.1)", "",
+         "Numbers are those of `results/paper/numbers.md` (key in brackets where it helps). Blue = conductive throughout; "
+         "the dune zone x < 90 m is hatched as weakly constrained; V.E. is stated in every section.", ""]
+    C += ["**Figure 1.** Westhoek site (De Panne, Belgium). (a) Land ERT profile — "
+          f"{g('n_electrodes')} electrodes at {g('electrode_spacing_m')} m spacing over {g('profile_length_m')} m, multiple-gradient "
+          f"array at low tide (−0.15 mTAW), {g('n_quadrupoles')} quadrupoles — and the marine profile (floating electrodes, "
+          f"high tide {g('h_high_tide_mTAW')} mTAW). The marine line is not collinear with the land line "
+          f"({g('marine_line_geometry')}); only the land data are inverted here. Inset: location on the southern North Sea "
+          "coast (schematic coastline and borders). Wells K0 and K1 (Paepen et al. 2020) will be added once located. "
+          f"(b) Topography, electrodes and survey-day water levels; high-water line at x = {g('x_high_water_m')} m; spring "
+          "tidal range ≈ 5 m (field description). V.E. 10×.", ""]
+    C += ["**Figure 2.** Outlier diagnostics. (a) Share of per-datum outliers among the data using each electrode, run F "
+          f"(all data, λ = 20, χ² = {g('run_F_chi2')}); outliers are |r| > 3·1.4826·MAD = {g('outlier_threshold')} of the "
+          f"normalised log residuals r ({g('n_outliers').replace(' (', ' data, ').rstrip(')')} of all data); red = the 11 flagged electrodes whose data G2 drops; shaded = "
+          "intertidal zone. (b) G1 model (outlier data dropped) with the log-midpoint lens base of G1 (solid) and G2 "
+          f"(flagged electrodes dropped; dashed), x = 130–450 m; median / max difference {g('G2_vs_G1_base')}. Both are shown "
+          "at **λ = 20**, the λ of the outlier-treatment comparison (the reference model uses λ = 50). Hatched: resolution "
+          "radius r > 10 m. V.E. 3×.", ""]
+    C += [f"**Figure 3.** Reference model g1_lam50 (G1 data, {g('ref_n_cells')} cells, λ = {g('ref_lambda')}, χ² = "
+          f"{g('ref_chi2')} after {g('ref_n_iter')} iterations) with resolution-radius contours r = 10 m and 15 m "
+          f"(Friedel 2003). Cells within 30 m of the surface with r ≤ 10 m: {g('ref_share_r10_top30')}. V.E. 3×.", ""]
+    C += ["**Figure 4.** Linearised uncertainty. (a) P(ρ < 3 Ω·m) from linearised posterior samples "
+          f"({g('posterior_samples')}; sample std / √diag(A⁻¹) = {g('posterior_std_check')}), pooled over λ = 5–100; "
+          "hatched r > 10 m. (b) Lens base, λ-pooled median and 90 % band for the 3 Ω·m contour (orange) and the "
+          "log-midpoint definition (blue), x = 130–450 m. V.E. 3×.", ""]
+    C += ["**Figure 5.** Synthetic benchmark (truths T1, T1h, T2a, T3; 20 noise realisations; truth resistivities "
+          f"T1 {g('truth_rho_T1')} Ω·m, T1h {g('truth_rho_T1h')} Ω·m for cap / fresh / lens / brackish / discharge / deep; "
+          f"fine forward mesh of {g('fwd_mesh_cells_fine')} cells). (a) Coverage of the 90 % bands by interface "
+          "definition at λ = 50 (bars) and λ-pooled (ticks), grouped by resolution radius at the estimated base. (b) "
+          "Median bias (dots: individual truths). (c, d) Coverage and bias vs λ. (e, f) Reliability of P(ρ < 3 Ω·m).", ""]
+    C += ["**Figure 6.** BEL calibration (site + physical subset of prior v3, "
+          f"{g('bel_n_train_site_phys')} training / held-out samples). (a) Three prior samples (black: lens-base target). (b) "
+          f"Prior falsification of the field data among the training samples: percentile {g('falsify_t2_pct')} for T², "
+          f"{g('falsify_t2_robust_pct')} for robust T² and {g('falsify_q_pct')} for Q (none beyond P99). (c) Held-out rank histogram of the true lens base; "
+          f"(d) held-out coverage per column ({g('bel_heldout_coverage')} overall). The excess at rank ≈ 1 and the deficit at "
+          "0.7–0.95 mean the true base lies above (shallower than) the posterior more often than nominal: the conditional "
+          "bias of the non-unique data–target relation, also seen on the Stage-4 truths and the BEL-builder twin (coverage / "
+          f"bias / width: T1 {ts.get('T1', '—')}, twin {ts.get('twin_own_target_', '—')}; Table T2); accepted and reported "
+          "alongside the intervals (decision log).", ""]
+    C += ["**Figure 7.** Field lens base. (a) BEL-KDE (site + physical, prior v3; purple, from x = 130 m) and the linearised "
+          "log-midpoint band (blue, λ-pooled); bands and medians are clipped at the land surface. Triangles: P(lens present) "
+          f"at x = 100, 110, 120 m = {g('lens_present_x100').split(' ')[0]}, {g('lens_present_x110').split(' ')[0]}, "
+          f"{g('lens_present_x120').split(' ')[0]} (Gate-A classifier). (b) BEL lens base conditional on the resistivity of "
+          "the water below the lens (ρ_below bins; line style per bin). V.E. 3×.", ""]
+    C += ["**Figure 8.** Salinity (joint BEL + Archie; ρ_sw tied to temperature; draws with > 100 % seawater rejected). "
+          "(a) Cell-wise P(% seawater > 50) and (b) cell-wise P(EC25 < 1500 μS/cm), shown from the median water table / land "
+          "surface down to the median deep-unit top. (c) Per-unit % seawater (median, 50 % and 90 % intervals) with the "
+          "unit probabilities. **Cell vs unit:** the unit value P(fresh) of the discharge-zone water "
+          f"(unit_dis: {g('unit_dis').split('; ')[-1]}) is the probability that the discharge water is fresh; the map shows, per "
+          "cell, the probability that the cell lies in fresh water, which is lower (at most "
+          f"{g('pfresh_cell_max_discharge')} at x ≥ 330 m) because the extent and position of the discharge body are "
+          "uncertain. V.E. 3×.", ""]
+    C += ["**Figure A1.** 50 % seawater isohaline vs the parametric (joint BEL) lens base; equal by construction where the "
+          "lens exceeds 50 % seawater (homogeneous lens resistivity, sharp base). V.E. 3×.", ""]
+    with open(os.path.join(RESP, "captions.md"), "w", encoding="utf-8") as f:
+        f.write("\n".join(C) + "\n")
+    print("[captions] written", flush=True)
+
+
 PARTS = ("F1", "F2", "F3", "F4", "F5", "F6", "F7", "F8", "T")
+RECOMPUTE = False
 
 
 def cmd_all(args):
-    global FIGP, RESP, DPAP, DS6
+    global FIGP, RESP, DPAP, DS6, RECOMPUTE
+    RECOMPUTE = bool(args.recompute)
     t0 = time.time()
     root = os.path.abspath(args.out)
     FIGP = os.path.join(root, "figures", "paper"); RESP = os.path.join(root, "results", "paper")
@@ -1191,7 +1411,9 @@ def cmd_all(args):
     if "F8" in only: fig_salinity()
     if "T" in only: tables(B, summ)
     if only == set(PARTS):
+        extra_numbers()
         NUM.write(RESP)
+        captions()
         print(f"[numbers] {len(NUM.rows)} numbers → {os.path.join(RESP, 'numbers.md')}")
     print(f"[18_paper] done in {time.time() - t0:.0f} s")
 

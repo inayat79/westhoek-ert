@@ -49,6 +49,8 @@ RAW_STEPS = [
     ("01", ["01_data_exploration.py"], "1 min", False),
     ("02-F", ["02_land_inversion.py", "--tag", "deep_all", "--para-depth", "60", "--para-dx", "0.33", "--err-rel", "0.03",
               "--lam", "20", "--max-iter", "30", "--verify"], "2 min", True),
+    ("02-Fauto", ["02_land_inversion.py", "--tag", "deep_auto", "--para-dx", "0.33", "--err-rel", "0.03", "--lam", "20",
+                  "--max-iter", "30"], "2.3 min", True),
     ("04-F", ["04_misfit_diagnostics.py", "--tag", "deep_all"], "0.5 min", True),
     ("05-F", ["05_outlier_characterisation.py", "--tag", "deep_all"], "0.5 min", True),
     ("02-G1", ["02_land_inversion.py", "--tag", "deep_drop_data", "--para-depth", "60", "--para-dx", "0.33", "--err-rel", "0.03",
@@ -126,7 +128,7 @@ RAW_STEPS = [
 # ─────────────────────────────────────────────────────────────────────────────
 # provenance: which --from-raw step writes each file (pattern on the project-relative path)
 # ─────────────────────────────────────────────────────────────────────────────
-RUN_STEP = {"deep_all": "02-F", "deep_drop_data": "02-G1", "deep_drop_elec": "02-G2", "deep_downweight": "02-G3",
+RUN_STEP = {"deep_all": "02-F", "deep_auto": "02-Fauto", "deep_drop_data": "02-G1", "deep_drop_elec": "02-G2", "deep_downweight": "02-G3",
             "g1_lam5": "02-lam5", "g1_lam10": "02-lam10", "g1_lam50": "02-lam50", "g1_lam100": "02-lam100",
             "g1b_thr299": "02-G1b"}
 PRODUCERS = [   # (regex, step id or callable(match) → step id, script, evidence token that must occur in the script)
@@ -141,7 +143,10 @@ PRODUCERS = [   # (regex, step id or callable(match) → step id, script, eviden
     (r"^results/deep_all_G3_err_scale\.txt$", "05-F", "05_outlier_characterisation.py", "G3_err_scale"),
     (r"^results/deep_all_outlier_characterisation\.txt$", "05-F", "05_outlier_characterisation.py", "outlier_characterisation"),
     (r"^results/bel_v3/g1b_droplist_thr299\.txt$", "G1b-list", "run_all.py", "g1b_droplist_thr299"),
-    (r"^results/runs/g1_lam50_v3/posterior_interface_bands\.npz$", "09", "09_posterior_sampling.py", "posterior_interface_bands"),
+    (r"^results/runs/g1_lam50_v3/posterior_(interface_bands\.npz|sampling_report\.txt)$", "09", "09_posterior_sampling.py",
+     "posterior_interface_bands"),
+    (r"^results/synthetic/truth_models\.md$", "10-spec", "10_synthetic_benchmark.py", "truth_models.md"),
+    (r"^results/bel_v3/2_nuisance\.md$", "14-nuisance", "14_gateA_sensitivity.py", "2_nuisance.md"),
     (r"^results/runs/g1_lam50_v4/interface_definitions_(bands\.npz|report\.md)$", "11-a4", "11_stage4_closeout.py", "interface_definitions_bands"),
     (r"^data/processed/synthetic/truth_spec\.json$", "10-spec", "10_synthetic_benchmark.py", "truth_spec.json"),
     (r"^data/processed/synthetic/truth_forward\.npz$", "10-build", "10_synthetic_benchmark.py", "truth_forward.npz"),
