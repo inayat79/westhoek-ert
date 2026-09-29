@@ -20,6 +20,12 @@ a new, dated follow-up entry.**
 | **E5** | In the petrophysics sensitivity, the spread of unit medians across P1–P5 exceeds the width of the P0 90 % interval for at least one unit. |
 | check | P0 (the v1.0 petrophysics) must reproduce v1.0 numbers 101–104 (`unit_lens`, `unit_below`, `unit_dis`, `unit_dune`) exactly; otherwise stop and report. |
 
+## Follow-up entries
+
+| date | id | entry |
+|---|---|---|
+| 2026-09-30 | v1.1-1 | Implementation details fixed while writing the scripts, before their results were seen: linearised posterior samples of the synthetic inversions use `default_rng([134050, truth, seed, λ])`; `11_stage4_closeout.a2_job` got keyword arguments (truth data, noise function, output path, λ list, posterior seed, saving the λ = 50 model and the noisy data) whose defaults reproduce v1.0 — checked by re-running the v1.0 job T1 r00 (`results/v1_1/1_lebbe1980_synthetic.md`). Petrophysics P5: EC25 by linear mixing of the two end-member EC25 values, EC25_e = 10⁴/ρ_e/(1 + 0.02(T − 25)) with T ~ U(8, 14) °C, seed `default_rng([135000, 5])` (reduces to the v1.0 seawater-only mixing when EC25_fresh → 0). The P0 reproduction check passed (accepted draws identical to `field_v2.npz`; numbers 101–104 identical). |
+
 ## Analysis choices fixed before running (Task 1)
 
 - **Truth geometry.** Boundaries of `data/external/lebbe1981_K1_digitised.csv` interpolated linearly in x between the
