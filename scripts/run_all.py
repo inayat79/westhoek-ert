@@ -46,6 +46,7 @@ PY = sys.executable
 
 # (step id, argv, expected runtime, needed for the paper)
 RAW_STEPS = [
+    ("NE", ["<internal:natural_earth>"], "1 min (download)", True),
     ("01", ["01_data_exploration.py"], "1 min", False),
     ("02-F", ["02_land_inversion.py", "--tag", "deep_all", "--para-depth", "60", "--para-dx", "0.33", "--err-rel", "0.03",
               "--lam", "20", "--max-iter", "30", "--verify"], "2 min", True),
@@ -133,6 +134,7 @@ RUN_STEP = {"deep_all": "02-F", "deep_auto": "02-Fauto", "deep_drop_data": "02-G
             "g1b_thr299": "02-G1b"}
 PRODUCERS = [   # (regex, step id or callable(match) → step id, script, evidence token that must occur in the script)
     (r"^data/raw/", "raw input", None, None),
+    (r"^data/external/natural_earth/ne_10m_", "NE", "run_all.py", "natural_earth"),
     (r"^data/processed/runs/([^/]+)/westhoek_inversion_results\.npz$", lambda m: RUN_STEP.get(m.group(1)),
      "02_land_inversion.py", "westhoek_inversion_results.npz"),
     (r"^results/deep_all_droplist\.txt$", "04-F", "04_misfit_diagnostics.py", "_droplist.txt"),
@@ -241,6 +243,31 @@ def audit(out):
     return not orphans and not bad
 
 
+NE_LAYERS = [("physical", "coastline"), ("physical", "land"), ("cultural", "admin_0_boundary_lines_land")]
+
+
+def fetch_natural_earth(root):
+    """Natural Earth 1:10m layers for the F1 location inset → <root>/data/external/natural_earth/ (public domain;
+    downloaded through cartopy's natural_earth() from its standard source, then copied with all sidecar files)."""
+    import glob
+    from cartopy.io import shapereader
+    import cartopy
+    dst = os.path.join(root, "data", "external", "natural_earth")
+    os.makedirs(dst, exist_ok=True)
+    got = []
+    for cat, name in NE_LAYERS:
+        shp = shapereader.natural_earth(resolution="10m", category=cat, name=name)
+        for f in glob.glob(os.path.splitext(shp)[0] + ".*"):
+            shutil.copy2(f, dst); got.append(os.path.basename(f))
+    with open(os.path.join(dst, "README.md"), "w", encoding="utf-8", newline="\n") as f:
+        f.write("# Natural Earth 1:10m layers (F1 location inset)\n\n"
+                "Source: Natural Earth (https://www.naturalearthdata.com), public domain — credit: 'Made with Natural Earth'.\n"
+                f"Layers: {', '.join(f'ne_10m_{n} ({c})' for c, n in NE_LAYERS)}.\n"
+                f"Fetched with cartopy {cartopy.__version__} (cartopy.io.shapereader.natural_earth) by run_all.py "
+                "(step NE); files copied unchanged.\n\nFiles: " + ", ".join(sorted(got)) + "\n")
+    print(f"[natural earth] {len(got)} files → {dst}")
+
+
 def g1b_droplist(root):
     """G1b drop-list: run F's normalised log residuals |r| > 2.99 (fixed Stage-4 threshold) instead of 2.495."""
     import numpy as np
@@ -337,6 +364,8 @@ def check(out):
 
 
 DIFF_REASONS = [   # (key prefix, reason) — first match wins
+    ("lens_present", "recomputed with the v1.0 headline training set (site + physical, prior v3) instead of the "
+                     "Gate-A prior-v2 classifier"),
     ("bel_base_site_only", "pre-freeze (site-only) headline, kept for comparison"),
     ("physical_filter", "new: physical-filter comparison (site + physical vs site only)"),
     ("second_bel", "new: second BEL refitted on the site + physical subset and added to the paper numbers"),
@@ -355,7 +384,7 @@ DIFF_REASONS = [   # (key prefix, reason) — first match wins
 ]
 
 
-def diff(old_json):
+def diff(old_json, title=None):
     new_p = os.path.join(ROOT, "results", "paper", "numbers.json")
     import re
     norm = lambda k: re.sub(r"_n_\d+$", "", k)       # pre-freeze keys embedded bin sample counts ("(n = 573)")
@@ -367,7 +396,7 @@ def diff(old_json):
     added = [k for k in new if k not in old]; removed = [k for k in old if k not in new]
     same = [k for k in new if k in old and new[k]["value"] == old[k]["value"]]
     refs = [k for k in same if (new[k].get("ref") or [None])[0] != (old[k].get("ref") or [None])[0]]
-    L = ["# Numbers diff — v1.0 freeze (physical filter)", "",
+    L = [f"# Numbers diff — {title or 'v1.0 freeze (physical filter)'}", "",
          f"Old: `{os.path.relpath(old_json, ROOT)}`; new: `results/paper/numbers.json`. {len(changed)} changed, "
          f"{len(added)} added, {len(removed)} removed, {len(same)} unchanged.", "",
          "## Changed", "", "| key | quantity | old | new | why |", "|---|---|---|---|---|"]
@@ -375,7 +404,7 @@ def diff(old_json):
     L += ["", "## Added", "", "| key | quantity | value | why |", "|---|---|---|---|"]
     L += [f"| `{k}` | {esc(new[k]['desc'])} | {esc(new[k]['value'])} | {why(k)} |" for k in added]
     chk = os.path.join(ROOT, "results", "paper", "rho_lens_bound_check.md")
-    if os.path.exists(chk):
+    if os.path.exists(chk) and any(k.startswith(("unit_lens", "second_bel_rho_lens")) for k in changed + added):
         body = open(chk, encoding="utf-8").read().split("\n", 2)[2]
         L += ["", "## ρ_lens transform bound: why it stays at 0.4 Ω·m", "",
               "A first v1.0 build also raised the ρ_lens logit bound of the joint and second BEL to the physical value "
@@ -445,6 +474,8 @@ def from_raw(out, execute, until):
         print(f"[{sid}] expected {rt}", flush=True)
         if argv[0] == "<internal:g1b_droplist>":
             g1b_droplist(out)
+        elif argv[0] == "<internal:natural_earth>":
+            fetch_natural_earth(out)
         else:
             run(argv, cwd, log)
         if until and sid == until:
@@ -457,10 +488,12 @@ def main():
     g.add_argument("--from-cache", action="store_true"); g.add_argument("--from-raw", action="store_true")
     g.add_argument("--check", action="store_true"); g.add_argument("--audit", action="store_true")
     g.add_argument("--diff", default=None, metavar="OLD_JSON")
+    g.add_argument("--fetch-natural-earth", action="store_true")
     ap.add_argument("--out", default=None)
     ap.add_argument("--no-check", action="store_true")
     ap.add_argument("--execute", action="store_true")
     ap.add_argument("--until", default=None)
+    ap.add_argument("--diff-title", default=None, help="title of the numbers diff (default: the v1.0 freeze diff)")
     a = ap.parse_args()
     if a.from_cache:
         from_cache(a.out or ROOT, not a.no_check)
@@ -469,7 +502,9 @@ def main():
             raise SystemExit("--from-raw needs --out")
         from_raw(a.out, a.execute, a.until)
     elif a.diff:
-        diff(os.path.abspath(a.diff))
+        diff(os.path.abspath(a.diff), a.diff_title)
+    elif a.fetch_natural_earth:
+        fetch_natural_earth(os.path.abspath(a.out) if a.out else ROOT)
     elif a.audit:
         if not a.out:
             raise SystemExit("--audit needs --out")

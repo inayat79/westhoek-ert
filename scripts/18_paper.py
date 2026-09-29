@@ -197,26 +197,36 @@ def lambert72_to_lonlat(x, y):
     return float(np.degrees(np.arctan2(dx, dy) / n + lam0)), float(np.degrees(phi))
 
 
-# schematic coastline and borders (approximate, hand-digitised; location inset only)
-COAST = [(1.60, 50.87), (1.72, 50.93), (1.86, 50.96), (2.13, 51.01), (2.37, 51.05), (2.546, 51.09), (2.73, 51.15),
-         (2.92, 51.23), (3.13, 51.32), (3.29, 51.35), (3.37, 51.37), (3.55, 51.41), (3.60, 51.44), (3.90, 51.42)]
-BORDERS = [[(2.546, 51.09), (2.60, 51.00), (2.64, 50.85)], [(3.37, 51.37), (3.53, 51.28), (3.90, 51.22)]]
+NE_DIR = os.path.join(PROJ, "data", "external", "natural_earth")      # fetched by run_all.py (step NE)
+INSET_EXTENT = (1.6, 3.9, 50.8, 51.62)                                 # lon min, lon max, lat min, lat max
+
+
+def ne_geoms(name):
+    """Natural Earth 1:10m geometries (ne_10m_<name>) clipped to the inset extent (+0.5° margin)."""
+    from cartopy.io import shapereader
+    from shapely.geometry import box
+    path = os.path.join(NE_DIR, f"ne_10m_{name}.shp")
+    if not os.path.exists(path):
+        raise SystemExit(f"{path} missing — run `run_all.py --fetch-natural-earth` (step NE)")
+    bb = box(INSET_EXTENT[0] - 0.5, INSET_EXTENT[2] - 0.5, INSET_EXTENT[1] + 0.5, INSET_EXTENT[3] + 0.5)
+    return [g.intersection(bb) for g in shapereader.Reader(path).geometries() if g.intersects(bb)]
 
 
 def location_inset(ax, lon, lat):
-    ins = ax.inset_axes([0.02, 0.02, 0.40, 0.36])
-    cx, cy = zip(*COAST)
-    ins.fill(list(cx) + [3.90, 1.60], list(cy) + [50.80, 50.80], color="#efe6cf", lw=0)
-    ins.plot(cx, cy, color="0.35", lw=0.7)
-    for b in BORDERS:
-        bx, by = zip(*b); ins.plot(bx, by, color="0.35", lw=0.6, ls="--")
-    ins.plot(lon, lat, "*", color="#c0392b", ms=8, mec="k", mew=0.4)
-    for tx, ty, lab in ((2.05, 50.88, "FR"), (3.15, 51.02, "BE"), (3.62, 51.29, "NL")):
-        ins.text(tx, ty, lab, fontsize=6, color="0.25")
-    ins.text(2.35, 51.42, "North Sea", fontsize=6, style="italic", color="#1f4e9c")
-    ins.set_xlim(1.60, 3.90); ins.set_ylim(50.80, 51.62); ins.set_aspect(1 / np.cos(np.radians(51.2)))
-    ins.set_xticks([]); ins.set_yticks([]); ins.set_facecolor("#dbe9f6")
-    ins.set_title("location (schematic)", fontsize=5.8, pad=1.5)
+    import cartopy.crs as ccrs
+    pc = ccrs.PlateCarree()
+    ins = ax.inset_axes([0.02, 0.02, 0.40, 0.36], projection=ccrs.Mercator())
+    ins.set_extent(INSET_EXTENT, crs=pc)
+    ins.set_facecolor("#dbe9f6")
+    ins.add_geometries(ne_geoms("land"), crs=pc, facecolor="#efe6cf", edgecolor="none", zorder=1)
+    ins.add_geometries(ne_geoms("coastline"), crs=pc, facecolor="none", edgecolor="0.3", linewidth=0.6, zorder=2)
+    ins.add_geometries(ne_geoms("admin_0_boundary_lines_land"), crs=pc, facecolor="none", edgecolor="0.3",
+                       linewidth=0.6, linestyle="--", zorder=2)
+    ins.plot(lon, lat, "*", color="#c0392b", ms=8, mec="k", mew=0.4, transform=pc, zorder=3)
+    for tx, ty, lab in ((2.05, 50.88, "FR"), (3.10, 51.02, "BE"), (3.52, 51.31, "NL")):
+        ins.text(tx, ty, lab, fontsize=6, color="0.25", transform=pc, zorder=3)
+    ins.text(2.25, 51.42, "North Sea", fontsize=6, style="italic", color="#1f4e9c", transform=pc, zorder=3)
+    ins.set_title("location", fontsize=5.8, pad=1.5)
     return ins
 
 
@@ -867,22 +877,26 @@ def fig_bel_calibration(B):
 
 
 def lens_presence():
-    """P(lens present) at x = 100–120 m: the Gate-A classifier (prior v2, 14_gateA_sensitivity.cmd_nuisance) reproduced —
-    x_L is not affected by the site / physical filters. Cached in DPAP/lens_presence_v2.json."""
-    p = os.path.join(DPAP, "lens_presence_v2.json")
+    """P(lens present) at x = 100–120 m with the v1.0 headline training set (site + physical subset of prior v3):
+    cross-validated L2 logistic regression (14_gateA_sensitivity.logistic_cv, folds seed CV_SEED) on the whitened
+    data-PC scores of the base-only BEL; label x_L ≤ x. Held-out Brier on the site + physical held-out set.
+    Cached in DPAP/lens_presence_site_phys.json."""
+    p = os.path.join(DPAP, "lens_presence_site_phys.json")
     if os.path.exists(p) and not RECOMPUTE:
         return json.load(open(p, encoding="utf-8"))
-    A = g14.load_all(); bel = b13.BEL(A["Dtr"], A["Ttr"])
+    s6.init(); s6.TX = TX
+    C = s6.load_combined(physical=True)
+    bel = b13.BEL(C["tr"]["D"], C["tr"]["T"])
     obs, _ = b13.observed_sets()
     sd = np.sqrt(bel.Sd.var(0, ddof=1))
-    Xtr = bel.Sd / sd; Xho = bel.pd.fwd(A["Dho"]) / sd; xf = bel.pd.fwd(obs["field"]) / sd
-    thtr = [A["th"][i] for i in A["ktr"]]; thho = [A["th"][i] for i in A["kho"]]
+    Xtr = bel.Sd / sd; Xho = bel.pd.fwd(C["ho"]["D"]) / sd; xf = bel.pd.fwd(obs["field"]) / sd
     out = {}
     for x in (100, 110, 120):
-        ytr = np.array([float(t["x_L"] <= x) for t in thtr]); yho = np.array([float(t["x_L"] <= x) for t in thho])
-        predict, C, _ = g14.logistic_cv(Xtr, ytr)
+        ytr = np.array([float(t["x_L"] <= x) for t in C["tr"]["th"]]); yho = np.array([float(t["x_L"] <= x) for t in C["ho"]["th"]])
+        predict, Cc, _ = g14.logistic_cv(Xtr, ytr)
         ph = predict(Xho); brier = float(np.mean((ph - yho) ** 2)); p0 = float(yho.mean())
-        out[str(x)] = dict(p=float(predict(xf)[0]), brier=brier, noskill=p0 * (1 - p0), C=float(C))
+        out[str(x)] = dict(p=float(predict(xf)[0]), brier=brier, noskill=p0 * (1 - p0), C=float(Cc),
+                           n_train=int(len(ytr)), n_held=int(len(yho)))
     json.dump(out, open(p, "w", encoding="utf-8"), indent=1)
     return out
 
@@ -1301,10 +1315,9 @@ def extra_numbers():
     for x in (100, 110, 120):
         v = pres[str(x)]
         NUM.add(f"lens_present_x{x}", f"{v['p']:.2f} (held-out Brier {v['brier']:.3f} vs no-skill {v['noskill']:.3f})",
-                f"P(lens present | field) at x = {x} m (Gate-A classifier, prior v2)", "lens_presence",
-                "`data/processed/bel/v2/train`",
-                ref=("results/bel_v3/2_nuisance.md", f"lens present at x = {x} m",
-                     f"| {v['brier']:.3f} | {v['noskill']:.3f} | {1 - v['brier']/v['noskill']:+.2f} | {v['p']:.2f} |"))
+                f"P(lens present | field) at x = {x} m (site + physical classifier, prior v3; {v['n_train']} / "
+                f"{v['n_held']} training / held-out)", "lens_presence",
+                "`data/processed/bel/v2/train`, `data/processed/bel_prior_v3/train` (site + physical subset)")
     gps = read_gps()
     brg = lambda a, b: np.degrees(np.arctan2(gps[b][0] - gps[a][0], gps[b][1] - gps[a][1])) % 360
     bl, bm = brg(1, 102), brg(103, 538)
@@ -1325,7 +1338,7 @@ def captions():
     N = {r["key"]: r["value"] for r in NUM.rows}
     g = lambda k: N[k]
     ts = {k[len("bel_truth_"):]: v for k, v in N.items() if k.startswith("bel_truth_")}
-    C = ["# Figure captions (v1.0.1)", "",
+    C = ["# Figure captions (v1.0.2)", "",
          "Numbers are those of `results/paper/numbers.md` (key in brackets where it helps). Blue = conductive throughout; "
          "the dune zone x < 90 m is hatched as weakly constrained; V.E. is stated in every section.", ""]
     C += ["**Figure 1.** Westhoek site (De Panne, Belgium). (a) Land ERT profile — "
@@ -1333,7 +1346,7 @@ def captions():
           f"array at low tide (−0.15 mTAW), {g('n_quadrupoles')} quadrupoles — and the marine profile (floating electrodes, "
           f"high tide {g('h_high_tide_mTAW')} mTAW). The marine line is not collinear with the land line "
           f"({g('marine_line_geometry')}); only the land data are inverted here. Inset: location on the southern North Sea "
-          "coast (schematic coastline and borders). Wells K0 and K1 (Paepen et al. 2020) will be added once located. "
+          "coast (Natural Earth 1:10m coastline, land and country borders; made with Natural Earth). Wells K0 and K1 (Paepen et al. 2020) will be added once located. "
           f"(b) Topography, electrodes and survey-day water levels; high-water line at x = {g('x_high_water_m')} m; spring "
           "tidal range ≈ 5 m (field description). V.E. 10×.", ""]
     C += ["**Figure 2.** Outlier diagnostics. (a) Share of per-datum outliers among the data using each electrode, run F "
@@ -1367,7 +1380,7 @@ def captions():
     C += ["**Figure 7.** Field lens base. (a) BEL-KDE (site + physical, prior v3; purple, from x = 130 m) and the linearised "
           "log-midpoint band (blue, λ-pooled); bands and medians are clipped at the land surface. Triangles: P(lens present) "
           f"at x = 100, 110, 120 m = {g('lens_present_x100').split(' ')[0]}, {g('lens_present_x110').split(' ')[0]}, "
-          f"{g('lens_present_x120').split(' ')[0]} (Gate-A classifier). (b) BEL lens base conditional on the resistivity of "
+          f"{g('lens_present_x120').split(' ')[0]} (logistic classifier on the site + physical training set). (b) BEL lens base conditional on the resistivity of "
           "the water below the lens (ρ_below bins; line style per bin). V.E. 3×.", ""]
     C += ["**Figure 8.** Salinity (joint BEL + Archie; ρ_sw tied to temperature; draws with > 100 % seawater rejected). "
           "(a) Cell-wise P(% seawater > 50) and (b) cell-wise P(EC25 < 1500 μS/cm), shown from the median water table / land "
@@ -1382,6 +1395,70 @@ def captions():
     with open(os.path.join(RESP, "captions.md"), "w", encoding="utf-8") as f:
         f.write("\n".join(C) + "\n")
     print("[captions] written", flush=True)
+
+
+def table1_prior():
+    """results/paper/table1_prior.md — the prior of the v1.0 headline analysis (prior v3 = prior v2 spec with the
+    ρ_discharge ceiling raised; site + physical filters). Source: data/processed/bel/v2/prior_spec_v2.json."""
+    spec = json.load(open(b13.SPEC2, encoding="utf-8"))["params"]
+    esc = lambda x: str(x).replace("|", "\\|")
+    def row(k, label=None, rng=None, why=None):
+        v = spec[k]; r = v.get("range")
+        g = lambda y: f"{y:g}".replace("-", "−")
+        rs = rng or (f"p = {v['p']}" if r is None else (f"{g(r[0])} – {g(r[1])}" if r[1] is not None else f"{g(r[0])} – x_L + 20"))
+        return f"| {label or k} | {v.get('dist', '')} | {esc(rs)} | {v.get('unit', '')} | {esc(why or v.get('why', ''))} |"
+    L = ["# Table 1 — prior of the v1.0 analysis (prior v3, site + physical subset)", "",
+         "Prior v3 = prior v2 (`data/processed/bel/v2/prior_spec_v2.json`; 3300 samples, ids 0–3299) plus 1573 samples "
+         "(ids 20000–21572) with ρ_discharge log-uniform on 40–150 Ω·m, so that the combined ρ_discharge is log-uniform on "
+         "2.5–150 Ω·m (`results/stage6/prior_spec_v3.md`). All samples: medium forward mesh, mesh approximation-error "
+         "correction (mean + covariance), 3 % + 1e-4 Ω Gaussian noise; 10 : 1 training / held-out.", "",
+         "| parameter | distribution | range | unit | notes |", "|---|---|---|---|---|",
+         "| **Lens geometry** | | | | |",
+         row("x_L", "x_L (landward lens edge)"),
+         row("base_depth", "lens-base control depths (6 points)"),
+         row("tau", "τ (base transition thickness)"),
+         "| **Unit resistivities** | | | | |",
+         row("rho_cap"), row("rho_aquifer"),
+         row("rho_lens", rng=f"0.4 – 3.0 (filtered to ≥ {s6.PHYS_RHO_LENS_MIN:.5f})",
+             why="saline-lens end member; physical filter below"),
+         row("rho_below"),
+         row("rho_discharge", rng="2.5 – 150 (v2: 2.5 – 40; v3 extra samples: 40 – 150)",
+             why="combined set log-uniform on 2.5–150 Ω·m; the 150 Ω·m ceiling is physical (≈ 300 μS/cm EC25 pore water at F = 3.2)"),
+         row("rho_deep"),
+         "| **Water table and deep unit** | | | | |",
+         row("z_wt", "z_wt (dune water table)", why="dune water table above mean sea level"), row("z_deep", "z_deep (deep-unit top)", rng="−45 – −20 (site filter: −38 – −22)"),
+         "| **Discharge zone** | | | | |",
+         row("dis_present", "presence"), row("x_S", "x_S (landward edge = seaward end of the upper-beach lens)"),
+         row("dis_width", "width"), row("dis_skin", "saline skin thickness"), row("dis_bottom", "bottom"),
+         "| **Dune conductive layer (clay or saltwater)** | | | | |",
+         row("clay_present", "presence"), row("clay_x0", "left edge"), row("clay_x1", "right edge"),
+         row("clay_top", "top", why="depth range of the conductive layer under the dunes"),
+         row("clay_thick", "thickness", why="thickness range of the conductive layer"), row("rho_clay", "resistivity"),
+         "", "## Contrast rules (enforced by redrawing the resistivity triple)", "",
+         "- ρ_below ≥ 1.5 ρ_lens and ρ_discharge ≥ 1.5 ρ_lens (prior v2: 90.1 % of draws accepted, `results/bel/prior_spec_v2.md`).",
+         "", "## Filters applied to training and held-out sets alike", "",
+         "- **site**: deep-unit top −38 ≤ z_deep ≤ −22 mTAW (Kortrijk-clay aquifer base −25…−30 mTAW at K1, ≈ −35 mTAW at K0; "
+         "Paepen et al. 2020, citing Lebbe 1981) **and** the lens base above z_deep in every lens column (x ≥ x_L).",
+         f"- **physical**: ρ_lens ≥ {s6.PHYS_RHO_LENS_MIN:.5f} Ω·m = min F × min ρ_sw = 2.8 × 0.2479 Ω·m (PSS-78, S = 34 PSU, "
+         "T = 14 °C): below it the lens exceeds 100 % seawater for every Archie draw. Transform (logit) bounds of the BELs "
+         "stay at the prior range (ρ_lens 0.4 Ω·m; `results/paper/rho_lens_bound_check.md`).",
+         f"- Result: {NUMV('bel_n_train_site_phys')} training / held-out samples (site only: {NUMV('bel_n_train_site_v3')}).",
+         "", "## Geometry rules", "",
+         "- Lens base = PCHIP curve through the six control points (x = 100, 170, 240, 310, 380, 450 m), depths below the "
+         "local land surface; lens x ≥ x_L, from the surface to the base (log-linear transition of thickness τ centred on it).",
+         "- Discharge zone (if present): x_S … min(x_S + width, 505 m), saline skin (ρ_lens) of the given thickness over "
+         "discharge water down to the bottom; seaward of it the lens resumes.",
+         "- Dune layer (if present) may reach 20 m under the lens edge and overrides lens / water there; the deep unit lies "
+         "below everything except the lens and its transition.",
+         "- Archie conversion (Stage 6): F ~ U(2.8, 3.6); S ~ U(31, 34) PSU; T ~ U(8, 14) °C; draws with > 100 % seawater "
+         "in any unit rejected."]
+    with open(os.path.join(RESP, "table1_prior.md"), "w", encoding="utf-8") as f:
+        f.write("\n".join(L) + "\n")
+    print("[table1] written", flush=True)
+
+
+def NUMV(key):
+    return next(r["value"] for r in NUM.rows if r["key"] == key)
 
 
 PARTS = ("F1", "F2", "F3", "F4", "F5", "F6", "F7", "F8", "T")
@@ -1414,6 +1491,7 @@ def cmd_all(args):
         extra_numbers()
         NUM.write(RESP)
         captions()
+        table1_prior()
         print(f"[numbers] {len(NUM.rows)} numbers → {os.path.join(RESP, 'numbers.md')}")
     print(f"[18_paper] done in {time.time() - t0:.0f} s")
 

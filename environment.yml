@@ -19,6 +19,7 @@ dependencies:
   - bzip2=1.0.8
   - ca-certificates=2026.7.22
   - cairo=1.18.6
+  - cartopy=0.26.0
   - certifi=2026.7.22
   - charset-normalizer=3.5.1
   - cli11=2.7.2
@@ -46,6 +47,7 @@ dependencies:
   - freetype=2.14.3
   - fribidi=1.0.17
   - frozenlist=1.8.0
+  - geos=3.14.1
   - gl2ps=1.4.2
   - glew=2.2.0
   - glib=2.90.0
@@ -165,7 +167,7 @@ dependencies:
   - pluggy=1.6.0
   - ply=3.11
   - pooch=1.9.0
-  - proj=9.9.0
+  - proj=9.8.1
   - prompt-toolkit=3.0.53
   - propcache=0.5.2
   - psutil=7.2.2
@@ -174,8 +176,10 @@ dependencies:
   - pygimli=1.5.5
   - pygments=2.21.0
   - pyparsing=3.3.3
+  - pyproj=3.7.2
   - pyqt=5.15.11
   - pyqt5-sip=12.17.0
+  - pyshp=3.1.6
   - pyside6=6.11.2
   - pysocks=1.7.1
   - pytest=9.1.1
@@ -198,6 +202,7 @@ dependencies:
   - scipy=1.14.1
   - scooby=0.12.0
   - setuptools=84.0.0
+  - shapely=2.1.2
   - sip=6.10.0
   - six=1.17.0
   - snappy=1.2.2
