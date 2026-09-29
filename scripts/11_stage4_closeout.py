@@ -306,24 +306,37 @@ def cmd_a1(args):
 
 
 # ─────────────────────────────────────────────────────────────────────────────
-def a2_job(m02, spec, fwd, sch, cell_x, cs, truth, real, log):
-    out = os.path.join(OUT_DATA, "a2_runs", f"{truth}_r{real:02d}.npz")
+def a2_job(m02, spec, fwd, sch, cell_x, cs, truth, real, log, R_true=None, noise=None, out=None, lams=None,
+           post_seed=None, save_extra=False):
+    """A2 job. The keyword arguments (added in v1.1 for 19_lebbe1980_synthetic.py) default to the v1.0 behaviour:
+    R_true = fwd['R_<truth>']; noise = Gaussian 3 % + 1e-4 Ω with the Stage-4 seed; out = a2_runs/<truth>_r<real>.npz;
+    lams = [50] (+ the λ pool for real < N_REAL_LAMBDA); post_seed(λ) = the Stage-4 posterior seed; save_extra adds the
+    noisy data (R_noisy, keep) and the λ = 50 model."""
+    out = out or os.path.join(OUT_DATA, "a2_runs", f"{truth}_r{real:02d}.npz")
     if os.path.exists(out):
         log(f"skip a2 {truth} r{real}"); return
     t0 = time.time()
-    R_true = fwd[f"R_{truth}"]
-    rng = np.random.default_rng(sb.seeds(truth, real)["noise"])
-    sig = np.sqrt((sb.ERR_REL * R_true) ** 2 + sb.ERR_ABS ** 2)
-    R = R_true + sig * rng.standard_normal(len(R_true))
+    R_true = fwd[f"R_{truth}"] if R_true is None else R_true
+    if noise is None:
+        rng = np.random.default_rng(sb.seeds(truth, real)["noise"])
+        sig = np.sqrt((sb.ERR_REL * R_true) ** 2 + sb.ERR_ABS ** 2)
+        R = R_true + sig * rng.standard_normal(len(R_true))
+    else:
+        R = noise(R_true)
     keep = R > 0
     elec = {int(e): (float(x), float(z)) for e, x, z in zip(sch["elec_num"], sch["elec_x"], sch["elec_z"])}
     land = dict({k: sch[k][keep] for k in ("C1", "C2", "P1", "P2")}, R=R[keep], n=int(keep.sum()),
                 err=np.zeros(int(keep.sum())))
-    lams = [50.0] + ([5.0, 10.0, 20.0, 100.0] if real < sb.N_REAL_LAMBDA else [])
+    lams = lams or ([50.0] + ([5.0, 10.0, 20.0, 100.0] if real < sb.N_REAL_LAMBDA else []))
     save = dict(truth=truth, real=real, cols=cs.x, n_nonpositive_dropped=int((~keep).sum()))
+    if save_extra:
+        save.update(R_noisy=R, keep=keep)
     pooled = []
     for lam in lams:
-        info, S = sb.one_inversion(m02, land, elec, lam, cell_x, cs, sb.seeds(truth, real, lam)["post"])
+        seed = sb.seeds(truth, real, lam)["post"] if post_seed is None else post_seed(lam)
+        info, S = sb.one_inversion(m02, land, elec, lam, cell_x, cs, seed)
+        if save_extra and lam == 50.0:
+            save["lam50_model"] = info["model"]
         hat = interfaces_all(cs(np.log10(info["model"].astype(float)))[:, :, None], cs.z)
         bands = sample_defs(cs, S)
         p = f"lam{int(lam)}_"
@@ -332,7 +345,7 @@ def a2_job(m02, spec, fwd, sch, cell_x, cs, truth, real, log):
             save[p + f"mhat_{d}"] = hat[d][:, 0]
             save[p + f"band_{d}"] = bands[d]
             save[p + f"r_{d}"] = r_at(cs, info["radius"], hat[d][:, 0])
-        if real < sb.N_REAL_LAMBDA:
+        if len(lams) > 1:                                  # v1.0: the λ pool exists exactly when real < N_REAL_LAMBDA
             pooled.append(S.astype(np.float32))
         log(f"a2 {truth} r{real} λ={lam:g}: χ²={info['chi2']:.3f} ({info['stop']})")
     if pooled:
