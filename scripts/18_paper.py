@@ -1272,7 +1272,7 @@ def tables(B, summ):
 # ─────────────────────────────────────────────────────────────────────────────
 # numbers added in v1.0.1 (appended after all v1.0 numbers so that existing rows keep their position)
 # ─────────────────────────────────────────────────────────────────────────────
-def extra_numbers():
+def extra_numbers(B):
     import scipy.linalg as sla
     fn = "extra_numbers"
     F = run_npz("deep_all")
@@ -1331,6 +1331,90 @@ def extra_numbers():
     NUM.add("pfresh_cell_max_discharge", f"{np.nanmax(np.where(dis, z['Pfresh'], np.nan)):.2f}",
             "largest cell-wise P(EC25 < 1500 μS/cm) at x ≥ 330 m (the unit value P(fresh) of the discharge water is "
             "`unit_dis`)", fn, "`data/processed/stage6_v2/field_v2.npz`")
+    extra_numbers_v103(B)
+
+
+def stage4_diagnosis():
+    """10_synthetic_benchmark.cmd_metrics 'Diagnosis' section, recomputed from the Stage-4 runs: per truth and r group,
+    median over columns of s.d.(m̂ across realisations) / median σ_z, the analytic 90 % coverage, and the coverage
+    after subtracting each column's median bias (oracle)."""
+    fwd = np.load(os.path.join(sb.SYN_DATA, "truth_forward.npz")); Z90 = 1.6449
+    rows = []
+    for t in sb.TRUTHS:
+        tb = fwd[f"base_{t}"]
+        for r in range(sb.N_REAL):
+            pth = os.path.join(sb.SYN_DATA, "runs", f"{t}_r{r:02d}.npz")
+            if not os.path.exists(pth):
+                continue
+            d = np.load(pth, allow_pickle=True)
+            rb, mh, sw = d["lam50_r_base"], d["lam50_mhat_base"], d["lam50_sw_base"]
+            for j, x in enumerate(sb.COLS):
+                grp = ("≤10" if rb[j] <= 10 else "10–15" if rb[j] <= 15 else ">15") if np.isfinite(rb[j]) else "no est."
+                rows.append(dict(truth=t, x=x, grp=grp, true=tb[j], est=mh[j], sw=sw[j]))
+    out = {}
+    for t in sb.TRUTHS:
+        for grp in ("≤10", "10–15"):
+            ratios, hit, hitc = [], [], []
+            for x in sb.COLS:
+                rs = [c for c in rows if c["truth"] == t and c["x"] == x and np.isfinite(c["est"]) and np.isfinite(c["true"])
+                      and np.isfinite(c["sw"]) and c["sw"] > 0]
+                rg = [c for c in rs if c["grp"] == grp]
+                if len(rs) < 10 or not rg:
+                    continue
+                est = np.array([c["est"] for c in rs]); mb = np.median(est - np.array([c["true"] for c in rs]))
+                ratios.append(np.std(est, ddof=1) / np.median([c["sw"] for c in rs]))
+                hit += [abs(c["est"] - c["true"]) <= Z90 * c["sw"] for c in rg]
+                hitc += [abs(c["est"] - mb - c["true"]) <= Z90 * c["sw"] for c in rg]
+            if ratios:
+                out[(t, grp)] = dict(ratio=float(np.median(ratios)), cov=float(np.mean(hit)), covc=float(np.mean(hitc)),
+                                     ncol=len(ratios))
+    return out
+
+
+def extra_numbers_v103(B):
+    """Numbers added in v1.0.3 (appended after all earlier numbers)."""
+    fn = "extra_numbers_v103"
+    G1 = run_npz("deep_drop_data")
+    NUM.add("G1_chi2", f"{float(G1['chi2']):.4f}", "G1 (deep_drop_data: outlier data dropped, λ = 20, paraDepth 60 m): χ² "
+            "(log space)", fn, "`data/processed/runs/deep_drop_data`",
+            ref=("results/deep_drop_data_misfit_report.txt", "chi2 (log space)", f"{float(G1['chi2']):.4f}"))
+    rows = synthetic_rows()
+    rep2 = "results/synthetic_s5/a2_interface_definitions.md"
+    for grp in ("≤10", "10–15"):
+        tag = "r10" if grp == "≤10" else "r10-15"
+        for t in c11.A2_TRUTHS:
+            rp = [x for x in rows if x["truth"] == t and x["d"] == "thr3" and x["lam"] == "pooled" and x["grp"] == grp]
+            cv = 100 * np.mean([x["cov"] for x in rp])
+            NUM.add(f"a2_thr3_pooled_cov_{t}_{tag}", f"{cv:.0f}% (n={len(rp)})", f"λ-pooled coverage of the 3 Ω·m bands, {t}, "
+                    f"r {grp} m (A2; realisations 0–4)", "synthetic_rows", "`data/processed/synthetic_s5/a2_runs/*.npz`",
+                    ref=(rep2, f"| {t} | {grp} | thr3 |", f"{cv:.0f}% (n={len(rp)})"))
+        rp = [x for x in rows if x["d"] == "thr3" and x["lam"] == "pooled" and x["grp"] == grp]
+        NUM.add(f"a2_thr3_pooled_cov_all_{tag}", f"{100*np.mean([x['cov'] for x in rp]):.0f}% (n={len(rp)})",
+                f"λ-pooled coverage of the 3 Ω·m bands, T1 + T1h + T2a + T3 pooled, r {grp} m", "synthetic_rows",
+                "`data/processed/synthetic_s5/a2_runs/*.npz`")
+    dg = stage4_diagnosis()
+    rep4 = "results/synthetic/benchmark_report.md"
+    for grp in ("≤10", "10–15"):
+        tag = "r10" if grp == "≤10" else "r10-15"
+        vals = {t: v for (t, g_), v in dg.items() if g_ == grp}
+        rt = {t: v["ratio"] for t, v in vals.items()}; tmin, tmax = min(rt, key=rt.get), max(rt, key=rt.get)
+        NUM.add(f"stage4_scatter_over_sigma_{tag}", f"{rt[tmin]:.2f}–{rt[tmax]:.2f} ({tmin} … {tmax})",
+                f"Stage 4: realisation-to-realisation s.d. of the estimated 3 Ω·m base / predicted σ_z (median over columns), "
+                f"range over the nine truths, r {grp} m", "stage4_diagnosis", "`data/processed/synthetic/runs/*.npz`",
+                ref=(rep4, f"| {tmax} | {grp} | {vals[tmax]['ncol']} |", f"| {rt[tmax]:.2f} |"))
+        cc = {t: v["covc"] for t, v in vals.items()}; cmin = min(cc, key=cc.get)
+        ca = {t: v["cov"] for t, v in vals.items()}
+        rng_ = lambda lo_, hi_: f"{100*lo_:.0f}" if round(100 * lo_) == round(100 * hi_) else f"{100*lo_:.0f}–{100*hi_:.0f}"
+        NUM.add(f"stage4_bias_corrected_cov_{tag}", f"{rng_(min(cc.values()), max(cc.values()))} % "
+                f"(analytic before correction {100*min(ca.values()):.0f}–{100*max(ca.values()):.0f} %)",
+                f"Stage 4: coverage of the analytic 90 % band after removing each column's median bias (oracle), range over "
+                f"the nine truths, r {grp} m", "stage4_diagnosis", "`data/processed/synthetic/runs/*.npz`",
+                ref=(rep4, f"| {cmin} | {grp} | {vals[cmin]['ncol']} |", f"| {100*cc[cmin]:.0f}% |"))
+    thr = np.log10(3.0)
+    NUM.add("second_bel_P_D2_lt_log3", f"{np.mean(B['P2'][:, 1] < thr):.2f} (prior {np.mean(B['Y2_train'][:, 1] < thr):.2f})",
+            "second BEL (site + physical): field P(D2 < log10 3) — a conductive body < 3 Ω·m under the dunes "
+            "(x 25–90 m, −3 … −12 mTAW) — and its prior (training-set) value", "bel_products",
+            "`data/processed/bel/v2/train`, `data/processed/bel_prior_v3/train` (site + physical subset)")
 
 
 def captions():
@@ -1488,7 +1572,7 @@ def cmd_all(args):
     if "F8" in only: fig_salinity()
     if "T" in only: tables(B, summ)
     if only == set(PARTS):
-        extra_numbers()
+        extra_numbers(B)
         NUM.write(RESP)
         captions()
         table1_prior()
