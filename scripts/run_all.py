@@ -121,6 +121,13 @@ RAW_STEPS = [
     ("16-refit", ["16_stage6_salinity.py", "refit"], "8 min", False),
     ("16-joint", ["16_stage6_salinity.py", "joint"], "10 min", False),
     ("17", ["17_salinity_v2.py", "run"], "7 min", True),
+    ("19-run", ["19_lebbe1980_synthetic.py", "run", "--workers", "4"], "2.5–3 h (30 data sets × 5 λ)", True),
+    ("19-report", ["19_lebbe1980_synthetic.py", "report"], "2 min", True),
+    ("20-run", ["20_petrophysics_sensitivity.py", "run"], "3 min", True),
+    ("20-report", ["20_petrophysics_sensitivity.py", "report"], "< 1 min", True),
+    ("21-location", ["21_k1_comparison.py", "location"], "< 1 min", True),
+    ("21-run", ["21_k1_comparison.py", "run"], "1 min", True),
+    ("21-report", ["21_k1_comparison.py", "report"], "< 1 min", True),
     ("19", ["19_rho_lens_bound_check.py"], "3 min", False),
     ("18", ["18_paper.py", "all"], "7 min", True),
 ]
@@ -135,6 +142,15 @@ RUN_STEP = {"deep_all": "02-F", "deep_auto": "02-Fauto", "deep_drop_data": "02-G
 PRODUCERS = [   # (regex, step id or callable(match) → step id, script, evidence token that must occur in the script)
     (r"^data/raw/", "raw input", None, None),
     (r"^data/external/natural_earth/ne_10m_", "NE", "run_all.py", "natural_earth"),
+    (r"^data/external/lebbe1981_K1_digitised\.csv$", "raw input", None, None),     # hand-digitised (Lebbe 1981, Fig. 3)
+    (r"^data/processed/v1_1/lebbe1980/", "19-run", "19_lebbe1980_synthetic.py", "lebbe1980"),
+    (r"^results/v1_1/0_profile_location\.md$", "21-location", "21_k1_comparison.py", "0_profile_location.md"),
+    (r"^results/v1_1/(1_lebbe1980_synthetic\.md|T_S1_lebbe1980\.csv)$", "19-report", "19_lebbe1980_synthetic.py",
+     "1_lebbe1980_synthetic.md"),
+    (r"^results/v1_1/(2_petrophysics_sensitivity\.md|T_S2_petrophysics\.(csv|md))$", "20-report",
+     "20_petrophysics_sensitivity.py", "2_petrophysics_sensitivity.md"),
+    (r"^results/v1_1/3_k1_comparison\.md$", "21-report", "21_k1_comparison.py", "3_k1_comparison.md"),
+    (r"^data/processed/stage6_v2/field_v2\.npz$", "17", "17_salinity_v2.py", "stage6_v2"),
     (r"^data/processed/runs/([^/]+)/westhoek_inversion_results\.npz$", lambda m: RUN_STEP.get(m.group(1)),
      "02_land_inversion.py", "westhoek_inversion_results.npz"),
     (r"^results/deep_all_droplist\.txt$", "04-F", "04_misfit_diagnostics.py", "_droplist.txt"),
@@ -339,7 +355,7 @@ def check(out):
              f"{n_same if stored is not None else 'n/a (no stored numbers)'}")
     L.append(f"- cross-checks against earlier stored reports: {n_ref_ok} / {n_ref} found")
     files_same = files_diff = 0
-    for sub in (os.path.join("results", "stage6_v2"), os.path.join("results", "paper")):
+    for sub in (os.path.join("results", "stage6_v2"), os.path.join("results", "paper"), os.path.join("results", "v1_1")):
         d_new = os.path.join(out, sub)
         if not os.path.isdir(d_new) or os.path.abspath(out) == ROOT:
             continue
@@ -442,8 +458,12 @@ def from_cache(out, do_check):
     print(f"[from-cache] → {out} (log {log})")
     t = {}
     t["17"] = run(["17_salinity_v2.py", "run", "--out", out], SCRIPT_DIR, log)
+    for sid, argv in (("19r", ["19_lebbe1980_synthetic.py", "report"]), ("20", ["20_petrophysics_sensitivity.py", "run"]),
+                      ("20r", ["20_petrophysics_sensitivity.py", "report"]), ("21l", ["21_k1_comparison.py", "location"]),
+                      ("21", ["21_k1_comparison.py", "run"]), ("21r", ["21_k1_comparison.py", "report"])):
+        t[sid] = run(argv + ["--out", out], SCRIPT_DIR, log)
     t["18"] = run(["18_paper.py", "all", "--out", out, "--recompute"], SCRIPT_DIR, log)
-    print(f"[from-cache] done: 17 {t['17']:.0f} s, 18 {t['18']:.0f} s, total {sum(t.values())/60:.1f} min")
+    print(f"[from-cache] done: " + ", ".join(f"{k} {v:.0f} s" for k, v in t.items()) + f"; total {sum(t.values())/60:.1f} min")
     if do_check and out != ROOT:
         sys.path.insert(0, SCRIPT_DIR)
         import read_trace

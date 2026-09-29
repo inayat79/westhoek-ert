@@ -1332,6 +1332,69 @@ def extra_numbers(B):
             "largest cell-wise P(EC25 < 1500 μS/cm) at x ≥ 330 m (the unit value P(fresh) of the discharge water is "
             "`unit_dis`)", fn, "`data/processed/stage6_v2/field_v2.npz`")
     extra_numbers_v103(B)
+    extra_numbers_v11()
+
+
+def extra_numbers_v11():
+    """v1.1 numbers (appended after all v1.0 numbers). Sources: ROOT/data/processed/v1_1/*.json written by
+    19_lebbe1980_synthetic.py report, 20_petrophysics_sensitivity.py run/report and 21_k1_comparison.py run."""
+    d = os.path.join(os.path.dirname(DS6), "v1_1")
+    if not os.path.exists(os.path.join(d, "k1_comparison.json")):
+        print("[v1.1] no v1.1 products — v1.1 numbers skipped", flush=True)
+        return
+    rv = "results/v1_1"
+    # Task 1
+    s1 = json.load(open(os.path.join(d, "lebbe1980_summary.json"), encoding="utf-8"))
+    for t, v in s1["summ"].items():
+        NUM.add(f"v11_{t}_rho_below", f"{v['rho_below_mom']:.2f} Ω·m (pooled {v['rho_below']}; true log-mean "
+                f"{v['true_below']:.2f})", f"v1.1 synthetic 1980-K1 truth {t}: second-BEL ρ_below, median over seeds of the "
+                "posterior median (pooled median [P5, P95]); true thickness-weighted log-mean between saline base and clay",
+                "19_lebbe1980_synthetic.py:cmd_report", "`data/processed/v1_1/lebbe1980/bel_results.npz`",
+                ref=(f"{rv}/T_S1_lebbe1980.csv", f"{t},", f"{t},{v['n']},{v['rho_below_mom']:.2f},"))
+        NUM.add(f"v11_{t}_coverage", f"saline base {100*v['cov_sal']:.0f} %, fresh top {100*v['cov_ft']:.0f} %; BEL median "
+                f"inside the transition at {sum(v['inside'])}/5 positions", f"v1.1 synthetic {t}: coverage of the true "
+                "saline base / fresh top by the BEL 90 % lens-base intervals (x = 150–350 m, all seeds)",
+                "19_lebbe1980_synthetic.py:cmd_report", "`data/processed/v1_1/lebbe1980/bel_results.npz`",
+                ref=(f"{rv}/T_S1_lebbe1980.csv", f"{t},", f"{100*v['cov_sal']:.0f}%,{100*v['cov_ft']:.0f}%,{sum(v['inside'])}/5"))
+    a, b = s1["summ"].get("T80a"), s1["summ"].get("T80b")
+    verdict = lambda x: "holds" if x else "does not hold"
+    NUM.add("v11_E1_E3", f"E1 {verdict(s1['E1'])}; E2 {verdict(s1['E2'])}; E3 {verdict(s1['E3'])}",
+            "v1.1 pre-registered expectations E1–E3 (docs/decision_log.md)", "19_lebbe1980_synthetic.py:cmd_report",
+            "`data/processed/v1_1/lebbe1980_summary.json`")
+    if a and b:
+        NUM.add("v11_E4_T80b_vs_T80a", f"{b['rho_below_mom']:.2f} vs {a['rho_below_mom']:.2f} Ω·m "
+                f"({b['rho_below_mom'] - a['rho_below_mom']:+.2f} Ω·m)", "v1.1 E4: second-BEL ρ_below (median of medians), "
+                "T80b (no transition) vs T80a", "19_lebbe1980_synthetic.py:cmd_report",
+                "`data/processed/v1_1/lebbe1980_summary.json`")
+    # Task 2
+    pp = json.load(open(os.path.join(d, "petrophysics.json"), encoding="utf-8"))
+    e5 = json.load(open(os.path.join(d, "petrophysics_E5.json"), encoding="utf-8"))
+    for k in ("P1", "P2", "P3", "P4", "P5"):
+        r = pp[k]
+        NUM.add(f"v11_petro_{k}", " / ".join(f"{r[u]['sw'][1]:.1f}" for u in ("lens", "below", "dis", "dune"))
+                + f" % (P0: " + " / ".join(f"{pp['P0'][u]['sw'][1]:.1f}" for u in ("lens", "below", "dis", "dune")) + ")",
+                f"v1.1 petrophysics case {k}: median % seawater lens / below / discharge / dune"
+                + (" (unclipped)" if k == "P5" else ""), "20_petrophysics_sensitivity.py:cmd_run",
+                "`data/processed/v1_1/petrophysics.json`",
+                ref=(f"{rv}/2_petrophysics_sensitivity.md", f"| {k} |", f"{r['lens']['sw'][1]:.1f} [{r['lens']['sw'][0]:.1f}, "
+                     f"{r['lens']['sw'][2]:.1f}]"))
+    NUM.add("v11_petro_P5_lens_above100", f"{100*pp['P5']['outside']['lens']['above100']:.1f} %",
+            "v1.1 petrophysics P5 (Lebbe 1999 as calibrated): share of lens draws above 100 % seawater",
+            "20_petrophysics_sensitivity.py:cmd_run", "`data/processed/v1_1/petrophysics.json`",
+            ref=(f"{rv}/2_petrophysics_sensitivity.md", "| P5 |", f"> 100 {100*pp['P5']['outside']['lens']['above100']:.1f} %"))
+    NUM.add("v11_E5", f"{verdict(e5['E5'])} (" + "; ".join(f"{u}: spread {e5['spread'][u]:.1f} vs P0 width {e5['width'][u]:.1f} pp"
+                                                            for u in ("lens", "below", "dis", "dune")) + ")",
+            "v1.1 pre-registered statement E5 (spread of P1–P5 unit medians vs the P0 90 % width)",
+            "20_petrophysics_sensitivity.py:cmd_report", "`data/processed/v1_1/petrophysics_E5.json`")
+    # Task 3
+    kc = json.load(open(os.path.join(d, "k1_comparison.json"), encoding="utf-8"))
+    for i, x in enumerate(kc["x"]):
+        NUM.add(f"v11_k1_1980_x{x}", f"saline base {kc['saline_base'][i]:.2f}, fresh top {kc['fresh_top'][i]:.2f} mTAW; BEL − "
+                f"saline base {kc['bel_minus_sal'][i]:+.2f} m; log-midpoint − saline base {kc['logmid_minus_sal'][i]:+.2f} m; "
+                f"1980 saline base inside BEL 90 %: {'yes' if kc['sal_in_bel90'][i] else 'no'}",
+                f"v1.1 K1 comparison at x = {x} m: 1980 boundaries (Lebbe 1981, interpolated) vs the 2018 lens base",
+                "21_k1_comparison.py:cmd_run", "`data/external/lebbe1981_K1_digitised.csv`, v1.0 BEL and log-midpoint",
+                ref=(f"{rv}/3_k1_comparison.md", f"| {x} |", f"| {kc['saline_base'][i]:.2f} | {kc['fresh_top'][i]:.2f} |"))
 
 
 def stage4_diagnosis():
