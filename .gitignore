@@ -4,3 +4,4 @@ figures/
 __pycache__/
 results/bel/_test/
 release/
+docs/literature/*.pdf
