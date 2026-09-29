@@ -1,0 +1,11 @@
+* text=auto eol=lf
+
+# binary files stay binary (no line-ending conversion, no text diff)
+*.png binary
+*.jpg binary
+*.pdf binary
+*.npz binary
+*.npy binary
+*.pkl binary
+*.xlsx binary
+*.zip binary
