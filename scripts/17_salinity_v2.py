@@ -16,8 +16,13 @@ Physical constraint (joint): a draw (posterior sample, F, S, T) is REJECTED if a
 number of accepted draws is reached — rejection sampling of p(θ, F, S, T | constraint). Held-out truths: Archie redrawn
 (up to 1000 tries) until physical; truths that no draw can make physical are excluded from the salinity coverage.
 
-Posterior: the Stage-6 joint BEL (site subset, prior v3), identical samples (seeds default_rng([129000, k]) as in
-stage6_analysis). Archie v2 draws default_rng([131000, k]): field k = 0; fixed F k = 10·F; ρ_below bins k = 10 + bin;
+Training / held-out set (v1.0 freeze): "site" + "physical" subsets of prior v2 + v3 — deep-unit top −38…−22 mTAW,
+lens base above it, and ρ_lens ≥ 0.69415 Ω·m = min F × min ρ_sw (stage6_analysis.PHYS_RHO_LENS_MIN, asserted here).
+The joint-BEL logit (transform) bound of ρ_lens stays at 0.4 Ω·m: a bound at the physical value shifted the field lens
+from 69 % to 78 % seawater with no new data (19_rho_lens_bound_check.py). The site-only field products (the pre-freeze
+headline, identical seeds) are recomputed for the old → new comparison.
+
+Posterior: joint BEL as Stage 6 (seeds default_rng([129000, k]) as in stage6_analysis). Archie v2 draws default_rng([131000, k]): field k = 0; fixed F k = 10·F; ρ_below bins k = 10 + bin;
 held-out posterior k = 200000 + j; held-out truth k = 500000 + j. Draw order F, S, T (F overridden when fixed, so S and
 T are paired across the F cases).
 
@@ -184,13 +189,20 @@ def constrained(base, par, rng, F=None, n_target=None, max_rounds=100):
     return base[idx], {k: np.asarray(v)[idx] for k, v in par.items()}, A, info
 
 
-def truth_draw(tpar, tpres, rng, max_tries=1000):
-    """Archie draw for a held-out truth, redrawn until physical; None if no draw within max_tries is."""
-    for k in range(1, max_tries + 1):
-        a = archie_v2(1, rng)
-        if not any(v[0] for v in violations(tpar, tpres, a).values()):
-            return a, k
-    return None, max_tries
+def truth_draw(tpar, tpres, rng, block=1000, max_blocks=100):
+    """Archie draw for a held-out truth: the first physical draw in blocks of `block` draws (up to block·max_blocks);
+    None if none is found (ρ_lens so close to min F·ρ_sw that a physical draw is practically impossible)."""
+    for b in range(max_blocks):
+        a = archie_v2(block, rng)
+        bad = np.zeros(block, bool)
+        for u, v in violations({k: np.repeat(np.asarray(x, float), block) if k in UNIT_RHO.values() else x
+                                for k, x in tpar.items()}, {u: np.repeat(tpres[u], block) for u in UNITS}, a).items():
+            bad |= v
+        ok = np.where(~bad)[0]
+        if ok.size:
+            i = int(ok[0])
+            return {k: v[i:i + 1] for k, v in a.items()}, b * block + i + 1
+    return None, block * max_blocks
 
 
 def stats(base, par, DR, chunk=250):
@@ -244,8 +256,19 @@ def cmd_run(args):
     rsw_min = 1 / (ec25_sw(S_RANGE[1]) * (1 + ALPHA * (T_RANGE[1] - 25)))
     rsw_max = 1 / (ec25_sw(S_RANGE[0]) * (1 + ALPHA * (T_RANGE[0] - 25)))
     chk = [(S, T, ec_pss78(S, T) / 10, ec25_sw(S) * (1 + ALPHA * (T - 25))) for S in (31.0, 34.0) for T in (8.0, 14.0)]
-    C = s6.load_combined()
+    assert abs(F_RANGE[0] * rsw_min - s6.PHYS_RHO_LENS_MIN) < 5e-5, (F_RANGE[0] * rsw_min, s6.PHYS_RHO_LENS_MIN)
     obs, _ = s6.b13.observed_sets()
+    # pre-freeze headline (site subset only, original ρ_lens bound 0.4 Ω·m) — field only, identical seeds
+    C0 = s6.load_combined()
+    J0 = s6.JointBEL(C0["tr"]["D"], C0["tr"]["T"], C0["tr"]["th"])
+    b0, p0, _ = J0.posterior(obs["field"], N_POST, np.random.default_rng([JOINT_SEED, 0]))
+    b0c, p0c, A0, info0 = constrained(b0, p0, np.random.default_rng([ARCHIE2_SEED, 0]))
+    st0 = stats(b0c, p0c, A0)
+    n_site = (len(C0["tr"]["D"]), len(C0["ho"]["D"]))
+    del J0, C0
+    # v1.0: site + physical subset; the ρ_lens transform bound stays at 0.4 Ω·m (see 19_rho_lens_bound_check.py)
+    C = s6.load_combined(physical=True)
+    n_phys = (len(C["tr"]["D"]), len(C["ho"]["D"]))
     J = s6.JointBEL(C["tr"]["D"], C["tr"]["T"], C["tr"]["th"])
     base_f, par_f, pdis_f = J.posterior(obs["field"], N_POST, np.random.default_rng([JOINT_SEED, 0]))
     base_c, par_c, A_c, info_f = constrained(base_f, par_f, np.random.default_rng([ARCHIE2_SEED, 0]))
@@ -270,10 +293,14 @@ def cmd_run(args):
 
     # ── 2. per-unit products (field) ────────────────────────────────────────
     L = ["# Stage 6 revision — 2. Salinity products (Archie v2: ρ_sw tied to T)", "",
-         f"Joint BEL (site subset, prior v3; {len(C['tr']['D'])} training samples), {N_POST} field posterior samples "
-         f"(seeds as Stage 6, P(discharge present) = {pdis_f:.2f}); Archie v2 per sample (see 1_seawater_resistivity.md). "
-         "Units as defined in 17_salinity_v2.py; the dune zone (x < 90 m) is weakly constrained.", "",
-         "## Per-unit products (field)", "",
+         f"Joint BEL (site + physical subset, prior v3; {len(C['tr']['D'])} training samples), {N_POST} field posterior "
+         f"samples (seeds as Stage 6, P(discharge present) = {pdis_f:.2f}); Archie v2 per sample (see "
+         "1_seawater_resistivity.md). Units as defined in 17_salinity_v2.py; the dune zone (x < 90 m) is weakly constrained.",
+         "", "## Physical filter (v1.0)", "",
+         f"ρ_lens ≥ {s6.PHYS_RHO_LENS_MIN:.5f} Ω·m (= 2.8 × {rsw_min:.6f} Ω·m, the smallest F·ρ_sw) on top of the site "
+         f"filter, training and held-out alike: training {n_site[0]} → **{n_phys[0]}**, held-out {n_site[1]} → "
+         f"**{n_phys[1]}**. The joint-BEL logit (transform) bound of ρ_lens stays at 0.4 Ω·m (a bound at the physical "
+         "value moves the posterior with no new data; results/paper/rho_lens_bound_check.md).", "",
          "## Physical constraint: ρ_w ≥ ρ_sw (≤ 100 % seawater) in every unit", "",
          f"Joint rejection of (posterior sample, F, S, T) draws: {info_f['n_proposed']} proposed in {info_f['rounds']} "
          f"round(s), **{100*info_f['joint_rate']:.1f} % rejected**, {info_f['n_accepted']} accepted ({info_f['n_distinct']} "
@@ -305,6 +332,19 @@ def cmd_run(args):
           f"{uprob(st, 'dis')[0]:.2f})."]
     with open(os.path.join(RES, "per_unit_field.csv"), "w", encoding="utf-8") as f:
         f.write("\n".join(rows_csv) + "\n")
+    L += ["", "### Change vs the pre-freeze headline (site subset only; same seeds)", "",
+          "| unit | quantity | site (before) | site + physical (v1.0) | median shift |", "|---|---|---|---|---|"]
+    comp = {}
+    for u in UNITS:
+        for key, lab, d in (("uarea", "area (m²/m)", 0), ("usw", "% seawater", 1), ("uec", "EC25 (μS/cm)", 0)):
+            a0, a1 = st0[key][u], st[key][u]
+            sh = float(np.nanmedian(a1) - np.nanmedian(a0))
+            comp[f"{u}_{key}"] = [float(np.nanmedian(a0)), float(np.nanmedian(a1))]
+            L.append(f"| {UNIT_NAMES[u]} | {lab} | {q(a0, d)} | {q(a1, d)} | {sh:+.{d}f} |")
+        for lab, i in (("P(> 50 % seawater)", 1), ("P(EC25 < 1500 μS/cm)", 2)):
+            L.append(f"| {UNIT_NAMES[u]} | {lab} | {uprob(st0, u)[i]:.2f} | {uprob(st, u)[i]:.2f} | "
+                     f"{uprob(st, u)[i] - uprob(st0, u)[i]:+.2f} |")
+    L.append(f"| all units | joint rejection of draws | {100*info0['joint_rate']:.1f} % | {100*info_f['joint_rate']:.1f} % | — |")
 
     # ── (b) isohaline ───────────────────────────────────────────────────────
     iso = st["iso"]
@@ -361,10 +401,12 @@ def cmd_run(args):
     cov_area, rel = [], []
     ucov = {u: {"area": [], "area_phys": [], "sw": [], "ec25": []} for u in UNITS}
     upred = {u: {"p_sal": [], "t_sal": [], "p_fr": [], "t_fr": []} for u in UNITS}
-    n_truth_impossible = n_post_empty = 0; truth_tries = []; ho_rates = []
+    n_truth_impossible = n_post_empty = 0; truth_tries = []; ho_rates = []; bcov = []; pcov = []
     for j in range(nh):
         y, t, th = C["ho"]["D"][j], C["ho"]["T"][j], C["ho"]["th"][j]
         base, par, _ = J.posterior(y, N_HELD_POST, np.random.default_rng([JOINT_SEED, 200_000 + j]))
+        lo_, hi_ = np.percentile(base, [5, 95], 0); bcov.append((t >= lo_) & (t <= hi_))
+        pcov.append([bool(np.percentile(par[k], 5) <= th[k] <= np.percentile(par[k], 95)) for k in s6.PKEYS])
         bH, pH, AH, iH = constrained(base, par, np.random.default_rng([ARCHIE2_SEED, 200_000 + j]), n_target=N_HELD_POST)
         ho_rates.append(iH["joint_rate"])
         tb, tp = s6.truth_params(th, t)
@@ -404,11 +446,11 @@ def cmd_run(args):
     L += ["", "## Held-out validation", "",
           f"{nh} held-out site samples; joint posterior {N_HELD_POST} constrained draws each (posterior seeds as Stage 6; "
           f"median joint rejection {100*np.median(ho_rates):.1f} %); truth with its own Archie v2 draw "
-          "(default_rng([131000, 500000 + j]), redrawn until physical; median "
+          "(default_rng([131000, 500000 + j]): first physical draw in blocks of 1000, up to 100 000; median "
           f"{np.median(truth_tries) if truth_tries else float('nan'):.0f} tries). "
           f"Excluded: {n_post_empty} held-out samples with < 50 physical posterior draws (from everything); "
-          f"{n_truth_impossible} truths that are unphysical for every F, S, T (ρ_unit < F·ρ_sw; from the salinity "
-          "columns only — their geometry stays in the area coverage). Coverage of the 90 % intervals.", "",
+          f"{n_truth_impossible} truths without a physical Archie draw in 100 000 tries (from the salinity columns only "
+          "— their geometry stays in the area coverage). Coverage of the 90 % intervals.", "",
           "| unit | area coverage: all / physical truths | % seawater coverage | EC25 coverage | Brier P(> 50 %) "
           "(climatology) | Brier P(fresh) (climatology) | n (area all / physical; salinity) |", "|---|---|---|---|---|---|---|"]
     brier = {}
@@ -421,13 +463,14 @@ def cmd_run(args):
                  f"{100*np.mean(c['sw']):.1f}% | {100*np.mean(c['ec25']):.1f}% | {b1:.3f} ({b1c:.3f}) | {b2:.3f} ({b2c:.3f}) | "
                  f"{len(c['area'])} / {len(c['area_phys'])}; {len(c['sw'])} |")
     ca = {k: np.mean([c[k] for c in cov_area]) for k in cov_area[0]}
-    L += ["", "**Prior–constraint inconsistency.** The held-out samples are drawn from the prior, whose ρ_lens range "
-          "(0.4–3.0 Ω·m) extends below the physical bound F·ρ_sw ≥ 0.694 Ω·m: "
-          f"{n_truth_impossible} of {nh} truths cannot be physical for any F, S, T, and {n_post_empty} posteriors have "
-          f"< 50 physical draws (median rejection {100*np.median(ho_rates):.1f} % vs {100*info_f['joint_rate']:.1f} % for the "
-          "field). The constraint truncates those posteriors while their truths stay unphysical, which lowers the area "
-          "coverage over all truths; restricted to physical truths it is the second value. A consistent prior would "
-          "impose ρ_lens ≥ F·ρ_sw at the prior level (not done here: the BEL training set is unchanged)."]
+    bcov = np.array(bcov); pcov = np.array(pcov)
+    L += ["", f"Physical filter: {n_truth_impossible} of {nh} held-out truths without a physical Archie draw (100 000 tries), "
+          f"{n_post_empty} posteriors have < 50 physical draws; median held-out rejection {100*np.median(ho_rates):.1f} % "
+          f"(field {100*info_f['joint_rate']:.1f} %).", "",
+          "### Joint BEL — held-out coverage of the 90 % intervals (unconstrained joint posterior, 500 samples)", "",
+          f"Lens base (all {bcov.shape[1]} columns): **{100*bcov.mean():.1f} %** (per column "
+          f"{100*bcov.mean(0).min():.0f}–{100*bcov.mean(0).max():.0f} %).", "",
+          "| parameter | coverage |", "|---|---|"] + [f"| {k} | {100*pcov[:, i].mean():.1f}% |" for i, k in enumerate(s6.PKEYS)]
     L += ["", "Class areas (appendix), coverage of the 90 % intervals: " + "; ".join(f"{k} {100*v:.0f} %" for k, v in ca.items())
           + "."]
     R = np.vstack(rel); bb_ = np.linspace(0, 1, 11); idx = np.clip(np.digitize(R[:, 0], bb_) - 1, 0, 9)
@@ -446,7 +489,12 @@ def cmd_run(args):
              **{f"draw_{k}": v for k, v in st["draws"].items()},
              **{f"bin{k}_Psal": v["Psal"] for k, v in bins.items()},
              **{f"bin{k}_usw_{u}": v["usw"][u] for k, v in bins.items() for u in UNITS})
-    json.dump(dict(constraint=dict(joint_rate=info_f["joint_rate"], unit_rate=info_f["unit_rate"],
+    json.dump(dict(filter=dict(rho_lens_min=s6.PHYS_RHO_LENS_MIN, n_site=list(n_site), n_phys=list(n_phys)),
+                   joint_cov=dict(base=float(bcov.mean()), base_col_min=float(bcov.mean(0).min()),
+                                  base_col_max=float(bcov.mean(0).max()),
+                                  params={k: float(pcov[:, i].mean()) for i, k in enumerate(s6.PKEYS)}),
+                   comparison=comp, constraint_site_only=dict(joint_rate=info0["joint_rate"], unit_rate=info0["unit_rate"]),
+                   constraint=dict(joint_rate=info_f["joint_rate"], unit_rate=info_f["unit_rate"],
                                    n_proposed=info_f["n_proposed"], n_accepted=info_f["n_accepted"],
                                    n_distinct=info_f["n_distinct"], heldout_median_joint_rate=float(np.median(ho_rates)),
                                    heldout_truth_impossible=n_truth_impossible, heldout_post_empty=n_post_empty),

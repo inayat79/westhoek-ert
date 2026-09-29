@@ -42,8 +42,15 @@ N_POST = 2000
 
 
 # ─────────────────────────────────────────────────────────────────────────────
-def load_combined(site_only=True):
-    """Prior v2 + v3 training / held-out: corrected noisy data, targets, parameters (site-filtered)."""
+# Physical filter (v1.0 freeze): the lens must be able to hold ≤ 100 % seawater for SOME Archie draw, i.e.
+# ρ_lens ≥ min(F) · min(ρ_sw) = 2.8 × 0.247911 Ω·m (PSS-78, S = 34 PSU, T = 14 °C; see 17_salinity_v2.py, which
+# asserts this value) = 0.69415 Ω·m.
+PHYS_RHO_LENS_MIN = 0.69415
+
+
+def load_combined(site_only=True, physical=False):
+    """Prior v2 + v3 training / held-out: corrected noisy data, targets, parameters (site-filtered; with physical=True
+    also ρ_lens ≥ PHYS_RHO_LENS_MIN). Defaults reproduce Stage 6."""
     mu_d, dev = b13.approx_stats()
     v2tr = b13.load_set("train", set(range(b13.N_TRAIN)))
     v2ho = b13.load_set("train", set(range(b13.N_TRAIN, b13.N_TRAIN + b13.N_HELD)))
@@ -61,7 +68,7 @@ def load_combined(site_only=True):
         th = [json.loads(str(zm[i]["theta"])) for i in keep]
         T = np.array([zm[i]["target"] for i in keep])
         if site_only:
-            m = np.array([site(t, tt) for t, tt in zip(th, T)])
+            m = np.array([site(t, tt) and (not physical or t["rho_lens"] >= PHYS_RHO_LENS_MIN) for t, tt in zip(th, T)])
             D, T, th, keep = D[m], T[m], [t for t, k in zip(th, m) if k], [i for i, k in zip(keep, m) if k]
         out[name] = dict(D=D, T=T, th=th, ids=keep)
     out["n_v3"] = (len(v3tr), len(v3ho))

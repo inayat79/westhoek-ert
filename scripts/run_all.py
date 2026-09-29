@@ -20,6 +20,10 @@ Always run inside the `pg` environment:  conda run -n pg python run_all.py <mode
         producing script). Files under data/raw are inputs; anything else without a producer is reported.
         Runs automatically after --from-cache --check.
 
+  --diff OLD.json
+        Write results/paper/numbers_diff.md: every number whose value differs between OLD.json (a previous
+        results/paper/numbers.json) and the current one, old → new, with the reason (rules in DIFF_REASONS).
+
   --check --out DIR
         Compare a rebuilt tree with the stored project: (1) every number in DIR/results/paper/numbers.json equals the
         stored results/paper/numbers.json; (2) every number with a cross-check reference is found in that stored report;
@@ -114,6 +118,7 @@ RAW_STEPS = [
     ("16-refit", ["16_stage6_salinity.py", "refit"], "8 min", False),
     ("16-joint", ["16_stage6_salinity.py", "joint"], "10 min", False),
     ("17", ["17_salinity_v2.py", "run"], "7 min", True),
+    ("19", ["19_rho_lens_bound_check.py"], "3 min", False),
     ("18", ["18_paper.py", "all"], "7 min", True),
 ]
 
@@ -282,7 +287,15 @@ def check(out):
             n_ref += 1
             rp, ctx, match = r["ref"]
             p = os.path.join(ROOT, rp)
-            lines = open(p, encoding="utf-8", errors="replace").read().splitlines() if os.path.exists(p) else []
+            if ctx.startswith("npz:"):                   # "npz:<key>:<format>" or "npz:len(<key>):<format>"
+                import numpy as np
+                _, key, fmt = ctx.split(":")
+                z = np.load(p, allow_pickle=True)
+                v = len(z[key[4:-1]]) if key.startswith("len(") else z[key].item()
+                lines = [format(v, fmt)]
+                ctx = ""
+            else:
+                lines = open(p, encoding="utf-8", errors="replace").read().splitlines() if os.path.exists(p) else []
             if any(ctx in l and match in l for l in lines):
                 n_ref_ok += 1
             else:
@@ -318,14 +331,80 @@ def check(out):
     return ok
 
 
+DIFF_REASONS = [   # (key prefix, reason) — first match wins
+    ("bel_base_site_only", "pre-freeze (site-only) headline, kept for comparison"),
+    ("physical_filter", "new: physical-filter comparison (site + physical vs site only)"),
+    ("second_bel", "new: second BEL refitted on the site + physical subset and added to the paper numbers"),
+    ("joint_heldout", "new: joint-BEL held-out coverage now reported (site + physical)"),
+    ("bel_n_train", "training / held-out sets: site + physical filter"),
+    ("bel_", "base-only BEL refitted on the site + physical subset (ρ_lens ≥ 0.69415 Ω·m)"),
+    ("falsify_", "falsification recomputed on the site + physical training set"),
+    ("unit_lens_heldout", "held-out set changed (site + physical: 173 samples, truths now physical)"),
+    ("unit_", "joint BEL refitted on the site + physical subset (transform bound kept at 0.4 Ω·m); Stage 6 rerun"),
+    ("constraint_heldout", "held-out set changed (site + physical): truths are now physical, far fewer rejections"),
+    ("constraint_", "joint BEL refitted on the site + physical subset; Stage 6 rerun"),
+    ("class_area_", "joint BEL refitted on the site + physical subset; Stage 6 rerun"),
+    ("pdis_field", "joint BEL refitted on site + physical"),
+    ("sens_prior_subset", "headline subset is now site + physical"),
+    ("sens_", "derived from the refitted BELs (site + physical)"),
+]
+
+
+def diff(old_json):
+    new_p = os.path.join(ROOT, "results", "paper", "numbers.json")
+    import re
+    norm = lambda k: re.sub(r"_n_\d+$", "", k)       # pre-freeze keys embedded bin sample counts ("(n = 573)")
+    old = {norm(r["key"]): r for r in json.load(open(old_json, encoding="utf-8"))}
+    new = {norm(r["key"]): r for r in json.load(open(new_p, encoding="utf-8"))}
+    why = lambda k: next((w for pre, w in DIFF_REASONS if k.startswith(pre)), "**unexplained — check**")
+    esc = lambda x: str(x).replace("|", "\\|")
+    changed = [k for k in new if k in old and new[k]["value"] != old[k]["value"]]
+    added = [k for k in new if k not in old]; removed = [k for k in old if k not in new]
+    same = [k for k in new if k in old and new[k]["value"] == old[k]["value"]]
+    refs = [k for k in same if (new[k].get("ref") or [None])[0] != (old[k].get("ref") or [None])[0]]
+    L = ["# Numbers diff — v1.0 freeze (physical filter)", "",
+         f"Old: `{os.path.relpath(old_json, ROOT)}`; new: `results/paper/numbers.json`. {len(changed)} changed, "
+         f"{len(added)} added, {len(removed)} removed, {len(same)} unchanged.", "",
+         "## Changed", "", "| key | quantity | old | new | why |", "|---|---|---|---|---|"]
+    L += [f"| `{k}` | {esc(new[k]['desc'])} | {esc(old[k]['value'])} | {esc(new[k]['value'])} | {why(k)} |" for k in changed]
+    L += ["", "## Added", "", "| key | quantity | value | why |", "|---|---|---|---|"]
+    L += [f"| `{k}` | {esc(new[k]['desc'])} | {esc(new[k]['value'])} | {why(k)} |" for k in added]
+    chk = os.path.join(ROOT, "results", "paper", "rho_lens_bound_check.md")
+    if os.path.exists(chk):
+        body = open(chk, encoding="utf-8").read().split("\n", 2)[2]
+        L += ["", "## ρ_lens transform bound: why it stays at 0.4 Ω·m", "",
+              "A first v1.0 build also raised the ρ_lens logit bound of the joint and second BEL to the physical value "
+              "0.69415 Ω·m. The lens then went from 69.5 to 78.0 % seawater (joint BEL ρ_lens 1.27 [0.91, 1.71] → 1.13 "
+              "[0.91, 1.47] Ω·m; second BEL 1.30 [1.03, 1.62] → 1.22 [1.03, 1.46] Ω·m), although removing low-ρ_lens "
+              "models should, if anything, make it less saline. `scripts/19_rho_lens_bound_check.py` shows that the "
+              "filter alone changes nothing and the shift comes from the bound (a transformation effect, no new data); "
+              "v1.0 therefore keeps the transform bound at 0.4 Ω·m. Its report (`results/paper/rho_lens_bound_check.md`):",
+              "", body.strip()]
+    L += ["", "## Removed", ""] + ([f"- `{k}` ({esc(old[k]['desc'])}): {esc(old[k]['value'])}" for k in removed] or ["- none"])
+    L += ["", "## Unchanged values with a new cross-check source", ""]
+    L += [f"- `{k}`: {old[k]['ref'][0] if old[k].get('ref') else '—'} → {new[k]['ref'][0] if new[k].get('ref') else '—'}"
+          for k in refs] or ["- none"]
+    out = os.path.join(ROOT, "results", "paper", "numbers_diff.md")
+    with open(out, "w", encoding="utf-8") as f:
+        f.write("\n".join(L) + "\n")
+    print("\n".join(L[:4]) + f"\n[diff] → {out}")
+    unexplained = [k for k in changed + added if why(k).startswith("**")]
+    if unexplained:
+        print("UNEXPLAINED:", unexplained)
+
+
 def from_cache(out, do_check):
     out = os.path.abspath(out)
     os.makedirs(out, exist_ok=True)
-    log = os.path.join(out, "run_all_from_cache.log")
-    trace = os.path.join(out, "provenance_reads.tsv")
-    if os.path.exists(trace):
-        os.remove(trace)
-    os.environ["WESTHOEK_READ_TRACE"] = trace
+    in_project = out == ROOT
+    logdir = os.path.join(ROOT, "data", "processed", "paper") if in_project else out
+    os.makedirs(logdir, exist_ok=True)
+    log = os.path.join(logdir, "run_all_from_cache.log")
+    if not in_project:                                  # read tracing only for rebuilds into a separate folder
+        trace = os.path.join(out, "provenance_reads.tsv")
+        if os.path.exists(trace):
+            os.remove(trace)
+        os.environ["WESTHOEK_READ_TRACE"] = trace
     print(f"[from-cache] → {out} (log {log})")
     t = {}
     t["17"] = run(["17_salinity_v2.py", "run", "--out", out], SCRIPT_DIR, log)
@@ -372,6 +451,7 @@ def main():
     g = ap.add_mutually_exclusive_group(required=True)
     g.add_argument("--from-cache", action="store_true"); g.add_argument("--from-raw", action="store_true")
     g.add_argument("--check", action="store_true"); g.add_argument("--audit", action="store_true")
+    g.add_argument("--diff", default=None, metavar="OLD_JSON")
     ap.add_argument("--out", default=None)
     ap.add_argument("--no-check", action="store_true")
     ap.add_argument("--execute", action="store_true")
@@ -383,6 +463,8 @@ def main():
         if not a.out:
             raise SystemExit("--from-raw needs --out")
         from_raw(a.out, a.execute, a.until)
+    elif a.diff:
+        diff(os.path.abspath(a.diff))
     elif a.audit:
         if not a.out:
             raise SystemExit("--audit needs --out")

@@ -15,6 +15,13 @@ Inputs (read-only, from the project): data/raw, data/processed/runs (inversions)
 (linearised posterior products), ROOT/data/processed/stage6_v2 (17_salinity_v2.py). Heavy BEL products and the
 fine-mesh forward check are cached in ROOT/data/processed/paper/ (rebuilt with --recompute or when missing).
 
+Headline subset (v1.0 freeze): "site" + "physical" (ρ_lens ≥ stage6_analysis.PHYS_RHO_LENS_MIN = 0.69415 Ω·m)
+of prior v2 + v3, for the base-only BEL, the second BEL (D1, D2, logit-bounded log10 ρ; transform bounds ρ_lens
+0.4–3.0, ρ_below 2–20, ρ_discharge 2.5–150 Ω·m — the ρ_lens transform bound is NOT the physical bound, see
+19_rho_lens_bound_check.py) and the joint BEL (17_salinity_v2.py). The pre-freeze site-only field lens base is recomputed
+with its original seeds for the comparison. Second-BEL seeds default_rng([132000, 3]) field, [132000, 60000 + j]
+held-out; its targets are cached in ROOT/data/processed/paper/second_bel_targets_phys.npz.
+
 Conventions: blue = conductive (RdBu_r on ρ; Blues for P(saline)); vertical exaggeration stated on every section;
 dune zone x < 90 m hatched as weakly constrained. Seeds: BEL site-v3 lens base and held-out = the Stage-6 refit seeds
 (default_rng([129000, 1]) field, [129000, 90000 + j] held-out); new BEL posteriors default_rng([132000, k]):
@@ -385,11 +392,11 @@ def fig_reference():
     ax.legend(h, l, loc="upper center", bbox_to_anchor=(0.5, -0.22), ncol=2, fontsize=6.3, facecolor="white")
     save(fig, "F3_reference")
     fn, src = "fig_reference", "`data/processed/runs/g1_lam50/westhoek_inversion_results.npz`"
-    NUM.add("ref_chi2", f"{float(ref['chi2']):.3f}", "reference χ²", fn, src, ref=("results/REFERENCE.md", "inversion", f"χ² = {float(ref['chi2']):.3f}"))
+    NUM.add("ref_chi2", f"{float(ref['chi2']):.3f}", "reference χ²", fn, src, ref=("data/processed/runs/g1_lam50/westhoek_inversion_results.npz", "npz:chi2:.3f", f"{float(ref['chi2']):.3f}"))
     NUM.add("ref_lambda", f"{float(ref['lam']):g}", "reference λ", fn, src)
     NUM.add("ref_n_iter", int(ref["n_iter"]), "Gauss–Newton iterations", fn, src,
-            ref=("results/REFERENCE.md", "inversion", f"after {int(ref['n_iter'])} iterations"))
-    NUM.add("ref_n_cells", len(ref["model"]), "paraDomain cells", fn, src, ref=("results/REFERENCE.md", "mesh", f"{len(ref['model'])} paraDomain cells"))
+            ref=("data/processed/runs/g1_lam50/westhoek_inversion_results.npz", "npz:n_iter:d", f"{int(ref['n_iter'])}"))
+    NUM.add("ref_n_cells", len(ref["model"]), "paraDomain cells", fn, src, ref=("data/processed/runs/g1_lam50/westhoek_inversion_results.npz", "npz:len(model):d", f"{len(ref['model'])}"))
     s = np.interp(cx, ex, ez); top30 = (s - cz) <= 30
     for rmax in (10, 15):
         NUM.add(f"ref_share_r{rmax}_top30", f"{100*np.mean(rr[top30] <= rmax):.0f} %",
@@ -636,11 +643,16 @@ def bel_products(recompute=False):
         return {k: (z[k].item() if z[k].dtype == object and z[k].shape == () else z[k]) for k in z.files}
     t0 = time.time()
     s6.init(); s6.TX = TX
-    C = s6.load_combined()
     obs, truths = b13.observed_sets()
+    C0 = s6.load_combined()                                   # pre-freeze headline: site subset only (field only)
+    out = dict(n_train_site=len(C0["tr"]["D"]), n_held_site=len(C0["ho"]["D"]))
+    out["Pf_site"] = b13.BEL(C0["tr"]["D"], C0["tr"]["T"]).posterior(obs["field"], 2000,
+                                                                      np.random.default_rng([129000, 1]), "kde")
+    del C0
+    C = s6.load_combined(physical=True)                       # v1.0 headline: site + physical
     D, T, th = C["tr"]["D"], C["tr"]["T"], C["tr"]["th"]
     bel = b13.BEL(D, T)
-    out = dict(n_train=len(D), n_held=len(C["ho"]["D"]), kd=bel.pd.k, kt=bel.pt.k)
+    out.update(n_train=len(D), n_held=len(C["ho"]["D"]), kd=bel.pd.k, kt=bel.pt.k)
     out["Pf"] = bel.posterior(obs["field"], 2000, np.random.default_rng([129000, 1]), "kde")
     cov, rank, wid, bias = [], [], [], []
     for j, (y, t) in enumerate(zip(C["ho"]["D"], C["ho"]["T"])):
@@ -701,6 +713,22 @@ def bel_products(recompute=False):
         bcov.append(float(np.mean(cc))); bn.append((int(m.sum()), len(mh)))
     out.update(Pbins=np.array(Pb), bins_cov=np.array(bcov), bins_n=np.array(bn), bins=np.array(bins))
     print(f"[bel] ρ_below bins done ({time.time()-t0:.0f} s)", flush=True)
+    # second BEL (D1, D2, logit-bounded log10 ρ) on site + physical
+    pY = os.path.join(DPAP, "second_bel_targets_phys.npz")
+    if os.path.exists(pY) and not recompute:
+        zY = np.load(pY); Ytr, Yho = zY["Ytr"], zY["Yho"]
+    else:
+        Ytr = np.array([g14.derived_targets(t) for t in th]); Yho = np.array([g14.derived_targets(t) for t in C["ho"]["th"]])
+        np.savez(pY, Ytr=Ytr, Yho=Yho)
+    s15.RHO_BOUNDS.update(rho_lens=(0.4, 3.0), rho_below=(2.0, 20.0), rho_discharge=(2.5, 150.0))
+    b2 = s15.BEL2(D, Ytr, bounded=True)
+    out["P2"] = b2.posterior(obs["field"], 2000, np.random.default_rng([SEED, 3]))
+    c2 = []
+    for j, y in enumerate(C["ho"]["D"]):
+        P = b2.posterior(y, 2000, np.random.default_rng([SEED, 60_000 + j])); lo, hi = np.percentile(P, [5, 95], 0)
+        c2.append((Yho[j] >= lo) & (Yho[j] <= hi))
+    out["cov2"] = np.array(c2); out["Y2_train"] = Ytr
+    print(f"[bel] second BEL done ({time.time()-t0:.0f} s)", flush=True)
     # full prior v3 (no site filter), field only
     Cf = s6.load_combined(site_only=False)
     out["Pf_full"] = b13.BEL(Cf["tr"]["D"], Cf["tr"]["T"]).posterior(obs["field"], 2000, np.random.default_rng([SEED, 2]), "kde")
@@ -766,13 +794,15 @@ def fig_bel_calibration(B):
     ax.grid(True, alpha=0.3); panel(ax, "d")
     save(fig, "F6_bel_calibration")
     from scipy.stats import chisquare
-    fn, src = "bel_products / fig_bel_calibration", "`data/processed/bel/v2/train`, `data/processed/bel_prior_v3/train` (site subset)"
+    fn, src = "bel_products / fig_bel_calibration", "`data/processed/bel/v2/train`, `data/processed/bel_prior_v3/train` (site + physical subset)"
     rep = "results/stage6/1_prior_v3_refit.md"
-    NUM.add("bel_n_train_site_v3", f"{B['n_train']} / {B['n_held']}", "BEL training / held-out samples (site subset, prior v3)",
-            fn, src, ref=(rep, "site subset", f"{B['n_train']} training / {B['n_held']} held-out"))
+    NUM.add("bel_n_train_site_v3", f"{B['n_train_site']} / {B['n_held_site']}", "training / held-out samples, site subset "
+            "(pre-freeze)", fn, src, ref=(rep, "site subset", f"{B['n_train_site']} training / {B['n_held_site']} held-out"))
+    NUM.add("bel_n_train_site_phys", f"{B['n_train']} / {B['n_held']}", "training / held-out samples, site + physical "
+            "subset (v1.0 headline)", fn, src)
     NUM.add("bel_kd_kt", f"{B['kd']} / {B['kt']}", "data / target PCA components (99 % variance)", fn, src)
-    NUM.add("bel_heldout_coverage", f"{100*B['ho_cov'].mean():.1f} %", "BEL held-out 90 % coverage (lens base)", fn, src,
-            ref=(rep, "held-out 90 % coverage", f"**{100*B['ho_cov'].mean():.1f} %**"))
+    NUM.add("bel_heldout_coverage", f"{100*B['ho_cov'].mean():.1f} %", "BEL held-out 90 % coverage (lens base; site + physical)",
+            fn, src)
     pc_ = 100 * B["ho_cov"].mean(0)
     NUM.add("bel_heldout_cov_per_column", f"{pc_.min():.0f}–{pc_.max():.0f} %", "per-column held-out coverage range", fn, src)
     h = np.histogram(rk, bins=10, range=(0, 1))[0]
@@ -783,7 +813,7 @@ def fig_bel_calibration(B):
     for nm, a, b_ in (("t2", B["t2_train"], B["t2_field"]), ("t2_robust", B["t2r_train"], B["t2r_field"]),
                       ("q", B["q_train"], B["q_field"])):
         NUM.add(f"falsify_{nm}_pct", f"{100*np.mean(a < b_):.1f}", f"field percentile of {nm.replace('_', ' ')} among the "
-                "training samples (site, prior v3)", fn, src)
+                "training samples (site + physical, prior v3)", fn, src)
 
 
 def fig_field_base(B):
@@ -797,7 +827,7 @@ def fig_field_base(B):
     ax.plot(v4["x"], np.where(ok, b[1], np.nan), color="#e67e22", lw=1.3, label="linearised log-midpoint, λ-pooled: median, 90 %")
     lo, md, hi = np.percentile(B["Pf"], [5, 50, 95], 0)
     ax.fill_between(TX, lo, hi, color="#1f4e9c", alpha=0.25, lw=0)
-    ax.plot(TX, md, color="#1f4e9c", lw=1.6, label="BEL-KDE (site, prior v3): median, 90 %")
+    ax.plot(TX, md, color="#1f4e9c", lw=1.6, label="BEL-KDE (site + physical, prior v3): median, 90 %")
     ax.plot(ex, ez, "k-", lw=0.8, label="land surface")
     ax.set_xlim(-5, 510); ax.set_ylim(-32, 8); ax.set_aspect(3); dune_hatch(ax)
     ax.set_ylabel("Elevation (mTAW)"); ve_text(ax, 3)
@@ -816,15 +846,34 @@ def fig_field_base(B):
     ax.set_title("BEL lens base conditional on the resistivity of the water below the lens")
     legend_below(ax, ncol=2, dy=-0.25); panel(ax, "b")
     save(fig, "F7_field_lens_base")
-    fn, src = "bel_products / fig_field_base", "`data/processed/bel/v2/train`, `data/processed/bel_prior_v3/train` (site subset)"
+    fn, src = "bel_products / fig_field_base", "`data/processed/bel/v2/train`, `data/processed/bel_prior_v3/train` (site + physical subset)"
     rep = "results/stage6/1_prior_v3_refit.md"
     for xx in XREP:
         j = int(np.argmin(np.abs(TX - xx)))
-        NUM.add(f"bel_base_x{xx}", q(B["Pf"][:, j]), f"BEL lens base (site, prior v3), x = {xx} m, median [P5, P95] (mTAW)",
-                fn, src, ref=(rep, f"| {xx} |", q(B["Pf"][:, j])))
+        NUM.add(f"bel_base_x{xx}", q(B["Pf"][:, j]), f"BEL lens base (site + physical, prior v3), x = {xx} m, median "
+                "[P5, P95] (mTAW)", fn, src)
+        NUM.add(f"bel_base_site_only_x{xx}", q(B["Pf_site"][:, j]), f"pre-freeze BEL lens base (site only), x = {xx} m",
+                fn, src, ref=(rep, f"| {xx} |", q(B["Pf_site"][:, j])))
+        shift = float(np.median(B["Pf"][:, j]) - np.median(B["Pf_site"][:, j]))
+        NUM.add(f"physical_filter_shift_x{xx}", f"{shift:+.2f} m" + (" (beyond ±1.3 m)" if abs(shift) > 1.3 else ""),
+                f"field lens-base median shift, site + physical − site only, x = {xx} m", fn, src)
         for k, (lo_, hi_) in enumerate(B["bins"]):
             NUM.add(f"bel_base_rhobelow{lo_}-{hi_}_x{xx}", q(B["Pbins"][k][:, j]),
                     f"BEL lens base | ρ_below {lo_}–{hi_} Ω·m, x = {xx} m", fn, src)
+    names2 = ["D1", "D2", "rho_lens", "rho_below", "rho_discharge"]
+    for i, n2 in enumerate(names2):
+        v = B["P2"][:, i]; v = 10 ** v if n2.startswith("rho") else v
+        NUM.add(f"second_bel_{n2}", f"{q(v, 2)}; held-out coverage {100*B['cov2'][:, i].mean():.1f} %",
+                f"second BEL (site + physical): field {n2}{' (Ω·m)' if n2.startswith('rho') else ' (log10)'} median "
+                "[P5, P95]; held-out 90 % coverage", "bel_products", src)
+    NUM.add("second_bel_P_D1_gt_0", f"{np.mean(B['P2'][:, 0] > 0):.2f}", "second BEL: P(D1 > 0) — water beneath the "
+            "saline body at x 380–470 m more resistive than beneath the lens (quoted instead of the ρ_discharge median)",
+            "bel_products", src)
+    lo, hi = np.log10(2.5), np.log10(150.0); top = lo + 0.9 * (hi - lo)
+    NUM.add("second_bel_rho_dis_top10", f"{100*np.mean(B['P2'][:, 4] > top):.1f} % (prior {100*np.mean(B['Y2_train'][:, 4] > top):.1f} %)",
+            "second BEL: field ρ_discharge posterior mass above 99.6 Ω·m (top 10 % of the log range); the upper limit is "
+            "physical (150 Ω·m bulk ≈ 300 μS/cm EC25 pore water at F = 3.2), the median is transform-sensitive and not "
+            "quoted", "bel_products", src)
     for k, (lo_, hi_) in enumerate(B["bins"]):
         NUM.add(f"bel_rhobelow{lo_}-{hi_}_n_cov", f"{B['bins_n'][k][0]} / {B['bins_n'][k][1]}; {100*B['bins_cov'][k]:.1f} %",
                 f"ρ_below {lo_}–{hi_} Ω·m: training / held-out samples; held-out coverage", fn, src)
@@ -920,6 +969,17 @@ def fig_salinity():
                 "`data/processed/stage6_v2/summary_v2.json`",
                 ref=(rep, f"| {names[u].replace(' (weakly constrained)', '')}",
                      f"{100*c['area']:.1f}% / {100*c['area_phys']:.1f}% | {100*c['sw']:.1f}% | {100*c['ec25']:.1f}%"))
+    jc = sm["joint_cov"]
+    NUM.add("joint_heldout_base_cov", f"{100*jc['base']:.1f} % ({100*jc['base_col_min']:.0f}–{100*jc['base_col_max']:.0f} % per column)",
+            "joint BEL held-out coverage, lens base", "17_salinity_v2.py:cmd_run", "`data/processed/stage6_v2/summary_v2.json`",
+            ref=(rep, "Lens base (all", f"**{100*jc['base']:.1f} %**"))
+    for k, v in jc["params"].items():
+        NUM.add(f"joint_heldout_cov_{k}", f"{100*v:.1f} %", f"joint BEL held-out coverage, {k}", "17_salinity_v2.py:cmd_run",
+                "`data/processed/stage6_v2/summary_v2.json`", ref=(rep, f"| {k} |", f"{100*v:.1f}% |"))
+    fl = sm["filter"]
+    NUM.add("physical_filter_counts", f"training {fl['n_site'][0]} → {fl['n_phys'][0]}; held-out {fl['n_site'][1]} → {fl['n_phys'][1]}",
+            f"site → site + physical subset (ρ_lens ≥ {fl['rho_lens_min']:.5f} Ω·m)", "17_salinity_v2.py:cmd_run",
+            "`data/processed/stage6_v2/summary_v2.json`")
     cn = sm["constraint"]
     NUM.add("constraint_joint_rejection_field", f"{100*cn['joint_rate']:.1f} %", "field: share of (posterior sample, F, S, T) "
             "draws rejected for > 100 % seawater in any unit", "17_salinity_v2.py:cmd_run", "`data/processed/stage6_v2/summary_v2.json`",
@@ -974,13 +1034,17 @@ def tables(B, summ):
     L = ["# Paper tables", ""]
     # T1
     spec = json.load(open(b13.SPEC2, encoding="utf-8"))
-    L += ["## T1 — prior (site subset of prior v3) and conversion parameters", "",
+    L += ["## T1 — prior (site + physical subset of prior v3) and conversion parameters", "",
           "| parameter | distribution | range | unit | source / justification |", "|---|---|---|---|---|"]
     csv = ["parameter,distribution,range,unit,source"]
     for k, v in spec["params"].items():
         rng_ = v.get("range")
         rs = f"p = {v['p']}" if rng_ is None else (f"{rng_[0]:g} – {rng_[1]:g}" if rng_[1] is not None else f"{rng_[0]:g} – x_L + 20")
         why = v.get("why", "")
+        if k == "rho_lens":
+            rs = f"{s6.PHYS_RHO_LENS_MIN:.3f} – 3.0 (physical filter of 0.4 – 3.0)"
+            why = ("saline by construction; lower bound = min F × min ρ_sw (2.8 × 0.2479 Ω·m, PSS-78): below it the lens "
+                   "would exceed 100 % seawater for every Archie draw")
         if k == "rho_discharge":
             rs = "2.5 – 150"; why = "prior v2 2.5–40 (Hermans & Paepen 2020 range, confirmed) extended to 150 Ω·m in prior v3 (posterior mass piled at the 40 Ω·m ceiling)"
         if k == "z_deep":
@@ -1002,7 +1066,7 @@ def tables(B, summ):
     L += ["", "## T2 — synthetic validation of the lens base: coverage of 90 % intervals, bias, width", "",
           "Linearised: truths T1, T1h, T2a, T3 × 20 realisations, λ = 50 (pooled = λ 5–100, realisations 0–4), columns "
           "x = 100–450 m grouped by the resolution radius at the method's own λ = 50 crossing; coverage and |bias| = mean "
-          "over the four truths, width = median. BEL-KDE (site, prior v3): held-out prior samples (all 36 columns); "
+          "over the four truths, width = median. BEL-KDE (site + physical, prior v3): held-out prior samples (all 36 columns); "
           "Stage-4 truths and the BEL-builder twin of T1 (20 realisations, fine-mesh data, columns x = 130–450 m); "
           "bias = median(estimate − truth), negative = too deep.", "",
           "| method | test set | coverage | bias (m) | width (m) |", "|---|---|---|---|---|"]
@@ -1015,18 +1079,18 @@ def tables(B, summ):
                                     ("λ-pooled", s["cov_pooled"], s["width_pooled"], "—")):
                 L.append(f"| {names[dname]} ({lab}) | 4 truths, r {grp} m | {100*cv:.0f} % | {bs} | {wd:.2f} |")
                 csv.append(f"{names[dname]} ({lab}),4 truths r {grp} m,{100*cv:.1f},{bs},{wd:.3f}")
-    L.append(f"| BEL-KDE (site, prior v3) | held-out prior ({B['n_held']}) | {100*B['ho_cov'].mean():.1f} % | "
+    L.append(f"| BEL-KDE (site + physical, prior v3) | held-out prior ({B['n_held']}) | {100*B['ho_cov'].mean():.1f} % | "
              f"{np.median(B['ho_bias']):+.2f} | {np.median(B['ho_wid']):.2f} |")
     csv.append(f"BEL-KDE,held-out prior,{100*B['ho_cov'].mean():.2f},{np.median(B['ho_bias']):.3f},{np.median(B['ho_wid']):.3f}")
     ts = B["truth_stats"]
     for k, v in ts.items():
-        L.append(f"| BEL-KDE (site, prior v3) | {k} (n = {v['n']}) | {100*v['cov']:.0f} % | {v['bias']:+.2f} | {v['width']:.2f} |")
+        L.append(f"| BEL-KDE (site + physical, prior v3) | {k} (n = {v['n']}) | {100*v['cov']:.0f} % | {v['bias']:+.2f} | {v['width']:.2f} |")
         csv.append(f"BEL-KDE,{k},{100*v['cov']:.1f},{v['bias']:.3f},{v['width']:.3f}")
     with open(os.path.join(RESP, "T2_synthetic.csv"), "w", encoding="utf-8") as f:
         f.write("\n".join(csv) + "\n")
     for k, v in ts.items():
         NUM.add(f"bel_truth_{re.sub('[^A-Za-z0-9]+', '_', k)}", f"{100*v['cov']:.0f} % / {v['bias']:+.2f} / {v['width']:.2f} m",
-                f"BEL (site, prior v3) on {k}: coverage / bias / width", "bel_products / tables",
+                f"BEL (site + physical, prior v3) on {k}: coverage / bias / width", "bel_products / tables",
                 "`data/processed/synthetic/truth_forward.npz`, `data/processed/bel_v4/twin_forward.npz`")
     # T3 sensitivity
     ctx = ref_ctx(); cs = ctx["cs_tx"]
@@ -1055,7 +1119,9 @@ def tables(B, summ):
          f"{100*frac:.1f} % ({100*frac_dune:.1f} %)"),
         ("mesh (BEL forward)", "medium vs fine mesh, 100 dual prior samples", "median |mean δ| / median s.d. δ, in units of 3 % noise",
          f"{np.median(np.abs(ap['mean']))/nl:.2f} / {np.median(ap['sd'])/nl:.2f}"),
-        ("prior subset", "site vs full prior v3 (BEL)", "BEL median base",
+        ("prior subset", "site + physical vs site only (BEL; physical filter)", "BEL median base",
+         f"{np.median(np.abs(np.median(B['Pf_site'], 0) - mdB)[xs]):.2f} / {np.max(np.abs(np.median(B['Pf_site'], 0) - mdB)[xs]):.2f}"),
+        ("prior subset", "site + physical vs full prior v3 (BEL)", "BEL median base",
          f"{np.median(np.abs(np.median(B['Pf_full'], 0) - mdB)[xs]):.2f} / {np.max(np.abs(np.median(B['Pf_full'], 0) - mdB)[xs]):.2f}"),
     ]
     for k, (lo_, hi_) in enumerate(B["bins"]):
@@ -1077,7 +1143,8 @@ def tables(B, summ):
     csv = ["factor,comparison,quantity,effect"]
     for r in rows3:
         L.append("| " + " | ".join(md(x) for x in r) + " |"); csv.append(",".join(f'"{x}"' for x in r))
-        NUM.add("sens_" + re.sub("[^A-Za-z0-9]+", "_", f"{r[0]}_{r[1]}").strip("_")[:60], r[3], f"{r[0]}: {r[1]} — {r[2]}",
+        NUM.add("sens_" + re.sub("[^A-Za-z0-9]+", "_", re.sub(r"\(n = \d+\)", "", f"{r[0]}_{r[1]}")).strip("_")[:60],
+                r[3], f"{r[0]}: {r[1]} — {r[2]}",
                 "tables", "see T3 inputs")
     with open(os.path.join(RESP, "T3_sensitivity.csv"), "w", encoding="utf-8") as f:
         f.write("\n".join(csv) + "\n")
