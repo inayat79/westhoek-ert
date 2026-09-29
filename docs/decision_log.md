@@ -26,6 +26,8 @@ a new, dated follow-up entry.**
 |---|---|---|
 | 2026-09-30 | v1.1-1 | Implementation details fixed while writing the scripts, before their results were seen: linearised posterior samples of the synthetic inversions use `default_rng([134050, truth, seed, λ])`; `11_stage4_closeout.a2_job` got keyword arguments (truth data, noise function, output path, λ list, posterior seed, saving the λ = 50 model and the noisy data) whose defaults reproduce v1.0 — checked by re-running the v1.0 job T1 r00 (`results/v1_1/1_lebbe1980_synthetic.md`). Petrophysics P5: EC25 by linear mixing of the two end-member EC25 values, EC25_e = 10⁴/ρ_e/(1 + 0.02(T − 25)) with T ~ U(8, 14) °C, seed `default_rng([135000, 5])` (reduces to the v1.0 seawater-only mixing when EC25_fresh → 0). The P0 reproduction check passed (accepted draws identical to `field_v2.npz`; numbers 101–104 identical). |
 
+| 2026-09-30 | v1.1-2 | **Erratum — the line is K1.** Electrode coordinates place it 1.08–1.11 km north-east of the border along the coast; Paepen et al. (2020, Section 3.1.1) date the K1 land profile to 7 March 2018. No file named our line K0 (every "K0" refers to the border profile or its well; `results/v1_1/3_k1_rename.md`). Survey date recorded in `results/REFERENCE.md` (to be confirmed by the authors); duration not reported. The v1.0 "site" filter (clay top −38 … −22 mTAW, spanning K1 and K0) is unchanged; narrowing it to K1 would be an analysis change. |
+
 ## Analysis choices fixed before running (Task 1)
 
 - **Truth geometry.** Boundaries of `data/external/lebbe1981_K1_digitised.csv` interpolated linearly in x between the
