@@ -1,5 +1,5 @@
 """
-19_lebbe1980_synthetic.py
+22_lebbe1980_synthetic.py (renamed from 19_lebbe1980_synthetic.py in v1.1.1)
 =========================
 Westhoek ERT v1.1 — Task 1: synthetic test with the 1980 K1 borehole-log structure (Lebbe 1981) as truth.
 
@@ -12,11 +12,13 @@ Westhoek ERT v1.1 — Task 1: synthetic test with the 1980 K1 borehole-log struc
 
 Truths (pre-registered in docs/decision_log.md): T80a base case; T80b no transition; T80c fresh 30 Ω·m; T80d fresh
 100 Ω·m; T80e saline base and fresh top shifted by +30 m in x; T80a_ht = T80a data + the field's residual pattern.
+Post hoc robustness checks (v1.1.1, docs/decision_log.md v1.1.1-0): T80f = T80a with the clay at 4 Ω·m; T80g = T80a with
+the fresh top 5 m deeper and the brackish transition extended down to it.
 Boundaries from data/external/lebbe1981_K1_digitised.csv, linear in x between control points, constant beyond.
 Seeds: noise default_rng([134000, truth_index, seed]); heavy-tail residual resampling default_rng([134500, seed]);
 linearised posterior samples default_rng([134050, truth_index, seed, λ]); BEL posteriors default_rng([134100 + k,
 truth_index, seed]) with k = 0 base-only, 1 second BEL, 2 joint BEL, 3 Archie draws; true-salinity Archie draws
-default_rng([134200, truth_index]). Truth indices: T80a 0, T80b 1, T80c 2, T80d 3, T80e 4, T80a_ht 5.
+default_rng([134200, truth_index]). Truth indices: T80a 0, T80b 1, T80c 2, T80d 3, T80e 4, T80a_ht 5, T80f 6, T80g 7.
 Pipeline functions reused unchanged: 11_stage4_closeout.a2_job (keyword arguments added in v1.1 with v1.0 defaults),
 10_synthetic_benchmark (G1 scheme, fine mesh FWD, error model), 13_bel_full.BEL, 15_stage5_closeout.BEL2,
 14_gateA_sensitivity.derived_targets, stage6_analysis (site + physical set, JointBEL), 17_salinity_v2 (Archie v2,
@@ -38,7 +40,7 @@ import numpy as np
 SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, SCRIPT_DIR)
 import read_trace  # noqa: E402
-read_trace.install("19_lebbe1980_synthetic.py")
+read_trace.install("22_lebbe1980_synthetic.py")
 import westhoek_common as wc  # noqa: E402
 
 
@@ -54,7 +56,8 @@ c11 = _load("c11", "11_stage4_closeout.py")
 sb = c11.sb
 k1 = _load("k1c", "21_k1_comparison.py")
 
-TRUTHS = ["T80a", "T80b", "T80c", "T80d", "T80e", "T80a_ht"]
+TRUTHS = ["T80a", "T80b", "T80c", "T80d", "T80e", "T80a_ht", "T80f", "T80g"]     # append only: indices seed the noise
+CLAY_T80F = 4.0
 TI = {t: i for i, t in enumerate(TRUTHS)}
 N_SEED = 5
 LAMS = [50.0, 5.0, 10.0, 20.0, 100.0]
@@ -91,6 +94,8 @@ def boundaries(truth, x):
              clay=np.interp(x, xs, clay))
     if truth.startswith("T80b"):
         b["ft"] = b["sal"].copy()
+    if truth.startswith("T80g"):                    # fresh top 5 m deeper, transition extended; never below the clay
+        b["ft"] = np.maximum(b["ft"] - 5.0, b["clay"])
     b["ft"] = np.minimum(b["ft"], b["sal"]); b["lbt"] = np.minimum(b["lbt"], b["ft"])
     return b
 
@@ -106,7 +111,7 @@ def log10rho(truth, x, z):
     dune = x < X_DUNE
     r = np.where(dune & (x < X_EDGE), RHO["dune"], np.where(dune, RHO["dune_edge"], r))
     r = np.where(dune & (z > Z_WT), RHO["unsat"], r)
-    r = np.where(z <= b["clay"], clay_rho(), r)
+    r = np.where(z <= b["clay"], CLAY_T80F if truth.startswith("T80f") else clay_rho(), r)
     return np.log10(r)
 
 
@@ -121,7 +126,9 @@ def true_below(truth, x):
 
 def forward_truths(d):
     p = os.path.join(d, "truth_forward.npz")
-    if os.path.exists(p):
+    need = [t for t in TRUTHS if not t.endswith("_ht")]
+    old = dict(np.load(p)) if os.path.exists(p) else {}
+    if all(f"R_{t}" in old for t in need):
         return np.load(p)
     import pygimli.meshtools as mt
     sch = sb.g1_scheme(); scheme = sb.make_scheme(sch); scheme["k"] = np.ones(scheme.size())
@@ -130,7 +137,10 @@ def forward_truths(d):
         fmesh = mt.createParaMesh(scheme.sensors(), **sb.FWD)
     cx = np.array([c.center().x() for c in fmesh.cells()]); cz = np.array([c.center().y() for c in fmesh.cells()])
     out = dict(cx=cx, cz=cz, clay_rho=clay_rho())
-    for t in TRUTHS[:5]:
+    out.update(old)                                                   # existing truths kept bit-identical
+    for t in need:
+        if f"R_{t}" in out:
+            continue
         v = log10rho(t, cx, cz)
         with contextlib.redirect_stdout(io.StringIO()):
             out[f"R_{t}"] = b13.pilot.simulate_R(fmesh, 10 ** v, scheme.size())
@@ -221,10 +231,13 @@ def bel_analyses(d):
     J = s6.JointBEL(D, T, th)
     ex, ez = wc.land_surface(); surf = np.interp(TX, ex, ez); m = (TX >= 130) & (TX <= 370)
     out = {}
+    pold = os.path.join(d, "bel_results.npz")
+    old = dict(np.load(pold, allow_pickle=True)) if os.path.exists(pold) else {}
+    done = {k.split("__")[0] for k in old if "__" in k}
     for t in TRUTHS:
         for s in range(N_SEED):
             p = os.path.join(d, "runs", f"{t}_s{s}.npz")
-            if not os.path.exists(p):
+            if not os.path.exists(p) or f"{t}_s{s}" in done:
                 continue
             z = np.load(p, allow_pickle=True)
             if not np.all(z["keep"]):
@@ -243,7 +256,7 @@ def bel_analyses(d):
                                     rho=(10 ** P2[:, 2:5]).astype(np.float32), fal=np.array(fal),
                                     sw={u: np.asarray(st["usw"][u]) for u in s17.UNITS}, rej=info["joint_rate"])
             print(f"[bel] {t} s{s}: ρ_below median {np.median(10 ** P2[:, 3]):.2f} Ω·m", flush=True)
-    flat = {}
+    flat = {k: v for k, v in old.items() if k != "TX"}                # existing data sets kept bit-identical
     for k, v in out.items():
         flat[f"{k}__base"] = v["base"]; flat[f"{k}__thick"] = v["thick"]; flat[f"{k}__rho"] = v["rho"]
         flat[f"{k}__fal"] = v["fal"]; flat[f"{k}__rej"] = np.array(v["rej"])
@@ -284,6 +297,8 @@ def cmd_report(args):
             sorted({k.split("__")[0] for k in Z.files if "__" in k})}
     fwd = np.load(os.path.join(d_src, "truth_forward.npz"))
     arch = s17.archie_v2(20000, np.random.default_rng([134200, 0]))
+    num0 = {r["key"]: r["value"] for r in json.load(open(os.path.join(wc.RESULTS_DIR, "paper", "numbers.json"), encoding="utf-8"))}
+    f_lo, f_hi = [float(v) for v in num0["second_bel_rho_below"].split(";")[0].split("[")[1].rstrip("] ").split(",")]
     L = ["# 1 — Synthetic test with the 1980 K1 structure (Lebbe 1981) as truth", "",
          "Pre-registered expectations and analysis choices: `docs/decision_log.md` (v1.1). Truths built from "
          "`data/external/lebbe1981_K1_digitised.csv` on our geometry; forward on the fine Stage-4 mesh for the 1974 G1 "
@@ -325,6 +340,9 @@ def cmd_report(args):
             L.append(f"| {x} | {b['sal'][i]:.2f} | {b['ft'][i]:.2f} | {q(base[:, j])} | {'yes' if inside[i] else 'no'} | "
                      f"{lm[i][0]:.2f} |")
         thick = np.concatenate([Z[f"{k}__thick"] for k in keys])
+        rel = ("above" if np.median(rb_med) > f_hi else "below" if np.median(rb_med) < f_lo else "inside")
+        L.append(f"- ρ_below vs the field 90 % interval [{f_lo:.2f}, {f_hi:.2f}] Ω·m: median of medians "
+                 f"{np.median(rb_med):.2f} Ω·m is **{rel}** it (per-seed medians {min(rb_med):.2f}–{max(rb_med):.2f} Ω·m).")
         L += ["", f"- ρ_lens {q(rho[:, 0])} Ω·m (true {RHO['lens']:.2f}); ρ_below {q(rho[:, 1])} Ω·m, median of medians "
               f"**{np.median(rb_med):.2f} Ω·m** (true thickness-weighted log-mean between saline base and clay "
               f"{10**tb:.2f} Ω·m); ρ_discharge {q(rho[:, 2])} Ω·m.",
@@ -420,7 +438,7 @@ def figure(res, d_src, Z, fwd):
     run0 = np.load(os.path.join(d_src, "runs", "T80a_s0.npz"), allow_pickle=True)
     fig, axes = plt.subplots(3, 1, figsize=(7.2, 8.4), gridspec_kw=dict(hspace=0.45))
     for ax, polys, vals, ttl in ((axes[0], wc.cell_polygons(fmesh), 10 ** fwd["cell_log10_T80a"], "(a) T80a truth (1980 K1 structure)"),
-                                 (axes[1], ctx["polys"], run0["lam50_model"], "(a) deterministic inversion of T80a, seed 0 (λ = 50)")):
+                                 (axes[1], ctx["polys"], run0["lam50_model"], "(b) deterministic inversion of T80a, seed 0 (λ = 50)")):
         pc = wc.draw_cells(ax, polys, vals, "RdBu_r", s18.rho_norm())
         wc.setup_section(ax, None, ve=3, z_floor=-40); s18.dune_hatch(ax); ax.set_title(ttl)
         cb = fig.colorbar(pc, ax=ax, fraction=0.025, pad=0.01); cb.set_label("ρ (Ω·m)")
@@ -435,7 +453,7 @@ def figure(res, d_src, Z, fwd):
     ex, ez = wc.land_surface(); ax.plot(ex, ez, "k-", lw=0.8)
     ax.set_xlim(-5, 510); ax.set_ylim(-32, 9); ax.set_aspect(3); s18.dune_hatch(ax)
     ax.set_xlabel("Distance along profile (m)"); ax.set_ylabel("Elevation (mTAW)"); s18.ve_text(ax, 3)
-    ax.set_title("(b) BEL lens base for T80a vs the true boundaries")
+    ax.set_title("(c) BEL lens base for T80a vs the true boundaries")
     s18.cbar_space(fig, ax, pc); s18.legend_below(ax, ncol=2, dy=-0.25, fontsize=6)
     fig.savefig(os.path.join(res, "figs", "F_S1_lebbe1980_synthetic.png"), dpi=300, bbox_inches="tight")
     plt.close(fig)

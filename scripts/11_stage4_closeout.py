@@ -308,7 +308,7 @@ def cmd_a1(args):
 # ─────────────────────────────────────────────────────────────────────────────
 def a2_job(m02, spec, fwd, sch, cell_x, cs, truth, real, log, R_true=None, noise=None, out=None, lams=None,
            post_seed=None, save_extra=False):
-    """A2 job. The keyword arguments (added in v1.1 for 19_lebbe1980_synthetic.py) default to the v1.0 behaviour:
+    """A2 job. The keyword arguments (added in v1.1 for 22_lebbe1980_synthetic.py) default to the v1.0 behaviour:
     R_true = fwd['R_<truth>']; noise = Gaussian 3 % + 1e-4 Ω with the Stage-4 seed; out = a2_runs/<truth>_r<real>.npz;
     lams = [50] (+ the λ pool for real < N_REAL_LAMBDA); post_seed(λ) = the Stage-4 posterior seed; save_extra adds the
     noisy data (R_noisy, keep) and the λ = 50 model."""

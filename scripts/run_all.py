@@ -121,8 +121,8 @@ RAW_STEPS = [
     ("16-refit", ["16_stage6_salinity.py", "refit"], "8 min", False),
     ("16-joint", ["16_stage6_salinity.py", "joint"], "10 min", False),
     ("17", ["17_salinity_v2.py", "run"], "7 min", True),
-    ("19-run", ["19_lebbe1980_synthetic.py", "run", "--workers", "4"], "2.5–3 h (30 data sets × 5 λ)", True),
-    ("19-report", ["19_lebbe1980_synthetic.py", "report"], "2 min", True),
+    ("22-run", ["22_lebbe1980_synthetic.py", "run", "--workers", "4"], "3–3.5 h (40 data sets × 5 λ)", True),
+    ("22-report", ["22_lebbe1980_synthetic.py", "report"], "2 min", True),
     ("20-run", ["20_petrophysics_sensitivity.py", "run"], "3 min", True),
     ("20-report", ["20_petrophysics_sensitivity.py", "report"], "< 1 min", True),
     ("21-location", ["21_k1_comparison.py", "location"], "< 1 min", True),
@@ -143,9 +143,9 @@ PRODUCERS = [   # (regex, step id or callable(match) → step id, script, eviden
     (r"^data/raw/", "raw input", None, None),
     (r"^data/external/natural_earth/ne_10m_", "NE", "run_all.py", "natural_earth"),
     (r"^data/external/lebbe1981_K1_digitised\.csv$", "raw input", None, None),     # hand-digitised (Lebbe 1981, Fig. 3)
-    (r"^data/processed/v1_1/lebbe1980/", "19-run", "19_lebbe1980_synthetic.py", "lebbe1980"),
+    (r"^data/processed/v1_1/lebbe1980/", "22-run", "22_lebbe1980_synthetic.py", "lebbe1980"),
     (r"^results/v1_1/0_profile_location\.md$", "21-location", "21_k1_comparison.py", "0_profile_location.md"),
-    (r"^results/v1_1/(1_lebbe1980_synthetic\.md|T_S1_lebbe1980\.csv)$", "19-report", "19_lebbe1980_synthetic.py",
+    (r"^results/v1_1/(1_lebbe1980_synthetic\.md|T_S1_lebbe1980\.csv)$", "22-report", "22_lebbe1980_synthetic.py",
      "1_lebbe1980_synthetic.md"),
     (r"^results/v1_1/(2_petrophysics_sensitivity\.md|T_S2_petrophysics\.(csv|md))$", "20-report",
      "20_petrophysics_sensitivity.py", "2_petrophysics_sensitivity.md"),
@@ -458,7 +458,7 @@ def from_cache(out, do_check):
     print(f"[from-cache] → {out} (log {log})")
     t = {}
     t["17"] = run(["17_salinity_v2.py", "run", "--out", out], SCRIPT_DIR, log)
-    for sid, argv in (("19r", ["19_lebbe1980_synthetic.py", "report"]), ("20", ["20_petrophysics_sensitivity.py", "run"]),
+    for sid, argv in (("22r", ["22_lebbe1980_synthetic.py", "report"]), ("20", ["20_petrophysics_sensitivity.py", "run"]),
                       ("20r", ["20_petrophysics_sensitivity.py", "report"]), ("21l", ["21_k1_comparison.py", "location"]),
                       ("21", ["21_k1_comparison.py", "run"]), ("21r", ["21_k1_comparison.py", "report"])):
         t[sid] = run(argv + ["--out", out], SCRIPT_DIR, log)
