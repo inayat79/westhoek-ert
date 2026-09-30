@@ -8,7 +8,7 @@ the 2018 lens base of this study.
                           coastal end of the French–Belgian border (51.08944 N, 2.54528 E) along the coast (azimuth 57°)
                           and in a straight line → ROOT/results/v1_1/0_profile_location.md
   run [--out ROOT]        Task 3: comparison numbers → ROOT/data/processed/v1_1/k1_comparison.json
-  report [--out ROOT]     Task 3: ROOT/results/v1_1/3_k1_comparison.md and figs/F_S3_k1_1980_vs_2018.png
+  report [--out ROOT]     Task 3: ROOT/results/v1_1/3_k1_comparison.md and figs/F_S3_k1_1980_vs_2018{,_notitle}.png
 
 Inputs: data/raw/GPS_coordinate.xlsx; data/external/lebbe1981_K1_digitised.csv (hand-digitised, see its header);
 BEL field lens base = the v1.0 headline (base-only BEL, site + physical subset of prior v3), recomputed with the v1.0
@@ -36,6 +36,8 @@ import westhoek_common as wc  # noqa: E402
 BORDER = (51.08944, 2.54528)            # coastal end of the French–Belgian border (lat, lon)
 COAST_AZ = 57.0                         # coast direction (deg from north)
 XREP = (150, 200, 250, 300, 350)
+X_EXTRA = (400, 450)                    # v1.1.1: seaward positions, kept in a separate block ("extra")
+DIS_ZONE = (380.0, 480.0)               # discharge zone of this study, shaded in F_S3
 LEBBE_CSV = os.path.join(wc.ROOT, "data", "external", "lebbe1981_K1_digitised.csv")
 X_ERR, Z_ERR = 30.0, 1.0
 
@@ -125,13 +127,13 @@ def field_products():
     obs, _ = s18.b13.observed_sets()
     Pf = s18.b13.BEL(C["tr"]["D"], C["tr"]["T"]).posterior(obs["field"], 2000, np.random.default_rng([129000, 1]), "kde")
     v4 = np.load(s18.LIN_V4)
-    return s18.TX, Pf, v4["x"], v4["pooled_logmid"]
+    return s18.TX, Pf, v4["x"], v4["pooled_logmid"], v4["r_logmid"]
 
 
 def cmd_run(args):
     _, dpp = paths(args.out)
     lb = read_lebbe()
-    TX, Pf, x4, b4 = field_products()
+    TX, Pf, x4, b4, r4 = field_products()
     out = dict(x=list(XREP), saline_base=[], fresh_top=[], bel=[], logmid=[], bel_minus_sal=[], logmid_minus_sal=[],
                sal_in_bel90=[])
     for x in XREP:
@@ -144,6 +146,19 @@ def cmd_run(args):
         out["bel"].append([float(md), float(lo), float(hi)]); out["logmid"].append(lm)
         out["bel_minus_sal"].append(float(md - sb_)); out["logmid_minus_sal"].append(float(lm[0] - sb_))
         out["sal_in_bel90"].append(bool(lo <= sb_ <= hi))
+    ex_ = dict(x=list(X_EXTRA), saline_base=[], fresh_top=[], bel=[], logmid=[], r_logmid=[], bel_minus_sal=[],
+               logmid_minus_sal=[], sal_in_bel90=[])
+    for x in X_EXTRA:
+        sb_ = float(interp_boundary(x, lb["x_ours_m"], lb["saline_base_mTAW"]))
+        ft = float(interp_boundary(x, lb["x_ours_m"], lb["fresh_top_mTAW"]))
+        j = int(np.argmin(np.abs(TX - x))); k = int(np.argmin(np.abs(x4 - x)))
+        lo, md, hi = np.percentile(Pf[:, j], [5, 50, 95])
+        lm = [float(b4[1, k]), float(b4[2, k]), float(b4[3, k])]
+        ex_["saline_base"].append(sb_); ex_["fresh_top"].append(ft); ex_["r_logmid"].append(float(r4[k]))
+        ex_["bel"].append([float(md), float(lo), float(hi)]); ex_["logmid"].append(lm)
+        ex_["bel_minus_sal"].append(float(md - sb_)); ex_["logmid_minus_sal"].append(float(lm[0] - sb_))
+        ex_["sal_in_bel90"].append(bool(lo <= sb_ <= hi))
+    out["extra"] = ex_
     np.savez(os.path.join(dpp, "k1_field_bel.npz"), TX=TX, Pf=Pf)
     json.dump(out, open(os.path.join(dpp, "k1_comparison.json"), "w", encoding="utf-8"), indent=1)
     print(json.dumps(out, indent=1))
@@ -172,6 +187,17 @@ def cmd_report(args):
         L.append(f"| {x} | {c['saline_base'][i]:.2f} | {c['fresh_top'][i]:.2f} | {b[0]:.2f} [{b[1]:.2f}, {b[2]:.2f}] | "
                  f"{c['bel_minus_sal'][i]:+.2f} | {'yes' if c['sal_in_bel90'][i] else 'no'} | "
                  f"{l[0]:.2f} [{l[1]:.2f}, {l[2]:.2f}] | {c['logmid_minus_sal'][i]:+.2f} |")
+    e = c["extra"]
+    L += ["", "Seaward positions (v1.1.1; the lens base here lies near the discharge zone, x = 380–480 m; r = resolution "
+          "radius at the λ = 50 log-midpoint crossing):", "",
+          "| x (m) | 1980 saline base | 1980 fresh top | BEL median [P5, P95] | BEL − 1980 saline base | 1980 saline base in "
+          "BEL 90 % | log-midpoint median [P5, P95] | log-midpoint − 1980 saline base | r (m) |",
+          "|---|---|---|---|---|---|---|---|---|"]
+    for i, x in enumerate(e["x"]):
+        b, l = e["bel"][i], e["logmid"][i]
+        L.append(f"| {x} | {e['saline_base'][i]:.2f} | {e['fresh_top'][i]:.2f} | {b[0]:.2f} [{b[1]:.2f}, {b[2]:.2f}] | "
+                 f"{e['bel_minus_sal'][i]:+.2f} | {'yes' if e['sal_in_bel90'][i] else 'no'} | "
+                 f"{l[0]:.2f} [{l[1]:.2f}, {l[2]:.2f}] | {e['logmid_minus_sal'][i]:+.2f} | {e['r_logmid'][i]:.1f} |")
     L += ["", f"The 1980 saline base lies inside the BEL 90 % interval at {sum(c['sal_in_bel90'])} of {len(c['x'])} "
           "positions. These are two different times (1980 logs, 2018 ERT) and two different definitions (resistivity "
           "< 2.5 Ω·m in logs vs the centre of the base transition in the models); the comparison shows consistency or "
@@ -179,29 +205,45 @@ def cmd_report(args):
     with open(os.path.join(res, "3_k1_comparison.md"), "w", encoding="utf-8") as f:
         f.write("\n".join(L) + "\n")
     # figure
+    from matplotlib.patches import Patch
+    r4 = v4["r_logmid"]
     fig, ax = plt.subplots(figsize=(7.2, 3.6))
-    ok = b4[0] >= 0.5
+    ok = (b4[0] >= 0.5) & (r4 <= 10.0)                               # log-midpoint shown only where r ≤ 10 m
+    ax.axvspan(*DIS_ZONE, color="#e6c229", alpha=0.16, lw=0, zorder=0)
     ax.fill_between(x4, np.where(ok, b4[2], np.nan), np.where(ok, b4[3], np.nan), color=s18.COL["logmid"], alpha=0.18, lw=0)
-    ax.plot(x4, np.where(ok, b4[1], np.nan), color=s18.COL["logmid"], lw=1.1, label="this study, data of 2018: λ-pooled log-midpoint, median and P5–P95")
+    h_lm, = ax.plot(x4, np.where(ok, b4[1], np.nan), color=s18.COL["logmid"], lw=1.1)
     lo, md, hi = np.percentile(Pf, [5, 50, 95], 0); h = TX >= 130
     ax.fill_between(TX[h], lo[h], hi[h], color=s18.COL["bel"], alpha=0.22, lw=0)
-    ax.plot(TX[h], md[h], color=s18.COL["bel"], lw=1.7, label="this study, data of 2018: BEL (site + physical), median and P5–P95")
-    for key, mk, col, lab in (("saline_base_mTAW", "o", "#b2182b", "saline base (< 2.5 Ω·m)"),
-                              ("fresh_top_mTAW", "s", "#1b9e77", "fresh top (> 20 Ω·m)"),
-                              ("lower_brackish_top_mTAW", "^", "#8c6d31", "lower brackish top")):
+    h_bel, = ax.plot(TX[h], md[h], color=s18.COL["bel"], lw=1.7)
+    hl = {}
+    for key, mk, col in (("saline_base_mTAW", "o", "#b2182b"), ("fresh_top_mTAW", "s", "#1b9e77"),
+                         ("lower_brackish_top_mTAW", "^", "#8c6d31")):
         v = lb[key]; m = np.isfinite(v)
-        ax.errorbar(lb["x_ours_m"][m], v[m], xerr=X_ERR, yerr=Z_ERR, fmt=mk, color=col, ms=4, lw=0.8, capsize=1.5,
-                    label=f"Lebbe (1981), K1, logs of June–August 1980: {lab}")
-    ax.plot(lb["x_ours_m"], lb["clay_top_mTAW"], "--", color="0.35", lw=1.0, label="Lebbe (1981), K1, logs of June–August 1980: clay top")
-    ax.plot(ex, ez, "k-", lw=0.9, label="land surface (2018 electrodes)")
+        hl[key] = ax.errorbar(lb["x_ours_m"][m], v[m], xerr=X_ERR, yerr=Z_ERR, fmt=mk, color=col, ms=4, lw=0.8, capsize=1.5)
+    h_clay, = ax.plot(lb["x_ours_m"], lb["clay_top_mTAW"], "--", color="0.35", lw=1.0)
+    h_surf, = ax.plot(ex, ez, "k-", lw=0.9)
     ax.axvline(161, color="steelblue", lw=0.8, ls=":"); ax.text(163, 4.8, "high-water line", fontsize=6.3, color="steelblue")
     ax.set_xlim(0, 505); ax.set_ylim(-32, 8)
     s18.dune_hatch(ax)
     ax.set_xlabel("Distance along profile x (m)"); ax.set_ylabel("Elevation (mTAW)"); s18.ve_text(ax, 3)
     ax.set_aspect(3)
+    blank = Patch(facecolor="none", edgecolor="none")
+    handles = [blank, h_lm, h_bel, Patch(facecolor="#e6c229", alpha=0.35, edgecolor="none"), h_surf,
+               blank, hl["saline_base_mTAW"], hl["fresh_top_mTAW"], hl["lower_brackish_top_mTAW"], h_clay]
+    labels = ["This study, ERT data of 2018", "λ-pooled log-midpoint (r ≤ 10 m): median, P5–P95",
+              "BEL (site + physical): median, P5–P95", "discharge zone (this study)", "land surface (2018 electrodes)",
+              "Lebbe (1981), K1, logs of June–August 1980", "saline base (< 2.5 Ω·m)", "fresh top (> 20 Ω·m)",
+              "lower brackish top", "clay top"]
+    leg = ax.legend(handles, labels, loc="upper center", bbox_to_anchor=(0.5, -0.3), ncol=2, fontsize=6, facecolor="white",
+                    edgecolor="0.6", framealpha=1.0, handletextpad=0.6, columnspacing=1.5)
+    for t in leg.get_texts():
+        if t.get_text() in (labels[0], labels[5]):
+            t.set_fontweight("bold")
     ax.set_title("Profile K1: 1980 borehole logs vs 2018 lens base")
-    s18.legend_below(ax, ncol=1, dy=-0.32, fontsize=6)
     fig.savefig(os.path.join(res, "figs", "F_S3_k1_1980_vs_2018.png"), dpi=300, bbox_inches="tight")
+    ax.set_title("")
+    fig.savefig(os.path.join(res, "figs", "F_S3_k1_1980_vs_2018_notitle.png"), dpi=300, bbox_inches="tight")
+    plt.close(fig)
     print("\n".join(L))
 
 

@@ -356,7 +356,7 @@ def cmd_report(args):
                        rho_dis=q(rho[:, 2]), true_below=float(10 ** tb), sw_below=q(sw_below, 1), sw_true=q(sw_true, 1),
                        cov_sal=float(cov_sal), cov_ft=float(cov_ft), inside=inside, base_med=med,
                        sal=[float(v) for v in b["sal"]], ft=[float(v) for v in b["ft"]], n=len(keys),
-                       fal=[float(v) for v in np.median(fal, 0)])
+                       fal=[float(v) for v in np.median(fal, 0)], field_rel=rel, field_lo=f_lo, field_hi=f_hi)
     a = summ.get("T80a"); bb = summ.get("T80b")
     e1 = a and 2.6 <= a["rho_below_mom"] <= 12.5
     e2 = a and a["rho_below_mom"] >= 15.0
@@ -396,7 +396,7 @@ def cmd_report(args):
           f"posterior P95 {min(p95s):.1f}–{max(p95s):.1f} Ω·m: the estimate saturates below the prior ceiling and cannot "
           f"resolve how fresh the fresh zone is (fresh zone 30, 50 and 100 Ω·m give {summ['T80c']['rho_below_mom']:.1f}, "
           f"{summ['T80a']['rho_below_mom']:.1f} and {summ['T80d']['rho_below_mom']:.1f} Ω·m).",
-          f"- **Separation from the field value.** All {len(allmed)} synthetic per-seed medians "
+          f"- **Separation from the field value.** {sum(v > field_p95 for v in allmed.values())} of {len(allmed)} synthetic per-seed medians "
           f"({min(allmed.values()):.2f}–{max(allmed.values()):.2f} Ω·m) lie above the field posterior P95 of "
           f"{field_p95:.2f} Ω·m (field {field_rb} Ω·m, `second_bel_rho_below`).",
           f"- **E2 margin.** The T80a statistic ({np.median(tseeds):.2f} Ω·m) exceeds the 15 Ω·m threshold by "

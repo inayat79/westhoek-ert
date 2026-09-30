@@ -1333,6 +1333,48 @@ def extra_numbers(B):
             "`unit_dis`)", fn, "`data/processed/stage6_v2/field_v2.npz`")
     extra_numbers_v103(B)
     extra_numbers_v11()
+    extra_numbers_v111()
+
+
+V11_TRUTHS = ("T80a", "T80b", "T80c", "T80d", "T80e", "T80a_ht")
+
+
+def extra_numbers_v111():
+    """v1.1.1 numbers (appended after all v1.1 numbers): post hoc truth variants T80f / T80g (decision log v1.1.1-0) and the
+    K1 comparison at x = 400 and 450 m."""
+    d = os.path.join(os.path.dirname(DS6), "v1_1")
+    if not os.path.exists(os.path.join(d, "k1_comparison.json")):
+        return
+    rv = "results/v1_1"
+    s1 = json.load(open(os.path.join(d, "lebbe1980_summary.json"), encoding="utf-8"))
+    for t in ("T80f", "T80g"):
+        v = s1["summ"].get(t)
+        if v is None:
+            print(f"[v1.1.1] {t} missing — skipped", flush=True)
+            continue
+        NUM.add(f"v111_{t}_rho_below", f"{v['rho_below_mom']:.2f} Ω·m (pooled {v['rho_below']}; true log-mean "
+                f"{v['true_below']:.2f}); {v['field_rel']} the field 90 % interval [{v['field_lo']:.2f}, {v['field_hi']:.2f}]",
+                f"v1.1.1 post hoc synthetic truth {t}: second-BEL ρ_below, median over seeds of the posterior median (pooled "
+                "median [P5, P95]); true thickness-weighted log-mean between saline base and clay; position relative to the "
+                "field ρ_below 90 % interval", "22_lebbe1980_synthetic.py:cmd_report",
+                "`data/processed/v1_1/lebbe1980/bel_results.npz`",
+                ref=(f"{rv}/T_S1_lebbe1980.csv", f"{t},", f"{t},{v['n']},{v['rho_below_mom']:.2f},"))
+        NUM.add(f"v111_{t}_coverage", f"saline base {100*v['cov_sal']:.0f} %, fresh top {100*v['cov_ft']:.0f} %; BEL median "
+                f"inside the transition at {sum(v['inside'])}/5 positions", f"v1.1.1 post hoc synthetic {t}: coverage of the "
+                "true saline base / fresh top by the BEL 90 % lens-base intervals (x = 150–350 m, all seeds)",
+                "22_lebbe1980_synthetic.py:cmd_report", "`data/processed/v1_1/lebbe1980/bel_results.npz`",
+                ref=(f"{rv}/T_S1_lebbe1980.csv", f"{t},", f"{100*v['cov_sal']:.0f}%,{100*v['cov_ft']:.0f}%,{sum(v['inside'])}/5"))
+    kc = json.load(open(os.path.join(d, "k1_comparison.json"), encoding="utf-8"))["extra"]
+    for i, x in enumerate(kc["x"]):
+        b, l = kc["bel"][i], kc["logmid"][i]
+        NUM.add(f"v111_k1_1980_x{x}", f"saline base {kc['saline_base'][i]:.2f} mTAW; BEL median {b[0]:.2f} [{b[1]:.2f}, "
+                f"{b[2]:.2f}] ({kc['bel_minus_sal'][i]:+.2f} m); log-midpoint median {l[0]:.2f} [{l[1]:.2f}, {l[2]:.2f}] "
+                f"({kc['logmid_minus_sal'][i]:+.2f} m, r = {kc['r_logmid'][i]:.1f} m); 1980 saline base inside BEL 90 %: "
+                f"{'yes' if kc['sal_in_bel90'][i] else 'no'}",
+                f"v1.1.1 K1 comparison at x = {x} m: 1980 saline base (Lebbe 1981, interpolated) vs the 2018 BEL and "
+                "λ-pooled log-midpoint medians (difference = 2018 − 1980)",
+                "21_k1_comparison.py:cmd_run", "`data/external/lebbe1981_K1_digitised.csv`, v1.0 BEL and log-midpoint",
+                ref=(f"{rv}/3_k1_comparison.md", f"| {x} |", f"| {kc['saline_base'][i]:.2f} | {kc['fresh_top'][i]:.2f} |"))
 
 
 def extra_numbers_v11():
@@ -1346,6 +1388,8 @@ def extra_numbers_v11():
     # Task 1
     s1 = json.load(open(os.path.join(d, "lebbe1980_summary.json"), encoding="utf-8"))
     for t, v in s1["summ"].items():
+        if t not in V11_TRUTHS:                   # v1.1.1 variants are appended by extra_numbers_v111
+            continue
         NUM.add(f"v11_{t}_rho_below", f"{v['rho_below_mom']:.2f} Ω·m (pooled {v['rho_below']}; true log-mean "
                 f"{v['true_below']:.2f})", f"v1.1 synthetic 1980-K1 truth {t}: second-BEL ρ_below, median over seeds of the "
                 "posterior median (pooled median [P5, P95]); true thickness-weighted log-mean between saline base and clay",
