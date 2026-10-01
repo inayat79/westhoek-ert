@@ -1334,9 +1334,36 @@ def extra_numbers(B):
     extra_numbers_v103(B)
     extra_numbers_v11()
     extra_numbers_v111()
+    extra_numbers_v13()
 
 
 V11_TRUTHS = ("T80a", "T80b", "T80c", "T80d", "T80e", "T80a_ht")
+
+
+def extra_numbers_v13():
+    """v1.3 numbers (appended after all v1.1.1 numbers): Task 0 field like-for-like interface definitions
+    (25_generalisation.py field) and the factorial study (25_generalisation.py report)."""
+    d = os.path.join(os.path.dirname(DS6), "v1_3")
+    if not os.path.exists(os.path.join(d, "field.json")):
+        print("[v1.3] no v1.3 products — v1.3 numbers skipped", flush=True)
+        return
+    rv = "results/v1_3"
+    fj = json.load(open(os.path.join(d, "field.json"), encoding="utf-8"))
+    fmt = lambda b: f"{b[1]:.2f} [{b[2]:.2f}, {b[3]:.2f}] ({100*b[0]:.0f}%)"
+    for i, x in enumerate(fj["x"]):
+        for key, k, lab in (("pooled_thr3", "thr3_pooled", "3 Ω·m base, λ-pooled"),
+                            ("single_logmid", "logmid_lam50", "log-midpoint base, λ = 50")):
+            NUM.add(f"v13_field_{k}_x{x}", fmt(fj[key][i]), f"v1.3 field like-for-like: linearised {lab}, x = {x} m "
+                    "(median [P5, P95] (share present), mTAW)", "25_generalisation.py:cmd_field",
+                    "`results/runs/g1_lam50_v4/interface_definitions_bands.npz`",
+                    ref=(f"{rv}/0_field_like_for_like.md", f"| {x} |", fmt(fj[key][i])))
+    if os.path.exists(os.path.join(d, "v13_summary.json")):
+        extra_numbers_v13_factorial(json.load(open(os.path.join(d, "v13_summary.json"), encoding="utf-8")), rv)
+
+
+def extra_numbers_v13_factorial(sm, rv):
+    """Filled in after the factorial study has run (numbers quoted in results/v1_3/SUMMARY.md)."""
+    return
 
 
 def extra_numbers_v111():
