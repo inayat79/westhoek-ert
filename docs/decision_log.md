@@ -61,3 +61,66 @@ a new, dated follow-up entry.**
 - **Coverage.** Share of (x, seed) pairs at x = 150–350 m in which the BEL 90 % lens-base interval contains the true
   saline base / the true fresh top.
 - **E1/E2 statistic.** For each seed the second-BEL posterior median of ρ_below; the median of these over the 5 seeds.
+
+# v1.3 — does the fixed-contour failure generalise? (branch `v1.3` from `v1.1.1`)
+
+| date | id | entry |
+|---|---|---|
+| 2026-10-01 | v1.3-0 | **Scope of v1.3.** Task 0: field like-for-like numbers (λ-pooled 3 Ω·m base and λ = 50 log-midpoint base at x = 150–350 m). Task 1: factorial synthetic study (32 truths, 13 inversions each). Task 2: test of the offset rule Δz = s·Φ⁻¹(q). New script `25_generalisation.py` (run / resume / report); outputs in `data/processed/v1_3/`, `results/v1_3/`; tag `v1.3-general`. All additive. No v1.2 branch exists in this repository (nothing to keep apart). |
+
+## v1.3 pre-registered expectations (written and committed before any v1.3 inversion)
+
+| id | expectation / decision rule |
+|---|---|
+| **E9** | For the fixed contours (2, 3, 5 Ω·m), the sign of the median bias matches the sign predicted by q in at least 90 % of the (truth × threshold) cases with r ≤ 10 m and \|q − 0.5\| > 0.1. |
+| **E10** | The oracle contour (q = 0.5) has \|bias\| ≤ 0.5 m and coverage ≥ 80 % in at least 80 % of sharp truths (r ≤ 10 m). |
+| **E11** | The log-midpoint and maximum gradient reach coverage ≥ 85 % (r ≤ 10 m) in at least 80 % of all truths. |
+| **E12** | The one-constant fit explains at least half of the variance of the fixed-contour biases (R² ≥ 0.5). |
+
+## v1.3 analysis choices fixed before running
+
+- **Truths.** Name `G_<ρ_lens>_<k>_<z_b>_<τ>` (e.g. `G_1.42_4_-12_0`); order (= truth index ti): ρ_lens (0.8, 1.42) ×
+  k (2, 4, 8, 16) × z_b (−8, −12, −18) with τ = 0, then the eight τ = 5 truths (ρ_lens × k at z_b = −12). x ≥ 90 m:
+  lens ρ_lens from the surface down to the flat base z_b along the whole lens part (no discharge zone); ρ_below = k·ρ_lens
+  from z_b down to −30 mTAW; deep unit 8.44 Ω·m (v1.0 T1 deep median) below −30. τ = 5: log-linear (in log ρ)
+  transition of 5 m centred on z_b (as T3). x < 90 m: the v1.0 T1 reference values (cap 211.7 Ω·m above z = 3, fresh
+  13.45 Ω·m down to −30, deep below). Truth at the fine forward-mesh cell centres (17 684 cells), exactly the G1
+  quadrupoles, as Stage 4.
+- **Noise and seeds.** σ = √((0.03 R)² + (1e-4 Ω)²), Gaussian, `default_rng([136000, ti, real])`, realisations 0–4;
+  non-positive noisy R dropped (count recorded), as v1.0. Inversion with the unchanged `10_synthetic_benchmark.one_inversion`
+  (λ = 50 for realisations 0–4; also λ = 5, 10, 20, 100 for realisations 0–1); 1000 linearised-posterior samples per
+  inversion, `default_rng([136100, ti, real, λ])`. Bootstrap of the rule fit `default_rng([136200])` (λ = 50) and
+  `default_rng([136201])` (per-λ fits), 2000 resamples of truths.
+- **Interface definitions** (to m̂ and to every sample, per column x = 100–450 m every 10 m): `thr2`, `thr3`, `thr5` =
+  main-lens base (`westhoek_common.main_lens`) at 2, 3, 5 Ω·m; `oracle` = the same at √(ρ_lens·ρ_below); `maxgrad`,
+  `logmid` = `11_stage4_closeout.interfaces_all` unchanged (anchored, as in v1.0, on the 3 Ω·m main-lens crossing).
+  **Diagnostic, not used for E9–E12:** `maxgrad_o`, `logmid_o` = the same function anchored on the oracle crossing
+  (implemented by adding log10 3 − log10 √(ρ_lens·ρ_below) to log10 ρ, which moves no gradient and no crossing). Known
+  before running: where ρ_below ≤ 3 Ω·m (k = 2, both ρ_lens: 8 of 32 truths) the v1.0 anchor falls on the deep unit or
+  is absent, so `maxgrad`/`logmid` are expected to fail there by construction. E11 is evaluated as written over all
+  truths; the result is also reported for the truths with 3 Ω·m inside the contrast and for the oracle-anchored
+  diagnostic. No existing function is changed (the thresholds use the existing `level` argument of `main_lens`).
+- **True base** for every definition = z_b (the centre of the transition for τ = 5), not the definition applied to the
+  true model (v1.0 A2 used the latter; identical for sharp truths with the threshold inside the contrast).
+- **Groups.** By the resolution radius of the λ = 50 inversion of the same realisation at the true base z_b (the same
+  group for every definition and λ treatment; v1.0 grouped by r at each definition's own crossing): r ≤ 10 m and
+  10 < r ≤ 15 m; columns with r > 15 m are excluded.
+- **Metrics** per truth × definition × treatment × group, over (column, realisation) pairs. Coverage: the band is present
+  in ≥ 50 % of samples and P5 ≤ z_b ≤ P95 (absent band = not covered). Bias: median of m̂ − z_b (negative = too deep;
+  missing m̂ excluded and counted). λ-pooled treatment: realisations 0–1, the 5 × 1000 samples concatenated; its bias is
+  the median of the pooled-band medians minus z_b. Scatter ratio (λ = 50): per column, s.d. over the 5 realisations of
+  m̂ divided by the median over realisations of the predicted σ_z = (P95 − P5)/(2 × 1.6449) of the sample band; median
+  over the columns whose median r over realisations is in the group. r̄ = mean r at the true base over the group's pairs.
+- **q and the rule.** q = (log ρ_t − log ρ_lens)/(log ρ_below − log ρ_lens). Cases with q ≤ 0 or q ≥ 1 (threshold
+  outside the lens–below contrast; the crossing falls on the deep unit or is absent) have no predicted offset: they are
+  excluded from E9, E12 and the fits and reported separately. E9 covers all 32 truths; a case needs ≥ 5 (column,
+  realisation) pairs with r ≤ 10 m. Fit (E12): sharp truths × {2, 3, 5} with 0 < q < 1, λ = 50, r ≤ 10 m: bias = −a·r̄·Φ⁻¹(q),
+  least squares through the origin; R² = 1 − Σresidual² / Σ(bias − mean bias)². Per-λ fit: realisations 0–1, the
+  bias at each λ, the same r̄ (λ = 50), one a per λ. Gradual truths (τ = 5) fitted separately.
+- **Verdict treatment.** E9–E12 use λ = 50, r ≤ 10 m (as F_10 and the Task 2 fit); the λ-pooled results are reported
+  alongside.
+- **Run budget.** Five inversions are timed first; if the projected total exceeds ≈ 36 h, stop and propose a reduced
+  design before running.
+- **Saved per inversion:** the summaries of the v1.0 synthetic runs (model, radius, χ², m̂ and band per definition, r at
+  each crossing), plus the per-sample interface depths per definition (float32). The full posterior samples are not
+  saved (disk: ≈ 0.6 GB each set).
