@@ -72,6 +72,7 @@ Z90 = 1.6449
 XREP = (150, 200, 250, 300, 350)
 WESTHOEK = dict(rho_lens=1.42, rho_below=5.32)
 GROUPS = ("≤10", "10–15")
+SRC = os.path.join(wc.ROOT, "data", "processed", "v1_3", "general")
 
 
 def dirs(root):
@@ -547,12 +548,16 @@ def cmd_report(args):
     import matplotlib
     matplotlib.use("Agg")
     import matplotlib.pyplot as plt
-    d, res = dirs(args.out)
+    # the inversion cache is always read from the project; reports, archive and the summary go to --out
+    d = SRC
+    res = os.path.join(args.out, "results", "v1_3"); dpp = os.path.join(args.out, "data", "processed", "v1_3")
+    for q_ in (res, os.path.join(res, "figs"), dpp):
+        os.makedirs(q_, exist_ok=True)
+    in_project = os.path.abspath(args.out) == os.path.abspath(wc.ROOT)
     s18 = _load("p18", "18_paper.py"); s18.mpl()
-    for t in TRUTHS:                                                  # rebuild summaries from the saved runs
-        checkpoint(d, t)
-    rows = all_rows(d)
-    done = [t for t in TRUTHS if finished(d, t)]
+    done = [t for t in TRUTHS if all(os.path.exists(os.path.join(d, t, f"r{r}.npz")) for r in range(N_REAL))]
+    per = {t: truth_metrics(d, t) for t in done}                      # recomputed from the saved runs
+    rows = [r for t in done for r in per[t]]
     V = verdicts(rows)
     fit = fit_rule(rows, "lam50", seed=[136200])
     fit_lam = {int(l): fit_rule(rows, f"lam{int(l)}_r01", seed=[136201]) for l in [5.0, 10.0, 20.0, 50.0, 100.0]}
@@ -762,18 +767,21 @@ def cmd_report(args):
                 fit={k: v for k, v in (fit or {}).items() if k != "pts"},
                 fit_lam={str(l): ({k: v for k, v in fl.items() if k != "pts"} if fl else None) for l, fl in fit_lam.items()},
                 fit_grad={k: v for k, v in (fit_grad or {}).items() if k != "pts"})
-    with open(os.path.join(os.path.dirname(d), "v13_summary.json"), "w", encoding="utf-8") as f:
+    with open(os.path.join(dpp, "v13_summary.json"), "w", encoding="utf-8") as f:
         json.dump(summ, f, indent=1, default=float)
 
     # ── archive + checksums ──
     arc = os.path.join(res, "archive"); os.makedirs(arc, exist_ok=True)
     for t in done:
         os.makedirs(os.path.join(arc, t), exist_ok=True)
-        for fn in ("config.json", "summary.json", "truth_spec.json"):
-            shutil.copy2(os.path.join(d, t, fn), os.path.join(arc, t, fn))
+        for fn, obj in (("config.json", config(t)), ("summary.json", per[t])):
+            with open(os.path.join(arc, t, fn), "w", encoding="utf-8", newline="\n") as f:
+                json.dump(obj, f, indent=1)
+        shutil.copy2(os.path.join(d, t, "truth_spec.json"), os.path.join(arc, t, "truth_spec.json"))
     for fn in ("T_S4_factorial.csv", "T_S4_factorial.md"):
         shutil.copy2(os.path.join(res, fn), os.path.join(arc, fn))
-    n1, n2 = sha256sums(d), sha256sums(arc)
+    n2 = sha256sums(arc)
+    n1 = sha256sums(d) if in_project else "not rewritten (rebuild outside the project)"
     print("\n".join(L))
     print(f"[report] {len(done)} truths; SHA256SUMS: {n1} files (data), {n2} files (archive)")
 

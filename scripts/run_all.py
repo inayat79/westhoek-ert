@@ -128,6 +128,9 @@ RAW_STEPS = [
     ("21-location", ["21_k1_comparison.py", "location"], "< 1 min", True),
     ("21-run", ["21_k1_comparison.py", "run"], "1 min", True),
     ("21-report", ["21_k1_comparison.py", "report"], "< 1 min", True),
+    ("25-field", ["25_generalisation.py", "field"], "< 1 min", True),
+    ("25-run", ["25_generalisation.py", "run", "--workers", "6"], "see results/v1_3/1_plan.md (416 inversions)", True),
+    ("25-report", ["25_generalisation.py", "report"], "5 min", True),
     ("19", ["19_rho_lens_bound_check.py"], "3 min", False),
     ("18", ["18_paper.py", "all"], "7 min", True),
 ]
@@ -150,6 +153,12 @@ PRODUCERS = [   # (regex, step id or callable(match) → step id, script, eviden
     (r"^results/v1_1/(2_petrophysics_sensitivity\.md|T_S2_petrophysics\.(csv|md))$", "20-report",
      "20_petrophysics_sensitivity.py", "2_petrophysics_sensitivity.md"),
     (r"^results/v1_1/3_k1_comparison\.md$", "21-report", "21_k1_comparison.py", "3_k1_comparison.md"),
+    (r"^data/processed/v1_3/general/", "25-run", "25_generalisation.py", "general"),
+    (r"^data/processed/v1_3/field\.json$", "25-field", "25_generalisation.py", "field.json"),
+    (r"^data/processed/v1_3/v13_summary\.json$", "25-report", "25_generalisation.py", "v13_summary.json"),
+    (r"^results/v1_3/0_field_like_for_like\.md$", "25-field", "25_generalisation.py", "0_field_like_for_like.md"),
+    (r"^results/v1_3/(2_factorial_results\.md|3_rule_fit\.md|T_S4_factorial\.(csv|md))$", "25-report",
+     "25_generalisation.py", "2_factorial_results.md"),
     (r"^data/processed/stage6_v2/field_v2\.npz$", "17", "17_salinity_v2.py", "stage6_v2"),
     (r"^data/processed/runs/([^/]+)/westhoek_inversion_results\.npz$", lambda m: RUN_STEP.get(m.group(1)),
      "02_land_inversion.py", "westhoek_inversion_results.npz"),
@@ -355,7 +364,8 @@ def check(out):
              f"{n_same if stored is not None else 'n/a (no stored numbers)'}")
     L.append(f"- cross-checks against earlier stored reports: {n_ref_ok} / {n_ref} found")
     files_same = files_diff = 0
-    for sub in (os.path.join("results", "stage6_v2"), os.path.join("results", "paper"), os.path.join("results", "v1_1")):
+    for sub in (os.path.join("results", "stage6_v2"), os.path.join("results", "paper"), os.path.join("results", "v1_1"),
+                os.path.join("results", "v1_3")):
         d_new = os.path.join(out, sub)
         if not os.path.isdir(d_new) or os.path.abspath(out) == ROOT:
             continue
@@ -460,7 +470,8 @@ def from_cache(out, do_check):
     t["17"] = run(["17_salinity_v2.py", "run", "--out", out], SCRIPT_DIR, log)
     for sid, argv in (("22r", ["22_lebbe1980_synthetic.py", "report"]), ("20", ["20_petrophysics_sensitivity.py", "run"]),
                       ("20r", ["20_petrophysics_sensitivity.py", "report"]), ("21l", ["21_k1_comparison.py", "location"]),
-                      ("21", ["21_k1_comparison.py", "run"]), ("21r", ["21_k1_comparison.py", "report"])):
+                      ("21", ["21_k1_comparison.py", "run"]), ("21r", ["21_k1_comparison.py", "report"]),
+                      ("25f", ["25_generalisation.py", "field"]), ("25r", ["25_generalisation.py", "report"])):
         t[sid] = run(argv + ["--out", out], SCRIPT_DIR, log)
     t["18"] = run(["18_paper.py", "all", "--out", out, "--recompute"], SCRIPT_DIR, log)
     print(f"[from-cache] done: " + ", ".join(f"{k} {v:.0f} s" for k, v in t.items()) + f"; total {sum(t.values())/60:.1f} min")
