@@ -1357,13 +1357,95 @@ def extra_numbers_v13():
                     "(median [P5, P95] (share present), mTAW)", "25_generalisation.py:cmd_field",
                     "`results/runs/g1_lam50_v4/interface_definitions_bands.npz`",
                     ref=(f"{rv}/0_field_like_for_like.md", f"| {x} |", fmt(fj[key][i])))
+    w = lambda key: [b[3] - b[2] for b in fj[key]]
+    NUM.add("v13_field_widths", f"3 Ω·m λ-pooled {min(w('pooled_thr3')):.1f}–{max(w('pooled_thr3')):.1f} m; log-midpoint "
+            f"λ = 50 {min(w('single_logmid')):.1f}–{max(w('single_logmid')):.1f} m",
+            "v1.3 field like-for-like: 90 % band widths (P95 − P5) at x = 150–350 m", "25_generalisation.py:cmd_field",
+            "`results/runs/g1_lam50_v4/interface_definitions_bands.npz`")
+    d1, d2 = fj["diff_pooled_logmid_minus_thr3"], fj["diff_lam50_logmid_minus_thr3"]
+    NUM.add("v13_field_logmid_minus_thr3", f"λ-pooled {min(d1):+.2f} … {max(d1):+.2f} m; λ = 50 {min(d2):+.2f} … {max(d2):+.2f} m",
+            "v1.3 field like-for-like: median log-midpoint minus median 3 Ω·m base at x = 150–350 m (positive = log-midpoint "
+            "shallower)", "25_generalisation.py:cmd_field", "`results/runs/g1_lam50_v4/interface_definitions_bands.npz`",
+            ref=(f"{rv}/0_field_like_for_like.md", "Median log-midpoint minus", f"λ-pooled {d1[0]:+.2f}"))
     if os.path.exists(os.path.join(d, "v13_summary.json")):
         extra_numbers_v13_factorial(json.load(open(os.path.join(d, "v13_summary.json"), encoding="utf-8")), rv)
 
 
 def extra_numbers_v13_factorial(sm, rv):
-    """Filled in after the factorial study has run (numbers quoted in results/v1_3/SUMMARY.md)."""
-    return
+    """v1.3 factorial study and rule fit (25_generalisation.py report → data/processed/v1_3/v13_summary.json): every
+    number quoted in results/v1_3/SUMMARY.md."""
+    src, fn = "`data/processed/v1_3/v13_summary.json`", "25_generalisation.py:cmd_report"
+    rep2, rep3 = f"{rv}/2_factorial_results.md", f"{rv}/3_rule_fit.md"
+    V = sm["verdicts"]; hold = lambda b: "holds" if b else "does not hold"
+    e9, e10, e11 = V["E9"], V["E10"], V["E11"]
+    NUM.add("v13_n_truths_r10", f"{sum(1 for v in sm['n_with_r10'].values() if v)} of {sm['n_truths']}",
+            "v1.3: truths with at least one (column, realisation) pair with r ≤ 10 m at the true base (λ = 50)", fn, src)
+    NUM.add("v13_E9", f"{hold(e9['holds'])}: {e9['n_ok']} of {e9['n']} cases", "v1.3 pre-registered E9: sign of the "
+            "fixed-contour bias as predicted by q (λ = 50, r ≤ 10 m, |q − 0.5| > 0.1)", fn, src,
+            ref=(rep2, "**E9**", f"{e9['n_ok']} of {e9['n']} cases"))
+    NUM.add("v13_E10", f"{hold(e10['holds'])}: {e10['n_ok']} of {e10['n']} sharp truths", "v1.3 pre-registered E10: oracle "
+            "contour |bias| ≤ 0.5 m and coverage ≥ 80 % (λ = 50, r ≤ 10 m)", fn, src,
+            ref=(rep2, "**E10**", f"{e10['n_ok']} of {e10['n']} sharp truths"))
+    a, b = e11["all"]["logmid"], e11["all"]["maxgrad"]
+    i3, oa = e11["inside3"], e11["oracle_anchor"]
+    NUM.add("v13_E11", f"{hold(e11['holds'])}: log-midpoint {a['n_ok']}/{a['n']}, max. gradient {b['n_ok']}/{b['n']}; "
+            f"3 Ω·m inside the contrast {i3['logmid']['n_ok']}/{i3['logmid']['n']} and {i3['maxgrad']['n_ok']}/{i3['maxgrad']['n']}; "
+            f"oracle anchor {oa['logmid_o']['n_ok']}/{oa['logmid_o']['n']} and {oa['maxgrad_o']['n_ok']}/{oa['maxgrad_o']['n']}",
+            "v1.3 pre-registered E11: truths with log-midpoint / max.-gradient coverage ≥ 85 % (λ = 50, r ≤ 10 m), with the "
+            "pre-registered breakdowns", fn, src, ref=(rep2, "**E11**", f"log-midpoint {a['n_ok']}/{a['n']}"))
+    f = sm["fit"]
+    NUM.add("v13_E12_rule_fit", f"{hold(f['r2'] >= 0.5)}: a = {f['a']:.3f} [{f['a90'][0]:.3f}, {f['a90'][1]:.3f}], "
+            f"R² = {f['r2']:.2f}, n = {f['n']}", "v1.3 pre-registered E12 and the rule fit bias = −a·r̄·Φ⁻¹(q) (sharp truths, "
+            "fixed contours, λ = 50, r ≤ 10 m; 90 % bootstrap over truths)", fn, src,
+            ref=(rep3, "a = **", f"{f['a']:.3f}** (90 % bootstrap [{f['a90'][0]:.3f}, {f['a90'][1]:.3f}]), R² = **{f['r2']:.2f}**"))
+    fl = sm["fit_lam"]
+    NUM.add("v13_rule_a_per_lambda", "; ".join(f"λ = {l}: {fl[l]['a']:.3f}" for l in ("5", "10", "20", "50", "100")),
+            "v1.3 rule fit with one a per λ (realisations 0–1, r̄ from λ = 50)", fn, src,
+            ref=(rep3, "| 100 |", f"| {fl['100']['a']:.3f} | [{fl['100']['a90'][0]:.3f}, {fl['100']['a90'][1]:.3f}] |"))
+    g = sm["fit_grad"]
+    NUM.add("v13_rule_gradual", f"a = {g['a']:.3f} [{g['a90'][0]:.3f}, {g['a90'][1]:.3f}], R² = {g['r2']:.2f}, n = {g['n']}",
+            "v1.3 rule fit on the gradual truths (τ = 5 m), λ = 50", fn, src,
+            ref=(rep3, "sharp-truth a", f"a = {g['a']:.3f} (90 % [{g['a90'][0]:.3f}, {g['a90'][1]:.3f}]), R² = {g['r2']:.2f}"))
+    ph = sm["posthoc"]["fit_rec"]
+    NUM.add("v13_posthoc_rule_qrec", f"a = {ph['a']:.3f} [{ph['a90'][0]:.3f}, {ph['a90'][1]:.3f}], R² = {ph['r2']:.2f}, n = {ph['n']}",
+            "v1.3 POST HOC (not pre-registered): rule fit with q from the recovered plateaus of m̂ (sharp truths, fixed "
+            "contours, λ = 50, r ≤ 10 m)", fn, src,
+            ref=(rep3, "- fixed contours, q_rec:", f"a = {ph['a']:.3f} [{ph['a90'][0]:.3f}, {ph['a90'][1]:.3f}], R² = {ph['r2']:.2f}"))
+    rec = sm["posthoc"]["recovered"]
+    import math
+    ratio = {t: math.log10(v["below"] / v["lens"]) / math.log10(int(t.split("_")[2])) for t, v in rec.items()}
+    for k in (2, 4, 8, 16):
+        ts = [t for t in rec if int(t.split("_")[2]) == k]
+        ob = [sm["oracle_bias"][t] for t in ts if sm["oracle_bias"][t] is not None]
+        NUM.add(f"v13_oracle_k{k}", f"oracle bias {min(ob):+.2f} … {max(ob):+.2f} m; recovered/true log-contrast "
+                f"{min(ratio[t] for t in ts):.2f}–{max(ratio[t] for t in ts):.2f}", f"v1.3: oracle-contour bias (λ = 50, "
+                f"r ≤ 10 m) and the recovered/true log-contrast of m̂ (post hoc) over the truths with k = {k}", fn, src)
+    for x, lab in (("thr2", "2 Ω·m"), ("thr3", "3 Ω·m"), ("thr5", "5 Ω·m"), ("oracle", "oracle √(ρ_lens·ρ_below)"),
+                   ("logmid", "log-midpoint"), ("maxgrad", "max. gradient"), ("logmid_o", "log-midpoint (oracle anchor)")):
+        for tr in ("lam50", "pooled"):
+            v = sm["agg"][f"{x}_{tr}"]
+            NUM.add(f"v13_cov_{x}_{tr}", f"median coverage {100*v['cov_med']:.0f} %; {v['n85']} of {v['n']} truths ≥ 85 %; "
+                    f"median |bias| {v['absbias_med']:.2f} m" + (f"; median scatter ratio {v['scatter_med']:.2f}" if v["scatter_med"] is not None else ""),
+                    f"v1.3 factorial, {lab}, {'λ = 50' if tr == 'lam50' else 'λ-pooled'}, r ≤ 10 m: over truths", fn, src,
+                    ref=(rep2, f"| {lab} | {tr} |", f"| {v['n']} | {100*v['cov_med']:.0f}% | {v['n85']} |"))
+    for t in ("G_1.42_4_-8_0", "G_1.42_4_-12_0"):
+        pt = sm["per_truth"][t]
+        NUM.add(f"v13_westhoeklike_{t.replace('.', 'p').replace('-', 'm')}",
+                f"3 Ω·m {100*pt['thr3'][0]:.0f} % / {pt['thr3'][1]:+.2f} m; log-midpoint {100*pt['logmid'][0]:.0f} % / {pt['logmid'][1]:+.2f} m",
+                f"v1.3 Westhoek-like truth {t} (ρ_below 5.68 Ω·m): coverage / median bias, λ = 50, r ≤ 10 m", fn, src,
+                ref=(rep2, f"| {t} |", f"{100*pt['thr3'][0]:.0f}% / {pt['thr3'][1]:+.2f}"))
+    pt = sm["per_truth"]
+    lb = [pt[t]["logmid"][1] for t in pt if int(t.split("_")[2]) >= 4 and pt[t]["logmid"][1] is not None]
+    NUM.add("v13_logmid_bias_k4plus", f"{min(lb):+.2f} … {max(lb):+.2f} m", "v1.3: log-midpoint median bias (λ = 50, r ≤ 10 m) "
+            "over the truths with k ≥ 4", fn, src)
+    fails = [(t, pt[t]["logmid"][0]) for t in pt if pt[t]["logmid"][0] is not None and pt[t]["logmid"][0] < 0.85]
+    NUM.add("v13_E11_logmid_failures", "; ".join(f"{t} {100*c:.0f} %" for t, c in fails),
+            "v1.3: truths with log-midpoint coverage < 85 % (λ = 50, r ≤ 10 m)", fn, src)
+    sc = [v["scatter_med"] for k_, v in sm["agg"].items() if k_.endswith("_lam50") and v["scatter_med"] is not None]
+    NUM.add("v13_scatter_range", f"{min(sc):.2f}–{max(sc):.2f}", "v1.3: median between-realisation scatter / predicted "
+            "σ_z per definition (λ = 50, r ≤ 10 m)", fn, src)
+    NUM.add("v13_westhoek_q3", f"{sm['westhoek_q3']:.2f}", "v1.3: q of the 3 Ω·m contour for ρ_lens = 1.42, ρ_below = 5.32 Ω·m",
+            fn, src)
 
 
 def extra_numbers_v111():

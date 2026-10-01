@@ -412,6 +412,7 @@ def ppf(q):
 
 def verdicts(rows):
     out = {}
+    present = sorted({r["truth"] for r in rows}, key=TI.get)
     # E9
     cases = []
     for r in rows:
@@ -423,7 +424,7 @@ def verdicts(rows):
                      fails=[c for c in cases if not c["ok"]])
     out["E9"]["holds"] = bool(out["E9"]["share"] is not None and out["E9"]["share"] >= 0.9)
     # E10
-    sharp = [t for t in TRUTHS if params(t)["tau"] == 0]
+    sharp = [t for t in present if params(t)["tau"] == 0]
     ok10, n10, nod = 0, 0, []
     for t in sharp:
         r = pick(rows, truth=t, definition="oracle", treatment="lam50", group="≤10")
@@ -444,25 +445,29 @@ def verdicts(rows):
                 n += 1; ok += r[0]["coverage"] >= 0.85
             res[dd] = dict(n=n, n_ok=int(ok), share=ok / n if n else None)
         return res
-    inside3 = [t for t in TRUTHS if 0 < q_of(3.0, params(t)) < 1]
-    out["E11"] = dict(all=e11(("logmid", "maxgrad"), TRUTHS), inside3=e11(("logmid", "maxgrad"), inside3),
-                      oracle_anchor=e11(("logmid_o", "maxgrad_o"), TRUTHS), n_inside3=len(inside3))
+    inside3 = [t for t in present if 0 < q_of(3.0, params(t)) < 1]
+    out["E11"] = dict(all=e11(("logmid", "maxgrad"), present), inside3=e11(("logmid", "maxgrad"), inside3),
+                      oracle_anchor=e11(("logmid_o", "maxgrad_o"), present), n_inside3=len(inside3))
     out["E11"]["holds"] = bool(all(v["share"] is not None and v["share"] >= 0.8 for v in out["E11"]["all"].values()))
     return out
 
 
-def fit_rule(rows, treatment="lam50", truths=None, seed=None, nboot=2000):
-    """bias = −a·r̄·Φ⁻¹(q) over truths × {2, 3, 5} with 0 < q < 1 (r ≤ 10 m); r̄ from λ = 50 (same truth, group)."""
+def fit_rule(rows, treatment="lam50", truths=None, seed=None, nboot=2000, qmap=None, defs=("thr2", "thr3", "thr5")):
+    """bias = −a·r̄·Φ⁻¹(q) over truths × {2, 3, 5} with 0 < q < 1 (r ≤ 10 m); r̄ from λ = 50 (same truth, group).
+    qmap {(truth, definition): q} replaces the true-value q (post hoc: q from the recovered plateaus)."""
     truths = truths or [t for t in TRUTHS if params(t)["tau"] == 0]
     pts = []
     for t in truths:
         rb = pick(rows, truth=t, definition="thr3", treatment="lam50", group="≤10")
         rbar = rb[0]["rbar"] if rb else None
-        for dd in ("thr2", "thr3", "thr5"):
+        for dd in defs:
             r = pick(rows, truth=t, definition=dd, treatment=treatment, group="≤10")
-            if not r or r[0]["bias"] is None or rbar is None or not 0 < r[0]["q"] < 1:
+            if not r or r[0]["bias"] is None or rbar is None:
                 continue
-            pts.append(dict(truth=t, d=dd, q=r[0]["q"], rbar=rbar, x=-rbar * ppf(r[0]["q"]), y=r[0]["bias"],
+            q = r[0]["q"] if qmap is None else qmap.get((t, dd))
+            if q is None or not 0 < q < 1:
+                continue
+            pts.append(dict(truth=t, d=dd, q=q, rbar=rbar, x=-rbar * ppf(q), y=r[0]["bias"],
                             k=params(t)["k"], z_b=params(t)["z_b"], rho_lens=params(t)["rho_lens"]))
     if len(pts) < 3:
         return None
@@ -478,6 +483,28 @@ def fit_rule(rows, treatment="lam50", truths=None, seed=None, nboot=2000):
             xs, ys = x[sel], y[sel]
             bs.append(xs @ ys / (xs @ xs))
         out["a90"] = [float(np.percentile(bs, 5)), float(np.percentile(bs, 95))]
+    return out
+
+
+def recovered_plateaus(d, truths):
+    """POST HOC (decision log v1.3-1, not pre-registered): median log10ρ of the λ = 50 model m̂ in the lens (from 4 m
+    above z_b up to the surface) and below it (4–10 m below z_b), over the r ≤ 10 m (column, realisation) pairs."""
+    ref = wc.load_run(sb.REF_TAG); mesh, _ = wc.rebuild_paradomain(ref); cs = wc.ColumnSampler(mesh, sb.COLS)
+    out = {}
+    for t in truths:
+        zb = params(t)["z_b"]; vl, vb = [], []
+        for r in range(N_REAL):
+            Z = np.load(os.path.join(d, t, f"r{r}.npz"), allow_pickle=True)
+            V = cs(np.log10(Z["lam50_model"].astype(float))); rt = Z["lam50_r_true"]
+            for j in range(len(cs.x)):
+                if grp_of(rt[j]) != "≤10":
+                    continue
+                col = V[:, j]; ok = np.isfinite(col)
+                a = ok & (cs.z >= zb + 4); b = ok & (cs.z <= zb - 4) & (cs.z >= zb - 10)
+                if a.any() and b.any():
+                    vl.append(np.median(col[a])); vb.append(np.median(col[b]))
+        if vl:
+            out[t] = dict(lens=float(10 ** np.median(vl)), below=float(10 ** np.median(vb)), n=len(vl))
     return out
 
 
@@ -563,6 +590,21 @@ def cmd_report(args):
     fit_lam = {int(l): fit_rule(rows, f"lam{int(l)}_r01", seed=[136201]) for l in [5.0, 10.0, 20.0, 50.0, 100.0]}
     grad = [t for t in TRUTHS if params(t)["tau"] > 0]
     fit_grad = fit_rule(rows, "lam50", truths=grad, seed=[136200])
+    # post hoc: q from the recovered plateaus of m̂ (λ = 50) instead of the true values
+    rec = recovered_plateaus(d, done)
+    def q_rec(t, thr_log):
+        v = rec[t]; return float((thr_log - np.log10(v["lens"])) / (np.log10(v["below"]) - np.log10(v["lens"])))
+    qmap = {}
+    for t in rec:
+        for x in THRS:
+            qmap[(t, f"thr{x:g}")] = q_rec(t, np.log10(x))
+        qmap[(t, "oracle")] = q_rec(t, oracle_level(params(t)))
+    sharp_done = [t for t in done if params(t)["tau"] == 0]
+    fit_rec = fit_rule(rows, "lam50", truths=sharp_done, seed=[136202], qmap=qmap)
+    fit_rec_or = fit_rule(rows, "lam50", truths=sharp_done, seed=[136202], qmap=qmap, defs=("thr2", "thr3", "thr5", "oracle"))
+    fit_or_true = fit_rule(rows, "lam50", truths=sharp_done, qmap={k_: 0.5 for k_ in qmap if k_[1] == "oracle"} |
+                           {k_: q_of(float(k_[1][3:]), params(k_[0])) for k_ in qmap if k_[1] != "oracle"},
+                           defs=("thr2", "thr3", "thr5", "oracle"))
     wq = (np.log10(3) - np.log10(WESTHOEK["rho_lens"])) / (np.log10(WESTHOEK["rho_below"]) - np.log10(WESTHOEK["rho_lens"]))
 
     # ── table T_S4 (CSV + Markdown) ──
@@ -679,6 +721,26 @@ def cmd_report(args):
               f"a = {fit_grad['a']:.3f} (90 % [{fit_grad['a90'][0]:.3f}, {fit_grad['a90'][1]:.3f}]), R² = {fit_grad['r2']:.2f}, "
               f"n = {fit_grad['n']}; sharp-truth a = {fit['a']:.3f}" + (" — the gradual truths behave as a wider s." if fit and fit_grad['a'] > fit['a90'][1]
                                                                          else " — not wider than the sharp-truth interval." if fit else "")]
+    R += ["", "## Post hoc (not pre-registered; decision log v1.3-1): q from the recovered plateaus", "",
+          "Observation after the results: the oracle contour is biased deep and its bias grows with k, and the fit "
+          "residuals grow more negative with k. Diagnostic: the λ = 50 models recover a damped contrast. Recovered "
+          "plateaus = median log10ρ of m̂ from 4 m above z_b to the surface (lens) and 4–10 m below z_b (below), r ≤ 10 m "
+          "pairs; q_rec = position of the threshold between the recovered plateaus. The bias rule is refitted with q_rec "
+          "(same r̄, same cases with 0 < q_rec < 1).", "",
+          "| truth | true ρ_lens / ρ_below | recovered ρ_lens / ρ_below | recovered / true contrast | q_rec of the oracle | oracle bias |",
+          "|---|---|---|---|---|---|"]
+    for t, v in rec.items():
+        p_ = params(t); ob = pick(rows, truth=t, definition="oracle", treatment="lam50", group="≤10")[0]["bias"]
+        R.append(f"| {t} | {p_['rho_lens']:g} / {p_['rho_below']:.2f} | {v['lens']:.2f} / {v['below']:.2f} | "
+                 f"{np.log10(v['below']/v['lens'])/np.log10(p_['k']):.2f} (log) | {qmap[(t, 'oracle')]:.2f} | {f_(ob, '{:+.2f}')} |")
+    for lab, fr in (("fixed contours, q_rec", fit_rec), ("fixed contours + oracle, q_rec", fit_rec_or),
+                    ("fixed contours + oracle, true q (oracle at q = 0.5)", fit_or_true)):
+        if fr:
+            R.append("")
+            R.append(f"- {lab}: a = {fr['a']:.3f}" + (f" [{fr['a90'][0]:.3f}, {fr['a90'][1]:.3f}]" if "a90" in fr else "")
+                     + f", R² = {fr['r2']:.2f}, n = {fr['n']}; median residual by k: " + ", ".join(
+                         f"{g}: {np.median([p_['resid'] for p_ in fr['pts'] if p_['k'] == g]):+.2f} m"
+                         for g in sorted({p_['k'] for p_ in fr['pts']})))
     with open(os.path.join(res, "3_rule_fit.md"), "w", encoding="utf-8") as f:
         f.write("\n".join(R) + "\n")
 
@@ -721,6 +783,11 @@ def cmd_report(args):
         ax.set_xlabel("predicted bias −a·r̄·Φ⁻¹(q) (m)"); ax.set_ylabel("observed median bias (m)")
         ax.set_title(f"(a) λ = 50: a = {fit['a']:.3f} [{fit['a90'][0]:.3f}, {fit['a90'][1]:.3f}], R² = {fit['r2']:.2f}", fontsize=8)
         ax.grid(alpha=0.3)
+        from matplotlib.lines import Line2D
+        hh = [Line2D([], [], marker=m, ls="", color="0.4", label=l) for m, l in (("s", "2 Ω·m"), ("o", "3 Ω·m"), ("D", "5 Ω·m"))]
+        hh += [Line2D([], [], marker="^", ls="", mfc="none", mec="#d35400", label="τ = 5 m (not in the fit)")]
+        hh += [Line2D([], [], marker="o", ls="", color=cmap[k], label=f"k = {k}") for k in KS]
+        ax.legend(handles=hh, fontsize=6, loc="upper left", ncol=2)
     ax = axes[1]
     lc = {5: "#fdae6b", 10: "#fd8d3c", 20: "#e6550d", 50: "#a63603", 100: "#7f2704"}
     for l, fl in fit_lam.items():
@@ -766,7 +833,15 @@ def cmd_report(args):
     summ = dict(n_truths=len(done), westhoek_q3=float(wq), verdicts=V, agg=agg,
                 fit={k: v for k, v in (fit or {}).items() if k != "pts"},
                 fit_lam={str(l): ({k: v for k, v in fl.items() if k != "pts"} if fl else None) for l, fl in fit_lam.items()},
-                fit_grad={k: v for k, v in (fit_grad or {}).items() if k != "pts"})
+                fit_grad={k: v for k, v in (fit_grad or {}).items() if k != "pts"},
+                posthoc=dict(recovered=rec,
+                             fit_rec={k: v for k, v in (fit_rec or {}).items() if k != "pts"},
+                             fit_rec_oracle={k: v for k, v in (fit_rec_or or {}).items() if k != "pts"},
+                             fit_true_oracle={k: v for k, v in (fit_or_true or {}).items() if k != "pts"}),
+                oracle_bias={t: pick(rows, truth=t, definition="oracle", treatment="lam50", group="≤10")[0]["bias"] for t in done},
+                n_with_r10={t: pick(rows, truth=t, definition="thr3", treatment="lam50", group="≤10")[0]["n"] for t in done},
+                per_truth={t: {x: [pick(rows, truth=t, definition=x, treatment="lam50", group="≤10")[0][k_]
+                                   for k_ in ("coverage", "bias")] for x in DEFS} for t in done})
     with open(os.path.join(dpp, "v13_summary.json"), "w", encoding="utf-8") as f:
         json.dump(summ, f, indent=1, default=float)
 
