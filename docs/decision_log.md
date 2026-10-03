@@ -130,3 +130,60 @@ a new, dated follow-up entry.**
 | date | id | entry |
 |---|---|---|
 | 2026-10-02 | v1.3-1 | **Task 1–2 outcome (pre-registered rules applied as written).** E9 **holds** (35/35 cases); E10 **does not hold** (1 of 15 sharp truths with r ≤ 10 m data); E11 **does not hold** (log-midpoint and max. gradient 17/22 each = 77 %; pre-registered breakdowns: 14/16 each with 3 Ω·m inside the contrast, 22/22 each with the oracle anchor); E12 **holds** (R² = 0.69, a = 0.621 [0.515, 0.747]). *Implementation details fixed while writing the report, before reading the verdicts:* E10 and E11 count the truths with at least one r ≤ 10 m pair (10 of 32 have none: all nine sharp z_b = −18 truths, G_0.8_16_-12_0 and G_0.8_16_-12_5); the 10–15 m group has data for all 32. *Run:* 416 inversions, no failures; wall-clock 6.3 h on 6 workers against the 2.7 h projected in `1_plan.md` (the assumed 1.5× load factor was too low; still far below the 36 h limit). λ = 50 χ² 1.02–1.43; 22 of 416 inversions end with χ² > 1.6 (20 at λ = 5, mostly ρ_lens = 0.8, stopped on dPhi < 2 %), kept as in v1.0 (they enter only the λ-pooled treatment). *Observation after the results and post hoc diagnostic (not pre-registered):* the oracle bias is always deep and grows with k (−0.7 … −4.4 m for k ≥ 4), and the rule residuals grow more negative with k. The λ = 50 models recover the lens resistivity but a damped ρ_below (recovered/true log-contrast 0.57–0.90 for k ≥ 4). Refitting the rule with q from the recovered plateaus (median log10ρ of m̂ from 4 m above z_b to the surface and 4–10 m below z_b; bootstrap seed `default_rng([136202])`) gives R² = 0.87 (a = 0.366). This diagnostic does not change any verdict. The gradual truths did not behave as a wider s (a = 0.591 vs 0.621; a 5 m ramp widens s by only ≈ 4 %, below what the design can detect). |
+
+# v1.4 — raw ABEM file and direct-push ground truth (branch `v1.4` from `v1.3-general`)
+
+| date | id | entry |
+|---|---|---|
+| 2026-10-03 | v1.4-0 | **Scope and state at pre-registration.** Task 0 inputs; Task 1 raw ABEM (deferred: the 2018 export has not arrived; the file supplied on 2026-10-03 was byte-identical to the Zenodo `ERT.dat`, i.e. the recent line, not ours); Task 2 DP logs vs the 2018 results; Task 3 outputs. New scripts `26_raw_abem.py` (Task 1, later) and `27_dp_groundtruth.py`; outputs `data/processed/v1_4/`, `results/v1_4/`; tag `v1.4-groundtruth` only after Task 1 is done. Zenodo record 10.5281/zenodo.20792093 (CC-BY-4.0) downloaded 2026-10-03, MD5 verified. **No DP resistivity value had been opened when these entries were written and committed**: only the x and z columns of `DP_R.xzr`, the coordinate columns of `SGS_DP_R.txt` (geostatistical simulations conditioned on the DP data, not measurements) and the sensor block and headers of `ERT.dat` were read. |
+
+## v1.4 pre-registered expectations (written and committed before any DP resistivity value was read)
+
+| id | expectation / decision rule |
+|---|---|
+| **E13** | The median stacking error is below 3 %, i.e. stacking errors understate the total data error. |
+| **E14** | If the order is available: the outlier rate is higher for data whose potential electrode was used as a current electrode shortly before than for the rest. "Shortly before" means the lowest quartile of time or count since last use. |
+| **E15** | The DP saline base (log-midpoint) lies inside the 2018 BEL 90 % interval for at least two thirds of the DPs at x = 100–450 m. |
+| **E16** | At most DPs within x = 150–350 m, ρ_below,DP is below 12.45 Ω·m (the field BEL P95), and no DP in that range shows a zone above 20 Ω·m thicker than 3 m. If it holds, this supports Section 4.3 (brackish water below the lens); if most DPs show > 20 Ω·m below the lens, Section 4.3 must be revised. |
+| **E17** | Where the 2018 log-midpoint and 3 Ω·m bases differ by more than 2 m, the DP base is closer to the log-midpoint at most of those DPs. |
+
+## v1.4 analysis choices fixed before reading any DP value
+
+- **Positions.** DP and recent-ERT-line positions: WGS84 points georeferenced by the user from T. Hermans' map (±10 m).
+  The DP files carry local x = 50, 100, …, 350 m; matching against the map distances from the land end (DP7 10 … DP1
+  310 m; line 360 m) gives local x = 360 m − distance within ±1 m, so **local x = 0 is the sea end** and DP1 is at local
+  x = 50 m. WGS84 → Belgian Lambert 72 with pyproj, operation "BD72 to WGS 84 (3)" (EPSG:15929, 1 m). Each point is
+  projected onto the polyline of our 102 land electrodes (GPS_coordinate.xlsx); our x = profile x (elec.dat)
+  interpolated along the polyline; perpendicular offset reported with + = north-east (away from the border).
+  Sensitivity: every comparison repeated with all DPs shifted by −15 m and +15 m along our line (verdicts reported for
+  each; the unshifted positions give the primary verdict).
+- **Survey date** of the DP logs and of the recent ERT line: not in the record; "pending (asked T. Hermans)". A
+  placeholder (`DP_DATE` in `27_dp_groundtruth.py`) fills the time gap since 7 March 2018 in every report line and
+  number once known.
+- **Elevation.** DP z = depth below the DP surface (negative down). The record has no DP surface elevations: the 2018
+  land surface (our electrodes) at the DP's x is used, flagged (the beach surface may have changed).
+- **DP log processing.** r taken as bulk resistivity in Ω·m (units and temperature reference not stated in the record;
+  the authors' script treats r as resistivity next to ρa). log10 r; running median over 0.5 m (51 samples at 1 cm,
+  centred, edges by nearest value); then sampled at 0.2 m elevation steps (the column step of the paper's interface
+  code). Interfaces on that column: 3 Ω·m and 2.5 Ω·m = main-lens base crossing (`westhoek_common.main_lens`, levels
+  log10 3 and log10 2.5); log-midpoint as Section 2.4 (`11_stage4_closeout.interfaces_all`: gradient-weighted centroid
+  of the segments ≥ 90 % of the steepest increase; plateaus = median log10 ρ in 3 m windows above and below; crossing of
+  their mean nearest the steepest increase within ±10 m) but **anchored on the steepest increase of the DP log between
+  its top and −25 mTAW** (above the clay; 1980 clay top −25.5 to −28 mTAW) instead of on the 3 Ω·m crossing. Fresh zones:
+  contiguous runs of the smoothed log ≥ 20 Ω·m (top, bottom, thickness), all reported; E16 uses the thickest run below
+  the DP log-midpoint base. ρ_below,DP = median of the unsmoothed r from 2 m below the DP log-midpoint base down to the
+  bottom of the log or −25 mTAW, whichever is shallower (undefined if that interval is empty).
+- **Inclusion.** A DP enters the comparisons if the resolution radius of the reference model at the λ = 50
+  log-midpoint crossing at its x (`r_logmid` of `results/runs/g1_lam50_v4`, nearest column) is ≤ 15 m; NaN = excluded.
+- **2018 comparators at the DP's x** (nearest column): BEL lens base (v1.0 headline: base-only BEL, site + physical,
+  `default_rng([129000, 1])`, as F_S3) median and 90 % interval; λ-pooled log-midpoint and λ = 50 3 Ω·m bands (v4);
+  1980 saline base (`lebbe1981_K1_digitised.csv`, linear in x); BEL ρ_below posterior 4.93 [2.59, 12.45] Ω·m (a
+  profile-wide value); the g1_lam50 column.
+- **Verdict rules.** E15: among included DPs at x = 100–450 m, the share with P5 ≤ DP log-midpoint base ≤ P95 of the BEL
+  interval ≥ 2/3. E16: among included DPs at x = 150–350 m, more than half with ρ_below,DP < 12.45 Ω·m, and none with a
+  ≥ 20 Ω·m run thicker than 3 m below its base. E17: among included DPs with |λ-pooled log-midpoint median − λ = 50
+  3 Ω·m median| > 2 m, more than half with the DP base closer to the log-midpoint median; untestable if there is none.
+  DPs without a log-midpoint base count as failures for E15 and are excluded from E16's ρ_below count and from E17.
+- **Salinity.** % seawater = 100·F·ρ_sw/ρ_below,DP with the v1.0 Archie v2 draws (`17_salinity_v2.archie_v2`: F ~ U(2.8,
+  3.6), S ~ U(31, 34) PSU, T ~ U(8, 14) °C, PSS-78), 20 000 draws, `default_rng([137200, dp_index])`, median [P5, P95];
+  draws above 100 % reported, not clipped.
