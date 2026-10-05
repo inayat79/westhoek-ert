@@ -131,6 +131,11 @@ RAW_STEPS = [
     ("25-field", ["25_generalisation.py", "field"], "< 1 min", True),
     ("25-run", ["25_generalisation.py", "run", "--workers", "6"], "see results/v1_3/1_plan.md (416 inversions)", True),
     ("25-report", ["25_generalisation.py", "report"], "5 min", True),
+    ("26-run", ["26_raw_abem.py", "run"], "2 min (+ 1 min g1_lam50_recip)", True),
+    ("26-report", ["26_raw_abem.py", "report"], "< 1 min", True),
+    ("27-fetch", ["27_dp_groundtruth.py", "fetch"], "< 1 min (Zenodo download, MD5 checked)", True),
+    ("27-run", ["27_dp_groundtruth.py", "run", "--workers", "6"], "3 min", True),
+    ("27-report", ["27_dp_groundtruth.py", "report"], "< 1 min", True),
     ("19", ["19_rho_lens_bound_check.py"], "3 min", False),
     ("18", ["18_paper.py", "all"], "7 min", True),
 ]
@@ -141,7 +146,7 @@ RAW_STEPS = [
 # ─────────────────────────────────────────────────────────────────────────────
 RUN_STEP = {"deep_all": "02-F", "deep_auto": "02-Fauto", "deep_drop_data": "02-G1", "deep_drop_elec": "02-G2", "deep_downweight": "02-G3",
             "g1_lam5": "02-lam5", "g1_lam10": "02-lam10", "g1_lam50": "02-lam50", "g1_lam100": "02-lam100",
-            "g1b_thr299": "02-G1b"}
+            "g1b_thr299": "02-G1b", "g1_lam50_recip": "26-run"}
 PRODUCERS = [   # (regex, step id or callable(match) → step id, script, evidence token that must occur in the script)
     (r"^data/raw/", "raw input", None, None),
     (r"^data/external/natural_earth/ne_10m_", "NE", "run_all.py", "natural_earth"),
@@ -154,6 +159,13 @@ PRODUCERS = [   # (regex, step id or callable(match) → step id, script, eviden
      "20_petrophysics_sensitivity.py", "2_petrophysics_sensitivity.md"),
     (r"^results/v1_1/3_k1_comparison\.md$", "21-report", "21_k1_comparison.py", "3_k1_comparison.md"),
     (r"^data/processed/v1_3/general/", "25-run", "25_generalisation.py", "general"),
+    (r"^data/raw/Project12_LS210110079_2018-03-07_11-22-23/", "raw input", None, None),   # T. Hermans, Oct 2026
+    (r"^data/raw/dp_zenodo_20792093/", "27-fetch", "27_dp_groundtruth.py", "zenodo"),
+    (r"^data/processed/v1_4/(raw2018\.json|raw2018_data\.csv|raw2018_pairs\.npz|recip_err_scale\.txt)$", "26-run",
+     "26_raw_abem.py", "raw2018.json"),
+    (r"^data/processed/v1_4/placement\.json$", "27-run", "27_dp_groundtruth.py", "placement.json"),
+    (r"^results/v1_4/(1_raw_abem\.md|T_S8_raw_2018\.(csv|md))$", "26-report", "26_raw_abem.py", "1_raw_abem.md"),
+    (r"^results/v1_4/(0_inventory\.md|1_line_placement\.md)$", "27-report", "27_dp_groundtruth.py", "1_line_placement.md"),
     (r"^data/processed/v1_3/field\.json$", "25-field", "25_generalisation.py", "field.json"),
     (r"^data/processed/v1_3/v13_summary\.json$", "25-report", "25_generalisation.py", "v13_summary.json"),
     (r"^results/v1_3/0_field_like_for_like\.md$", "25-field", "25_generalisation.py", "0_field_like_for_like.md"),
@@ -365,7 +377,7 @@ def check(out):
     L.append(f"- cross-checks against earlier stored reports: {n_ref_ok} / {n_ref} found")
     files_same = files_diff = 0
     for sub in (os.path.join("results", "stage6_v2"), os.path.join("results", "paper"), os.path.join("results", "v1_1"),
-                os.path.join("results", "v1_3")):
+                os.path.join("results", "v1_3"), os.path.join("results", "v1_4")):
         d_new = os.path.join(out, sub)
         if not os.path.isdir(d_new) or os.path.abspath(out) == ROOT:
             continue
@@ -471,7 +483,9 @@ def from_cache(out, do_check):
     for sid, argv in (("22r", ["22_lebbe1980_synthetic.py", "report"]), ("20", ["20_petrophysics_sensitivity.py", "run"]),
                       ("20r", ["20_petrophysics_sensitivity.py", "report"]), ("21l", ["21_k1_comparison.py", "location"]),
                       ("21", ["21_k1_comparison.py", "run"]), ("21r", ["21_k1_comparison.py", "report"]),
-                      ("25f", ["25_generalisation.py", "field"]), ("25r", ["25_generalisation.py", "report"])):
+                      ("25f", ["25_generalisation.py", "field"]), ("25r", ["25_generalisation.py", "report"]),
+                      ("26", ["26_raw_abem.py", "run"]), ("26r", ["26_raw_abem.py", "report"]),
+                      ("27", ["27_dp_groundtruth.py", "run"]), ("27r", ["27_dp_groundtruth.py", "report"])):
         t[sid] = run(argv + ["--out", out], SCRIPT_DIR, log)
     t["18"] = run(["18_paper.py", "all", "--out", out, "--recompute"], SCRIPT_DIR, log)
     print(f"[from-cache] done: " + ", ".join(f"{k} {v:.0f} s" for k, v in t.items()) + f"; total {sum(t.values())/60:.1f} min")

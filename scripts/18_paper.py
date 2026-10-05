@@ -1335,9 +1335,107 @@ def extra_numbers(B):
     extra_numbers_v11()
     extra_numbers_v111()
     extra_numbers_v13()
+    extra_numbers_v14()
 
 
 V11_TRUTHS = ("T80a", "T80b", "T80c", "T80d", "T80e", "T80a_ht")
+
+
+def extra_numbers_v14():
+    """v1.4a numbers (appended after all v1.3 numbers): the raw 2018 Terrameter project (26_raw_abem.py) and the placement
+    of the Zenodo ERT line (27_dp_groundtruth.py). No DP resistivity value is used."""
+    d = os.path.join(os.path.dirname(DS6), "v1_4")
+    if not os.path.exists(os.path.join(d, "raw2018.json")):
+        print("[v1.4] no v1.4 products — v1.4 numbers skipped", flush=True)
+        return
+    rv = "results/v1_4"; r1, rp = f"{rv}/1_raw_abem.md", f"{rv}/1_line_placement.md"
+    J = json.load(open(os.path.join(d, "raw2018.json"), encoding="utf-8"))
+    f26, s26 = "26_raw_abem.py:cmd_run", "`data/raw/Project12_LS210110079_2018-03-07_11-22-23/project.db`"
+    pc = lambda v: f"{100*v:.2f} %"
+    dist = lambda x: f"{pc(x['median'])} / {pc(x['p90'])} / {pc(x['p99'])} (n = {x['n']})"
+    c, e = J["counts"], J["errors"]
+    NUM.add("v14_raw_match", f"{c['matched']} of {c['published']}; max relative difference {c['max_rel_diff']:.1e}",
+            "v1.4: published land_data.dat rows matched to task-1 quadrupoles of the raw 2018 project", f26, s26,
+            ref=(r1, "match task-1 quadrupoles", f"All {c['matched']} of the {c['published']}"))
+    rq = J["repeats"]
+    NUM.add("v14_raw_repeats", f"{rq['n_published_repeated']} published quadrupoles measured more than once (always within one "
+            f"station); last measurement published in {rq['published_is_last']}", "v1.4: repeated quadrupoles in the raw file", f26, s26,
+            ref=(r1, "Repeats:", f"{rq['n_published_repeated']} of them published"))
+    rl = J["rule_quadrupoles"]
+    NUM.add("v14_raw_rule", f"{rl['n']} quadrupoles; not published: " + ", ".join(f"row {x['row']}" for x in rl["rule_not_published"]),
+            "v1.4: selection rule 'stacking error ≤ 1 % and R > 0' on our electrodes (distinct quadrupoles)", f26, s26,
+            ref=(r1, "Selection rule", f"{rl['n']} distinct quadrupoles"))
+    t = J["timing"]
+    for st, (a, b, n) in t["stations"].items():
+        NUM.add(f"v14_raw_time_station{st}", f"{a[11:16]}–{b[11:16]} (n = {n})", f"v1.4: published data of roll-along station {st}, "
+                "instrument clock (time zone unknown), 7 March 2018", f26, s26, ref=(r1, f"| {st} | {a[11:16]}–{b[11:16]}", f"| {n} |"))
+    NUM.add("v14_raw_session", f"published {t['published'][0][11:16]}–{t['published'][1][11:16]}; reciprocals {t['task2'][0][11:16]}–"
+            f"{t['task2'][1][11:16]}; session {t['session'][0][11:16]}–{t['session'][1][11:16]}", "v1.4: survey timing, instrument clock "
+            "(time zone unknown)", f26, s26, ref=(r1, "Published data", f"{t['published'][0][11:16]}–{t['published'][1][11:16]}"))
+    NUM.add("v14_E13", f"{'holds' if J['E13']['holds'] else 'does not hold'}: median stacking error {pc(J['E13']['median_published'])} "
+            f"(published), {pc(J['E13']['median_all'])} (all task-1)", "v1.4 pre-registered E13 (median stacking error < 3 %)", f26, s26,
+            ref=(r1, "**E13**", pc(J["E13"]["median_published"])))
+    for k, lab in (("stack_published", "stacking error, published data"), ("recip_published", "reciprocal error, pairs on published electrodes"),
+                   ("recip_all", "reciprocal error, all pairs")):
+        NUM.add(f"v14_{k}", dist(e[k]), f"v1.4: {lab} — median / P90 / P99", f26, s26, ref=(r1, f"| {lab} |", dist(e[k])))
+    NUM.add("v14_recip_pairs", f"{e['n_task2_paired']} task-2 data paired ({e['n_pairs']} pairings); {e['n_pairs_published']} on published "
+            f"electrodes; {e['n_pairs_dune']} involve dune electrodes", "v1.4: normal–reciprocal pairs (task 2 = reciprocal of station 3)",
+            f26, s26, ref=(r1, "Pairs:", f"{e['n_task2_paired']} task-2 data with a partner"))
+    NUM.add("v14_robust_sigma", f"{pc(e['robust_sigma_rel_all'])} (all pairs), {pc(e['robust_sigma_rel_published'])} (published electrodes)",
+            "v1.4: robust relative error scale 1.4826 × median reciprocal error / √2 (descriptive)", f26, s26,
+            ref=(r1, "Robust scale", pc(e["robust_sigma_rel_published"])))
+    NUM.add("v14_recip_over_stack", f"{e['recip_over_stack_median']:.1f}", "v1.4: median ratio of reciprocal to stacking error on "
+            "the same pairs", f26, s26, ref=(r1, "Median ratio reciprocal / stacking", f"{e['recip_over_stack_median']:.1f}"))
+    fa = J["fit_all"]; b_ = fa["B"]["params"]; a_ = fa["A"]["params"]
+    NUM.add("v14_errfit", f"best {fa['best']}: c = {100*b_[0]:.3g} %, f = {b_[1]:.3g} Ω (AIC {fa['B']['aic']:.1f}); A: a = {a_[0]:.3g} Ω, "
+            f"b = {100*a_[1]:.3g} % (AIC {fa['A']['aic']:.1f}); v1.0 log-likelihood {fa['v1.0']['logL']:.1f}",
+            "v1.4: Gaussian ML error models fitted to the reciprocal differences of all pairs (descriptive)", f26, s26,
+            ref=(r1, "| B: σ", f"c = {100*b_[0]:.3g} %, f = {b_[1]:.3g} Ω"))
+    NUM.add("v14_recip_scale", f"median {J['recip_scale']['median']:.2f} (P90 {J['recip_scale']['p90']:.2f})",
+            "v1.4: reciprocal-based error ÷ v1.0 error on the published data (used in the (f) sensitivity run)", f26, s26,
+            ref=(r1, "Ratio of the reciprocal-based error", f"median {J['recip_scale']['median']:.2f}"))
+    m = J["outliers"]["stack"]
+    NUM.add("v14_outlier_stack", f"median {pc(m['median_out'])} vs {pc(m['median_ret'])}; p = {m['p']:.2g}; P(outlier > retained) = "
+            f"{m['p_superiority']:.2f}", "v1.4: stacking error of the 357 v1.0 outliers vs the 1974 retained data (Mann–Whitney)", f26, s26,
+            ref=(r1, "- Stacking error:", f"median {pc(m['median_out'])}"))
+    E = J["E14"]
+    for nm in ("time", "count"):
+        v = E[nm]
+        NUM.add(f"v14_E14_{nm}", f"outlier rate {100*v['rate_low']:.1f} % (lowest quartile, ≤ {v['q1']:.0f}) vs {100*v['rate_rest']:.1f} %; "
+                f"odds ratio {v['odds_ratio']:.2f} [{v['or90'][0]:.2f}, {v['or90'][1]:.2f}]", f"v1.4 E14 charge-up test, {nm} since a "
+                "potential electrode was last a current electrode (90 % bootstrap)", f26, s26,
+                ref=(r1, f"| {nm} |", f"{v['odds_ratio']:.2f} [{v['or90'][0]:.2f}, {v['or90'][1]:.2f}]"))
+    NUM.add("v14_E14", "holds" if E["holds"] else "does not hold", "v1.4 pre-registered E14", f26, s26,
+            ref=(r1, "**E14**", "holds" if E["holds"] else "does not hold"))
+    S = J["sensitivity"]; a, b = S["g1_lam50"], S["g1_lam50_recip"]
+    NUM.add("v14_sens_chi2", f"{a['chi2']:.2f} (v1.0) vs {b['chi2']:.2f} (reciprocal-based); median error {pc(a['median_err'])} vs "
+            f"{pc(b['median_err'])}", "v1.4 (f): g1_lam50 re-run with the reciprocal-based error model (sensitivity only)", f26,
+            "`data/processed/runs/g1_lam50_recip/`", ref=(r1, "χ² (with each run's own errors)", f"v1.0 {a['chi2']:.2f}"))
+    for i, x in enumerate((150, 200, 250, 300, 350)):
+        NUM.add(f"v14_sens_x{x}", f"3 Ω·m {a['thr3'][i]:.2f} → {b['thr3'][i]:.2f}; log-midpoint {a['logmid'][i]:.2f} → {b['logmid'][i]:.2f} mTAW",
+                f"v1.4 (f): lens base at x = {x} m, v1.0 vs reciprocal-based error model (λ = 50)", f26,
+                "`data/processed/runs/g1_lam50_recip/`", ref=(r1, f"| {x} | {a['thr3'][i]:.2f}", f"{b['thr3'][i]:.2f}"))
+    dn = J["dune"]
+    NUM.add("v14_dune", f"{len(dn['positions'])} electrodes (p {dn['positions'][0]}–{dn['positions'][-1]}); {dn['n_data']} data involve them",
+            "v1.4: unpublished dune electrodes landward of E1 (not used)", f26, s26, ref=(r1, "## (g)", ""))
+    P = json.load(open(os.path.join(d, "placement.json"), encoding="utf-8"))
+    f27, s27 = "27_dp_groundtruth.py:cmd_run", "`data/raw/dp_zenodo_20792093/ERT.dat`, g1_lam50, project.db"
+    g = P["gps"]
+    NUM.add("v14_gps_datum", "; ".join(f"station {x['station']}: x {x['datum']['x']:.1f} (spread centre {x['centre_x_expected']:.1f}), "
+                                       f"without datum {x['nodatum']['x']:.1f}" for x in g if x["task"] == 1),
+            "v1.4: instrument GPS medians projected on our line, with / without the BD72 datum transformation", f27, s27,
+            ref=(rp, "| 1 (1) |", f"{g[0]['datum']['x']:.1f} / "))
+    pr, ps = P["primary"], P["pseudo"]
+    NUM.add("v14_X0", f"{pr['X0']:.1f} ± {pr['sigma']:.1f} m (RMS {pr['rms_min']:.3f}; opposite orientation {pr['rms_min_rev']:.3f})",
+            "v1.4: our x of the sea end of the Zenodo ERT line (X0*, σ_X), forward modelling through g1_lam50", f27, s27,
+            ref=(rp, "**X0* =", f"{pr['X0']:.1f} m, σ_X = {pr['sigma']:.1f} m"))
+    NUM.add("v14_X0_pseudo", f"{ps['X0']:.1f} m (r = {ps['r_max']:.2f}); opposite orientation r = {ps['r_max_rev']:.2f}",
+            "v1.4: line placement by pseudo-section correlation (secondary)", f27, s27,
+            ref=(rp, "- Best X0 =", f"{ps['X0']:.1f} m (r = {ps['r_max']:.2f})"))
+    NUM.add("v14_dp_x", ", ".join(f"{x['name']} {x['our_x']:.1f}" for x in P["dps"]), "v1.4: DP positions on our axis (our_x = X0* − "
+            "x_local; ± σ_X)", f27, s27, ref=(rp, "| DP1 |", f"**{P['dps'][0]['our_x']:.1f}**"))
+    NUM.add("v14_dp_date", "pending (asked T. Hermans)", "v1.4: survey date of the DP logs and of the Zenodo ERT line", f27,
+            "`data/raw/README_sources.md`")
 
 
 def extra_numbers_v13():
