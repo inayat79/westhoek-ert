@@ -222,7 +222,9 @@ def audit(out):
         raise SystemExit(f"no read trace in {trace} — run --from-cache first")
     step_ids = {sid for sid, *_ in RAW_STEPS}
     reads, orig = {}, {}
-    for line in open(trace, encoding="utf-8"):
+    import glob
+    lines = [l for fn in [trace] + sorted(glob.glob(trace + ".*")) for l in open(fn, encoding="utf-8")]
+    for line in lines:
         tag, path = line.rstrip("\n").split("\t", 1)
         key = os.path.normcase(os.path.abspath(path))
         reads.setdefault(key, set()).add(tag); orig.setdefault(key, os.path.abspath(path))
@@ -474,8 +476,10 @@ def from_cache(out, do_check):
     log = os.path.join(logdir, "run_all_from_cache.log")
     if not in_project:                                  # read tracing only for rebuilds into a separate folder
         trace = os.path.join(out, "provenance_reads.tsv")
-        if os.path.exists(trace):
-            os.remove(trace)
+        import glob
+        for fn in [trace] + glob.glob(trace + ".*"):
+            if os.path.exists(fn):
+                os.remove(fn)
         os.environ["WESTHOEK_READ_TRACE"] = trace
     print(f"[from-cache] → {out} (log {log})")
     t = {}

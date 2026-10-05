@@ -38,7 +38,11 @@ def install(tag):
         if done:
             return
         done.append(True)
-        with open(out, "a", encoding="utf-8") as f:
+        import multiprocessing
+        # worker processes of a pool write to their own file (concurrent appends to one file interleave on Windows);
+        # run_all.audit reads provenance_reads.tsv and provenance_reads.tsv.<pid>
+        target = out if multiprocessing.parent_process() is None else f"{out}.{os.getpid()}"
+        with open(target, "a", encoding="utf-8") as f:
             f.writelines(f"{tag}\t{p}\n" for p in sorted(seen))
 
     sys.addaudithook(hook)
