@@ -139,6 +139,12 @@ RAW_STEPS = [
     ("27-cpt", ["27_dp_groundtruth.py", "cpt"], "< 1 min (needs the unpublished CPT archive)", True),
     ("27-samedate", ["27_dp_groundtruth.py", "samedate"], "30 min (12 inversions)", True),
     ("27-dp", ["27_dp_groundtruth.py", "dp"], "3 min", True),
+    ("28-run", ["28_dp_synthetic.py", "run", "--workers", "6"], "1.6 h (108 inversions; exploratory)", True),
+    ("28-report", ["28_dp_synthetic.py", "report"], "2 min", True),
+    ("29-run", ["29_detectability.py", "run", "--workers", "6"], "20 min (42 forward runs)", True),
+    ("29-report", ["29_detectability.py", "report"], "< 1 min", True),
+    ("30-run", ["30_bel_v4.py", "run", "--workers", "6"], "8 h (4873 forward runs + BEL)", True),
+    ("30-report", ["30_bel_v4.py", "report"], "1 min", True),
     ("27-report", ["27_dp_groundtruth.py", "report"], "< 1 min", True),
     ("19", ["19_rho_lens_bound_check.py"], "3 min", False),
     ("18", ["18_paper.py", "all"], "7 min", True),
@@ -169,6 +175,16 @@ PRODUCERS = [   # (regex, step id or callable(match) → step id, script, eviden
     (r"^data/processed/v1_4/(cpt\.json|T_S6_geometry\.csv)$", "27-cpt", "27_dp_groundtruth.py", "cpt.json"),
     (r"^data/processed/v1_4/samedate/", "27-samedate", "27_dp_groundtruth.py", "samedate"),
     (r"^data/processed/v1_1/k1_field_bel\.npz$", "21-run", "21_k1_comparison.py", "k1_field_bel.npz"),
+    (r"^data/processed/paper/bel_products\.npz$", "18", "18_paper.py", "bel_products"),
+    (r"^data/processed/v1_5/dp_synth/", "28-run", "28_dp_synthetic.py", "dp_synth"),
+    (r"^data/processed/v1_5/detect/", "29-run", "29_detectability.py", "detect"),
+    (r"^data/processed/v1_5/bel_v4/", "30-run", "30_bel_v4.py", "bel_v4"),
+    (r"^data/processed/v1_5/dp_synth_summary\.json$", "28-report", "28_dp_synthetic.py", "dp_synth_summary.json"),
+    (r"^data/processed/v1_5/detect\.json$", "29-report", "29_detectability.py", "detect.json"),
+    (r"^data/processed/v1_5/bel_v4_summary\.json$", "30-report", "30_bel_v4.py", "bel_v4_summary.json"),
+    (r"^results/v1_5/(2_dp_synthetic\.md|T_S10_dp_synthetic\.(csv|md))$", "28-report", "28_dp_synthetic.py", "2_dp_synthetic.md"),
+    (r"^results/v1_5/3_detectability\.md$", "29-report", "29_detectability.py", "3_detectability.md"),
+    (r"^results/v1_5/(4_bel_v4\.md|T_S11_bel_v4\.(csv|md))$", "30-report", "30_bel_v4.py", "4_bel_v4.md"),
     (r"^data/processed/v1_4/dp_results\.json$", "27-dp", "27_dp_groundtruth.py", "dp_results.json"),
     (r"^data/processed/v1_4/e14_followup\.json$", "26-followup", "26_raw_abem.py", "e14_followup.json"),
     (r"^data/processed/v1_4/(raw2018\.json|raw2018_data\.csv|raw2018_pairs\.npz|recip_err_scale\.txt)$", "26-run",
@@ -390,7 +406,7 @@ def check(out):
     L.append(f"- cross-checks against earlier stored reports: {n_ref_ok} / {n_ref} found")
     files_same = files_diff = 0
     for sub in (os.path.join("results", "stage6_v2"), os.path.join("results", "paper"), os.path.join("results", "v1_1"),
-                os.path.join("results", "v1_3"), os.path.join("results", "v1_4")):
+                os.path.join("results", "v1_3"), os.path.join("results", "v1_4"), os.path.join("results", "v1_5")):
         d_new = os.path.join(out, sub)
         if not os.path.isdir(d_new) or os.path.abspath(out) == ROOT:
             continue
@@ -502,7 +518,8 @@ def from_cache(out, do_check):
                       ("26", ["26_raw_abem.py", "run"]), ("26f", ["26_raw_abem.py", "followup"]),
                       ("26r", ["26_raw_abem.py", "report"]), ("27", ["27_dp_groundtruth.py", "run"]),
                       ("27c", ["27_dp_groundtruth.py", "cpt"]), ("27d", ["27_dp_groundtruth.py", "dp"]),
-                      ("27r", ["27_dp_groundtruth.py", "report"])):
+                      ("27r", ["27_dp_groundtruth.py", "report"]), ("28r", ["28_dp_synthetic.py", "report"]),
+                      ("29r", ["29_detectability.py", "report"]), ("30r", ["30_bel_v4.py", "report"])):
         t[sid] = run(argv + ["--out", out], SCRIPT_DIR, log)
     t["18"] = run(["18_paper.py", "all", "--out", out, "--recompute"], SCRIPT_DIR, log)
     print(f"[from-cache] done: " + ", ".join(f"{k} {v:.0f} s" for k, v in t.items()) + f"; total {sum(t.values())/60:.1f} min")

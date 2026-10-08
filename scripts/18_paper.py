@@ -1337,9 +1337,70 @@ def extra_numbers(B):
     extra_numbers_v13()
     extra_numbers_v14()
     extra_numbers_v14_groundtruth()
+    extra_numbers_v15()
 
 
 V11_TRUTHS = ("T80a", "T80b", "T80c", "T80d", "T80e", "T80a_ht")
+
+
+def extra_numbers_v15():
+    """v1.5 numbers (appended after all v1.4 numbers; exploratory, designed after the DP results were known):
+    28_dp_synthetic.py, 29_detectability.py, 30_bel_v4.py."""
+    d = os.path.join(os.path.dirname(DS6), "v1_5")
+    if not os.path.exists(os.path.join(d, "dp_synth_summary.json")):
+        print("[v1.5] no v1.5 products — skipped", flush=True)
+        return
+    rv = "results/v1_5"; ex = " (exploratory)"
+    S = json.load(open(os.path.join(d, "dp_synth_summary.json"), encoding="utf-8")); M, Q = S["metrics"], S["questions"]
+    f1, s1 = "28_dp_synthetic.py:cmd_report", "`data/processed/v1_5/dp_synth/`"
+    yn = lambda b: "yes" if b else "no"
+    NUM.add("v15_X1", f"{yn(Q['X1']['holds'])}; {len(Q['X1']['ok'])} of 5 ({', '.join(Q['X1']['ok'])})", "v1.5 X1: T1 on L24 reproduces "
+            "the field pattern (log-midpoint ≥ 2 m shallow and 3 Ω·m within ±2.5 m)" + ex, f1, s1,
+            ref=(f"{rv}/2_dp_synthetic.md", "**X1**", f"**{yn(Q['X1']['holds'])}**"))
+    NUM.add("v15_X2", f"{yn(Q['X2']['holds'])}; T1 {len(Q['X2']['ok']['T1'])} of 5, T2 {len(Q['X2']['ok']['T2'])} of 5",
+            "v1.5 X2: image ρ below < 0.5 × true ρ_below on L24" + ex, f1, s1,
+            ref=(f"{rv}/2_dp_synthetic.md", "**X2**", f"**{yn(Q['X2']['holds'])}**"))
+    NUM.add("v15_X3", f"{yn(Q['X3']['holds'])}; {len(Q['X3']['ok'])} of 5", "v1.5 X3: on T3 (brackish below) the log-midpoint "
+            "within ±2 m on L24" + ex, f1, s1, ref=(f"{rv}/2_dp_synthetic.md", "**X3**", f"**{yn(Q['X3']['holds'])}**"))
+    dps = ("DP3", "DP4", "DP5", "DP6", "DP7")
+    for t in ("T1", "T2", "T3"):
+        g = [M[f"{t}|L24|{n}"] for n in dps]
+        NUM.add(f"v15_{t}_L24_offsets", f"log-midpoint {min(m['logmid_off'] for m in g):+.2f} … {max(m['logmid_off'] for m in g):+.2f} m; "
+                f"3 Ω·m {min(m['thr3_off'] for m in g):+.2f} … {max(m['thr3_off'] for m in g):+.2f} m; image ρ below "
+                f"{min(m['rho_below_img'] for m in g):.2f}–{max(m['rho_below_img'] for m in g):.2f} Ω·m",
+                f"v1.5: {t} on L24, DP3–DP7, image − true base and image ρ below the base" + ex, f1, s1)
+    g = [M[f"T1|L24|{n}"] for n in dps]
+    NUM.add("v15_T1_L24_contrast", f"{min(m['contrast_ratio'] for m in g):.2f}–{max(m['contrast_ratio'] for m in g):.2f}",
+            "v1.5: recovered/true log-contrast, T1 on L24, DP3–DP7" + ex, f1, s1)
+    if os.path.exists(os.path.join(d, "detect.json")):
+        X = json.load(open(os.path.join(d, "detect.json"), encoding="utf-8")); f2 = "29_detectability.py:cmd_report"
+        for l in ("L18", "L24"):
+            v = X["vs_ref"][f"{l}|T2"]; r = X["rhos"]
+            NUM.add(f"v15_detect_{l}", f"χ²/N vs ρ_below = 12: {', '.join(f'{a:g}: {b:.2f}' for a, b in zip(r, v))}",
+                    f"v1.5: noise-free separability of ρ_below on {l} (T2 clay top)" + ex, f2, "`data/processed/v1_5/detect/`")
+            NUM.add(f"v15_detect_trade_{l}", f"{len(X['trade'][l])} clay-top/ρ_below pairs at χ²/N < 1", f"v1.5: trade-off between the clay "
+                    f"top (−30 / −26 mTAW) and ρ_below on {l}" + ex, f2, "`data/processed/v1_5/detect/`")
+            F = X["field"][l]
+            NUM.add(f"v15_field_fit_{l}", f"T1 {F['T1']['primary']:.2f}, T3 {F['T3']['primary']:.2f}", f"v1.5: χ²/N of the noise-free T1 / T3 "
+                    f"responses against the measured {l} data (G1 / Stage-1 kept)" + ex, f2, "`data/processed/v1_5/detect/`",
+                    ref=(f"{rv}/3_detectability.md", f"| {l} |", f"| {F['T1']['primary']:.2f} | {F['T3']['primary']:.2f} |"))
+        NUM.add("v15_X5", yn(X["X5"]), "v1.5 X5: ERT.dat fits T1 at least as well as T3" + ex, f2, "`data/processed/v1_5/detect/`",
+                ref=(f"{rv}/3_detectability.md", "**X5**", f"**{yn(X['X5'])}**"))
+    if os.path.exists(os.path.join(d, "bel_v4_summary.json")):
+        B = json.load(open(os.path.join(d, "bel_v4_summary.json"), encoding="utf-8")); f3 = "30_bel_v4.py:cmd_report"
+        s3 = "`data/processed/v1_5/bel_v4/`"
+        fm = lambda v: f"{v[0]:.2f} [{v[1]:.2f}, {v[2]:.2f}]"
+        NUM.add("v15_bel_v4_rho_below", f"{fm(B['rb4'])} Ω·m (v3 {fm(B['rb3'])}; v4 prior {fm(B['prior4'])})",
+                "v1.5: BEL v4 field ρ_below posterior, median [P5, P95]" + ex, f3, s3,
+                ref=(f"{rv}/4_bel_v4.md", "ρ_below: **v4", fm(B["rb4"])))
+        NUM.add("v15_bel_v4_coverage", f"{100*B['cov']:.1f} %", "v1.5: BEL v4 held-out 90 % coverage of the lens base" + ex, f3, s3)
+        NUM.add("v15_bel_v4_base_in", f"{B['n_in4']} of 6 (v3 {B['n_in3']} of 6)", "v1.5: DP2–DP7 bases inside the BEL v4 / v3 90 % "
+                "intervals (post hoc)" + ex, f3, s3)
+        x6 = B["X6"]
+        NUM.add("v15_X6", f"median > 4.93: {yn(x6['median'])}; interval contains 10.89–14.80: {yn(x6['interval'])}; base ≥ 5 of 6: "
+                f"{yn(x6['base'])}", "v1.5 X6 (post hoc)" + ex, f3, s3)
+        NUM.add("v15_bel_v4_learning", f"posterior 90 % width {100*B['width_post']/B['width_prior']:.0f} % of the prior's (log10)",
+                "v1.5: how much the 2018 data narrow ρ_below under prior v4" + ex, f3, s3)
 
 
 def extra_numbers_v14_groundtruth():
