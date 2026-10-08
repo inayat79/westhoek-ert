@@ -55,3 +55,23 @@ placement on our profile: `results/v1_4/1_line_placement.md`.
 ## 4. Natural Earth
 
 - See `data/external/natural_earth/README.md` (public domain; fetched by `run_all.py --fetch-natural-earth`).
+
+## 5. Mechanical CPT soundings, 23 September 2024 (E. Vrancken, Ghent University)
+
+- Source: E. Vrancken, Ghent University; received 8 October 2026. Survey date 23 September 2024 (E. Vrancken, pers. comm.).
+- Status: **unpublished, used with permission, not to be redistributed.** The folder `cpt_vrancken_2024/` is in
+  `.gitignore`; only derived tables and figures are committed. The raw files are available from the data owner.
+- Per E. Vrancken and T. Hermans (October 2026) the Zenodo DP resistivity logs are CPT-EC measurements from the same pushes.
+- `CPT/` is the extracted content of `CPT.zip`; `27_dp_groundtruth.py cpt` checks that every file is byte-identical to its archive member.
+
+| file | bytes | SHA256 |
+|---|---|---|
+| `CPT.zip` | 14330 | 08c9f3a09b69fba44cf258bb45a06055493abc292189b2161c91d04bcdbe9f8c |
+| `CPT/Location.txt` | 221 | fd0057009d612f04da97a10aac1838c6cbb5cd32eb87443896e3e65b2a04b523 |
+| `CPT/Proef2.txt` | 5400 | 63261d86bffbeb1ae878d4022ccfc0db428da4f66ace964ee899370e0667d033 |
+| `CPT/Proef3.txt` | 5400 | d9a548f9319f8a02c5a1dc303953ac84179e702b95046d7ded804a9ca6c99731 |
+| `CPT/Proef4.txt` | 4554 | da032cae082b9db3d917f8e0d2a20efae7d8d9ec392655c95c0ebda98b6b1133 |
+| `CPT/Proef5.txt` | 5377 | 9be37997d59c36a4b0f4cd1bba1535b3e1f92c07ef6d49f453bae6768ca0cd34 |
+| `CPT/Proef6.txt` | 4926 | 55bedcab17283c571ac309d04af52b0eeb9a12509422420a40ee046688c618b8 |
+| `CPT/Proef7.txt` | 3350 | b120e2da5cca0c13910673a378c182913325a399cd8166296a0ad18a234a8f21 |
+| `CPT/Proef8.txt` | 4491 | b24dc6be222c88b669ab8629c5a4a9ff864f2a89ce6af08bfa094890305c7155 |

@@ -415,6 +415,254 @@ def cmd_report(args):
     ax.set_title(f"(b) pseudo-sections: X0 = {ps['X0']:.1f} m (shaded ± 2σ_X)", fontsize=7.5)
     fig.tight_layout(); fig.savefig(os.path.join(figs, "F_S9_line_placement.png"), dpi=300); plt.close(fig)
     print("\n".join(P))
+    if os.path.exists(os.path.join(args.out, "data", "processed", "v1_4", "cpt.json")):
+        Lc, Mc = report_cpt(args, plt, s18)
+        print("\n".join(Lc + [""] + Mc))
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Tasks E and F — CPT soundings of E. Vrancken (23 September 2024): geometry and lithology. No DP resistivity.
+# ─────────────────────────────────────────────────────────────────────────────
+CPT_DIR = os.path.join(wc.ROOT, "data", "raw", "cpt_vrancken_2024")
+CPT_ZIP = os.path.join(CPT_DIR, "CPT.zip")
+CPT_DATE = "2024-09-23"
+PA = 0.1                                                   # MPa
+ISBT_SAND, ISBT_FINE = 2.05, 2.6
+FINE_MIN = 2                                               # consecutive 0.2 m samples (≥ 0.4 m)
+DEEP_Z, DEEP_THICK = -20.0, 2.0
+RF_STEP, RF_RUN = 2.0, 5                                   # descriptive clay marker: Rf > 2 % over ≥ 1 m (5 samples) below −20 mTAW
+
+
+def rf_step(z, Rf):
+    """Top (mTAW) of the first ≥ 1 m run with Rf > 2 % below −20 mTAW (descriptive marker of the clay top)."""
+    m = (np.asarray(Rf) > RF_STEP) & (np.asarray(z) < DEEP_Z)
+    for i in range(len(m) - RF_RUN + 1):
+        if m[i:i + RF_RUN].all():
+            return float(z[i] + 0.1)
+    return None
+
+
+def cpt_check():
+    """The extracted files must be byte-identical to the members of the original archive."""
+    import zipfile
+    if not os.path.exists(CPT_ZIP):
+        raise SystemExit(f"{CPT_ZIP} missing (unpublished CPT data from E. Vrancken; not redistributed)")
+    z = zipfile.ZipFile(CPT_ZIP); out = {}
+    for n in z.namelist():
+        p = os.path.join(CPT_DIR, "CPT", n)
+        b = z.read(n)
+        if not os.path.exists(p) or open(p, "rb").read() != b:
+            raise SystemExit(f"{p} differs from the archive member {n}")
+        out[n] = hashlib.sha256(b).hexdigest()
+    out["CPT.zip"] = hashlib.sha256(open(CPT_ZIP, "rb").read()).hexdigest()
+    return out
+
+
+def fnum(s):
+    return float(s.replace(",", "."))
+
+
+def read_cpt():
+    L = open(os.path.join(CPT_DIR, "CPT", "Location.txt"), encoding="utf-8").read().splitlines()
+    loc = {}
+    for l in L[1:]:
+        if l.strip():
+            p = l.split(";"); loc[p[0]] = dict(x=fnum(p[1]), y=fnum(p[2]), z=fnum(p[3]))
+    cpts = {}
+    for sid in sorted(loc):
+        k = int(sid[1:]); fn = os.path.join(CPT_DIR, "CPT", f"Proef{k}.txt")
+        H = open(fn, encoding="utf-8").read().splitlines()
+        hdr = H[2].split()
+        rows = np.array([[fnum(v) for v in l.split()] for l in H[4:] if l.strip()])
+        cpts[sid] = dict(file=os.path.basename(fn), title=H[0].strip(), header_surface=float(hdr[0]), type=hdr[1],
+                         cone=hdr[3], diameter_mm=float(hdr[5]), columns=H[3].split(), depth=rows[:, 0], level=rows[:, 1],
+                         qc=rows[:, 2], fs=rows[:, 3], Rf=rows[:, 4], **loc[sid])
+    return cpts
+
+
+def isbt(qc, Rf):
+    with np.errstate(divide="ignore", invalid="ignore"):
+        I = np.sqrt((3.47 - np.log10(qc / PA)) ** 2 + (np.log10(Rf) + 1.22) ** 2)
+    return np.where((qc > 0) & (Rf > 0), I, np.nan)
+
+
+def runs_of(mask, z, dz=0.2, nmin=FINE_MIN):
+    out = []; i = 0
+    while i < len(mask):
+        if mask[i]:
+            j = i
+            while j + 1 < len(mask) and mask[j + 1]:
+                j += 1
+            n = j - i + 1
+            if n >= nmin:
+                out.append(dict(top=float(z[i] + dz / 2), bottom=float(z[j] - dz / 2), thick=float(n * dz), n=int(n)))
+            i = j + 1
+        else:
+            i += 1
+    return out
+
+
+def cmd_cpt(args):
+    """Tasks E and F: no DP resistivity value is read."""
+    check_raw()
+    dpp = os.path.join(args.out, "data", "processed", "v1_4"); os.makedirs(dpp, exist_ok=True)
+    sha = cpt_check()
+    cpts = read_cpt()
+    P, X = our_line(); ex, ez = wc.land_surface()
+    pl = json.load(open(os.path.join(args.out, "data", "processed", "v1_4", "placement.json"), encoding="utf-8"))
+    X0s = pl["primary"]["X0"]; dpg = {d["name"]: d for d in dp_geometry()}
+    out = dict(sha256=sha, date=CPT_DATE, cpts={})
+    for sid, c in cpts.items():
+        k = int(sid[1:]); dp = f"DP{k - 1}"
+        x, off = project(P, X, np.array([c["x"], c["y"]]))
+        I = isbt(c["qc"], c["Rf"]); zz = c["z"] - c["depth"]
+        fine = runs_of(I > ISBT_FINE, zz)
+        deep = [r for r in fine if r["bottom"] < DEEP_Z and r["thick"] > DEEP_THICK]
+        cls = np.where(I < ISBT_SAND, "sand", np.where(I <= ISBT_FINE, "mixture", "fine"))
+        out["cpts"][sid] = dict(dp=dp, file=c["file"], title=c["title"], lambert_x=c["x"], lambert_y=c["y"], our_x=x, offset=off,
+                                z=c["z"], header_surface=c["header_surface"], surf2018=float(np.interp(x, ex, ez)),
+                                type=c["type"], cone=c["cone"], diameter_mm=c["diameter_mm"], columns=c["columns"],
+                                end_depth=float(c["depth"][-1]), dp_end_depth=dpg[dp]["depth_bottom"], dp_local_x=dpg[dp]["local_x"],
+                                x_taskA=X0s - dpg[dp]["local_x"], n=int(len(I)), dz=float(np.median(np.diff(c["depth"]))),
+                                level_minus_z_from_header=float(np.median(c["level"] - (c["header_surface"] - c["depth"]))),
+                                frac={k_: float(np.mean(cls == k_)) for k_ in ("sand", "mixture", "fine")},
+                                fine_layers=fine, deep_unit=(deep[0] if deep else None), rf_step=rf_step(zz, c["Rf"]),
+                                elev=zz.tolist(), qc=c["qc"].tolist(), fs=c["fs"].tolist(), Rf=c["Rf"].tolist(),
+                                isbt=[None if not np.isfinite(v) else float(v) for v in I])
+    C = out["cpts"]
+    xs = np.array([C[s]["our_x"] for s in sorted(C)]); xl = np.array([C[s]["dp_local_x"] for s in sorted(C)])
+    X0f = float(np.mean(xs + xl)); res = xs - (X0f - xl)
+    out["fit"] = dict(X0_fit=X0f, rms=float(np.sqrt(np.mean(res ** 2))), X0_taskA=X0s, sigma_taskA=pl["primary"]["sigma"],
+                      resid_taskA=[float(v) for v in xs - (X0s - xl)], spacing=[float(v) for v in -np.diff(xs)])
+    with open(os.path.join(dpp, "cpt.json"), "w", encoding="utf-8") as f:
+        json.dump(out, f, indent=1)
+    print(json.dumps(out["fit"], indent=1))
+
+
+def report_cpt(args, plt, s18):
+    J = json.load(open(os.path.join(args.out, "data", "processed", "v1_4", "cpt.json"), encoding="utf-8"))
+    res = os.path.join(args.out, "results", "v1_4"); figs = os.path.join(res, "figs")
+    C = J["cpts"]; F = J["fit"]; ids = sorted(C)
+    # 5_cpt_inventory.md
+    L = ["# 5 — CPT inventory and surveyed DP geometry (Task E)", "",
+         "Mechanical CPT soundings of E. Vrancken (Ghent University; unpublished, used with permission, not to be "
+         "redistributed; received 8 October 2026), carried out on **23 September 2024**. Per E. Vrancken and T. Hermans the "
+         "Zenodo DP resistivity logs are CPT-EC measurements from the same pushes: same date and positions. Raw files: "
+         "`data/raw/cpt_vrancken_2024/` (git-ignored; available from the data owner). Extracted files verified byte-identical "
+         "to the archive members.", "",
+         "| file | SHA256 |", "|---|---|"] + [f"| `{k}` | `{v}` |" for k, v in sorted(J["sha256"].items())]
+    c0 = C[ids[0]]
+    L += ["", "## Format (verified)", "",
+          "- `Location.txt`: columns Proef;x;y;z(mTAW), decimal comma; S02–S08. Coordinates are Belgian Lambert 72 "
+          f"(EPSG:31370): projected on our line they lie within {max(abs(C[s]['offset']) for s in ids):.1f} m of it, which "
+          "confirms the system.",
+          f"- `ProefN.txt`: a title line, a header line and its values (surface level, type \"{c0['type']}\", cone {c0['cone']}, "
+          f"{c0['diameter_mm']:g} mm), then columns {', '.join(c0['columns'])}; {c0['dz']:.1f} m steps, decimal comma. qc and fs in "
+          "N/mm² = MPa, Rf in %. **No pore-pressure column despite the \"CPTU\" label.**",
+          "- Flags: " + "; ".join(
+              ([f"{C[s]['file']} header surface {C[s]['header_surface']:.2f} mTAW vs Location.txt {C[s]['z']:.2f} (Location.txt used)"
+                for s in ids if abs(C[s]['header_surface'] - C[s]['z']) > 0.005] +
+               [f"{C[s]['file']} is titled \"{C[s]['title']}\"" for s in ids if C[s]["title"].replace(" ", "") != f"Proef{int(s[1:])}"])) + ".",
+          "", "## Geometry: one row per DP (CPT S0k = DP(k − 1))", "",
+          "| DP | CPT | Lambert 72 x, y (m) | our x (m) | offset (m) | CPT ground (mTAW) | 2018 surface (mTAW) | CPT − 2018 (m) | "
+          "CPT end depth (m) | DP end depth (m) | Task A: X0* − x_local (m) | surveyed − Task A (m) |",
+          "|---|---|---|---|---|---|---|---|---|---|---|---|"]
+    for s, r in zip(ids, F["resid_taskA"]):
+        c = C[s]
+        L.append(f"| {c['dp']} | {s} | {c['lambert_x']:.2f}, {c['lambert_y']:.2f} | {c['our_x']:.1f} | {c['offset']:+.1f} | {c['z']:.2f} | "
+                 f"{c['surf2018']:.2f} | {c['z'] - c['surf2018']:+.2f} | {c['end_depth']:.2f} | {c['dp_end_depth']:.2f} | "
+                 f"{c['x_taskA']:.1f} | {r:+.1f} |")
+    L += ["", f"Spacing between consecutive CPTs: {min(F['spacing']):.1f}–{max(F['spacing']):.1f} m. End depths: CPT − DP = "
+          f"{min(C[s]['end_depth'] - C[s]['dp_end_depth'] for s in ids):+.2f} … {max(C[s]['end_depth'] - C[s]['dp_end_depth'] for s in ids):+.2f} m.", "",
+          "## Independent check of the Task A placement", "",
+          f"The surveyed positions differ from the Task A positions (X0* = {F['X0_taskA']:.1f} ± {F['sigma_taskA']:.1f} m) by "
+          f"{min(F['resid_taskA']):+.1f} … {max(F['resid_taskA']):+.1f} m. Least-squares X0 fitted to the surveyed positions "
+          f"(our_x = X0 − x_local): **X0 = {F['X0_fit']:.1f} m** (RMS residual {F['rms']:.1f} m), {F['X0_fit'] - F['X0_taskA']:+.1f} m from "
+          "X0*. The ERT-based placement method is confirmed within its stated uncertainty.", "",
+          "Note on our x: positions are projected on the chord E1 → E102 (503.3 m in Lambert 72) and scaled to our profile x "
+          "(elec.dat, 0–504.8 m along the surface), as in Task A. Distances measured along the chord alone are ≈ 0.3 % (up to "
+          "1.4 m) smaller; the facts list of this round used those (e.g. S02 at 452.7 m)."]
+    with open(os.path.join(res, "5_cpt_inventory.md"), "w", encoding="utf-8") as f:
+        f.write("\n".join(L) + "\n")
+    G = ["dp,cpt,lambert_x,lambert_y,our_x,offset_m,cpt_ground_mTAW,surface_2018_mTAW,ground_minus_2018_m,cpt_end_depth_m,"
+         "dp_end_depth_m,x_local,x_taskA,surveyed_minus_taskA_m"]
+    for s, r in zip(ids, F["resid_taskA"]):
+        c = C[s]
+        G.append(f"{c['dp']},{s},{c['lambert_x']:.2f},{c['lambert_y']:.2f},{c['our_x']:.2f},{c['offset']:.2f},{c['z']:.2f},"
+                 f"{c['surf2018']:.2f},{c['z'] - c['surf2018']:.2f},{c['end_depth']:.2f},{c['dp_end_depth']:.2f},{c['dp_local_x']:g},"
+                 f"{c['x_taskA']:.1f},{r:.2f}")
+    with open(os.path.join(args.out, "data", "processed", "v1_4", "T_S6_geometry.csv"), "w", encoding="utf-8") as f:
+        f.write("\n".join(G) + "\n")
+    # 6_lithology.md + T_S9
+    M = ["# 6 — Lithology from the CPTs (Task F)", "",
+         f"Non-normalised soil-behaviour-type index (Robertson 2010): I_SBT = √[(3.47 − log10(qc/pa))² + (log10 Rf + 1.22)²], "
+         f"pa = {PA:g} MPa; no unit weights or pore pressure needed (none were measured). Classes: clean sand I_SBT < {ISBT_SAND:g}; "
+         f"sand mixtures {ISBT_SAND:g}–{ISBT_FINE:g}; fine-grained > {ISBT_FINE:g}. Elevation = Location.txt ground level − depth. "
+         "Without pore pressure the classification is approximate, especially in fine-grained layers.", "",
+         "| CPT (DP) | our x (m) | clean sand / mixtures / fine (%) | fine-grained layers ≥ 0.4 m (top → bottom, mTAW) | "
+         f"first fine-grained unit > {DEEP_THICK:g} m reaching below {DEEP_Z:g} mTAW: top (thickness) | first fine-grained layer "
+         f"(≥ 0.4 m) below {DEEP_Z:g} mTAW: top (descriptive) | Rf > 2 % over ≥ 1 m below {DEEP_Z:g} mTAW: top (descriptive) |",
+         "|---|---|---|---|---|---|---|"]
+    T = ["cpt,dp,our_x,layer_top_mTAW,layer_bottom_mTAW,thickness_m,deep_unit"]
+    for s in ids:
+        c = C[s]; fr = c["frac"]
+        lay = "; ".join(f"{r['top']:.1f} → {r['bottom']:.1f}" for r in c["fine_layers"]) or "none"
+        du = c["deep_unit"]
+        M.append(f"| {s} ({c['dp']}) | {c['our_x']:.1f} | {100*fr['sand']:.0f} / {100*fr['mixture']:.0f} / {100*fr['fine']:.0f} | {lay} | "
+                 + (f"{du['top']:.1f} ({du['thick']:.1f} m)" if du else f"none (log ends at {c['z'] - c['end_depth']:.1f})") + " | "
+                 + next((f"{r['top']:.1f}" for r in c["fine_layers"] if r["top"] < DEEP_Z), "none") + " | "
+                 + (f"{c['rf_step']:.1f}" if c["rf_step"] is not None else "none") + " |")
+        for r in c["fine_layers"]:
+            T.append(f"{s},{c['dp']},{c['our_x']:.1f},{r['top']:.1f},{r['bottom']:.1f},{r['thick']:.1f},{bool(du and r['top'] == du['top'])}")
+    dtops = [C[s]["deep_unit"]["top"] for s in ids if C[s]["deep_unit"]]
+    rft = [C[s]["rf_step"] for s in ids if C[s]["rf_step"] is not None]
+    ftops = [next(r["top"] for r in C[s]["fine_layers"] if r["top"] < DEEP_Z) for s in ids
+             if any(r["top"] < DEEP_Z for r in C[s]["fine_layers"])]
+    M += ["", "Comparison with the deep unit of the synthetic truths and the reference model (top at −30 mTAW; descriptive): "
+          + (f"the CPTs that reach it place the first thick fine-grained unit at {min(dtops):.1f} … {max(dtops):.1f} mTAW." if dtops
+             else "no CPT shows a fine-grained unit thicker than 2 m below −20 mTAW.")
+          + (f" Descriptively, {len(ftops)} CPTs ({', '.join(s for s in ids if any(r['top'] < DEEP_Z for r in C[s]['fine_layers']))}) "
+             f"show thin fine-grained layers interbedded with sandier samples from {max(ftops):.1f} … {min(ftops):.1f} mTAW downwards; "
+             "split by samples just below the 2.6 boundary, they never form a continuous unit > 2 m." if ftops else "")
+          + (" A sharper marker (descriptive, not pre-registered): the friction ratio jumps to Rf > 2 % (qc drops to ≈ 4 MPa) "
+             f"at {max(rft):.1f} … {min(rft):.1f} mTAW in {len(rft)} CPTs ({', '.join(s for s in ids if C[s]['rf_step'] is not None)}) "
+             "— most likely the top of the Kortrijk clay. In this material I_SBT lies on the 2.6 class boundary, which is why "
+             f"the class rule splits it into thin pieces. It lies {min(r + 30 for r in rft):.1f}–{max(r + 30 for r in rft):.1f} m "
+             "above the −30 mTAW top of the deep unit of the synthetic truths and the reference model, and within or just below "
+             "the 1980 clay top (−25.5 to −28 mTAW, Lebbe 1981)." if rft else "")
+          + " CPTs that end above it (refusal in dense sand, qc up to ≈ 60 MPa): " + ", ".join(
+              f"{s} at {C[s]['z'] - C[s]['end_depth']:.1f} mTAW" for s in ids if C[s]["rf_step"] is None) + "."]
+    with open(os.path.join(res, "6_lithology.md"), "w", encoding="utf-8") as f:
+        f.write("\n".join(M) + "\n")
+    with open(os.path.join(res, "T_S9_cpt_lithology.csv"), "w", encoding="utf-8") as f:
+        f.write("\n".join(T) + "\n")
+    with open(os.path.join(res, "T_S9_cpt_lithology.md"), "w", encoding="utf-8") as f:
+        f.write("# T_S9 — fine-grained layers (I_SBT > 2.6, ≥ 0.4 m) per CPT (Markdown copy of `T_S9_cpt_lithology.csv`)\n\n"
+                "| CPT | DP | our x (m) | top (mTAW) | bottom (mTAW) | thickness (m) | first thick unit below −20 |\n|---|---|---|---|---|---|---|\n"
+                + "\n".join("| " + " | ".join(l.split(",")) + " |" for l in T[1:]) + "\n")
+    # F_S11
+    fig, axes = plt.subplots(3, len(ids), figsize=(1.6 * len(ids), 8.6), sharey=True)
+    for j, s in enumerate(ids):
+        c = C[s]; z = np.array(c["elev"]); I = np.array([np.nan if v is None else v for v in c["isbt"]], float)
+        axes[0, j].semilogx(c["qc"], z, color="0.2", lw=0.8); axes[0, j].set_title(f"{s} ({c['dp']})\nx = {c['our_x']:.0f} m", fontsize=7)
+        axes[1, j].plot(c["Rf"], z, color="#8c6d31", lw=0.8); axes[1, j].set_xlim(0, 6)
+        ax = axes[2, j]
+        ax.axvspan(0, ISBT_SAND, color="#f6e7b4", lw=0); ax.axvspan(ISBT_SAND, ISBT_FINE, color="#e0cfa0", lw=0)
+        ax.axvspan(ISBT_FINE, 4.5, color="#b7a58a", lw=0)
+        ax.plot(I, z, color="k", lw=0.8); ax.set_xlim(1, 4.0)
+        for r in c["fine_layers"]:
+            ax.axhspan(r["bottom"], r["top"], xmin=0.92, xmax=1.0, color="#6a3d9a", lw=0)
+        for a in axes[:, j]:
+            a.axhline(-30, color="#c0392b", lw=0.6, ls=":"); a.tick_params(labelsize=6)
+        axes[0, j].set_xlabel("qc (MPa)", fontsize=6.5); axes[1, j].set_xlabel("Rf (%)", fontsize=6.5)
+        ax.set_xlabel("I_SBT", fontsize=6.5)
+    for i in range(3):
+        axes[i, 0].set_ylabel("Elevation (mTAW)", fontsize=7)
+    axes[0, 0].set_ylim(-36, 6)
+    fig.suptitle("CPT logs of 23 September 2024 (E. Vrancken). I_SBT shading: clean sand < 2.05, mixtures 2.05–2.6, fine-grained > 2.6; "
+                 "purple bars: fine-grained layers ≥ 0.4 m; red dotted: −30 mTAW (deep unit of the synthetic truths)", fontsize=7)
+    fig.tight_layout(rect=(0, 0, 1, 0.97)); fig.savefig(os.path.join(figs, "F_S11_cpt_logs.png"), dpi=300); plt.close(fig)
+    return L, M
 
 
 def main():
@@ -423,8 +671,9 @@ def main():
     sub.add_parser("fetch")
     r = sub.add_parser("run"); r.add_argument("--out", default=wc.ROOT); r.add_argument("--workers", type=int, default=6)
     sub.add_parser("report").add_argument("--out", default=wc.ROOT)
+    sub.add_parser("cpt").add_argument("--out", default=wc.ROOT)
     a = ap.parse_args()
-    dict(fetch=cmd_fetch, run=cmd_run, report=cmd_report)[a.cmd](a)
+    dict(fetch=cmd_fetch, run=cmd_run, report=cmd_report, cpt=cmd_cpt)[a.cmd](a)
 
 
 if __name__ == "__main__":
