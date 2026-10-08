@@ -168,6 +168,7 @@ PRODUCERS = [   # (regex, step id or callable(match) → step id, script, eviden
     (r"^data/raw/cpt_vrancken_2024/", "raw input", None, None),            # E. Vrancken, unpublished, Oct 2026
     (r"^data/processed/v1_4/(cpt\.json|T_S6_geometry\.csv)$", "27-cpt", "27_dp_groundtruth.py", "cpt.json"),
     (r"^data/processed/v1_4/samedate/", "27-samedate", "27_dp_groundtruth.py", "samedate"),
+    (r"^data/processed/v1_1/k1_field_bel\.npz$", "21-run", "21_k1_comparison.py", "k1_field_bel.npz"),
     (r"^data/processed/v1_4/dp_results\.json$", "27-dp", "27_dp_groundtruth.py", "dp_results.json"),
     (r"^data/processed/v1_4/e14_followup\.json$", "26-followup", "26_raw_abem.py", "e14_followup.json"),
     (r"^data/processed/v1_4/(raw2018\.json|raw2018_data\.csv|raw2018_pairs\.npz|recip_err_scale\.txt)$", "26-run",
