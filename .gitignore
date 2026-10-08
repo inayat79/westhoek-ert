@@ -5,3 +5,7 @@ __pycache__/
 results/bel/_test/
 release/
 docs/literature/*.pdf
+
+# unpublished raw data used with permission — not to be redistributed (see data/raw/README_sources.md)
+data/raw/cpt_vrancken_2024/
+data/raw/Project12_LS210110079_2018-03-07_11-22-23/
