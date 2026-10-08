@@ -589,7 +589,8 @@ def cmd_followup(args):
     assert abs(q1 - J0["q1"]) < 1e-9 and int(flag.sum()) == J0["n_low"], "recent-use flag differs from E14"
     # covariates
     land, _ = wc.read_electrodes(); xe = land[:, 0]
-    du = {(m, d): v for m, d, v in cur.execute("select MeasureID, DPID, DataValue from DPV where TaskID = 1 and DatatypeID = 7 and Channel > 0").fetchall()}
+    # ΔU of the same receiver channel as R (some measurements also carry a channel-13 ΔU row, the transmitter side)
+    du = {(m, d, ch): v for m, d, ch, v in cur.execute("select MeasureID, DPID, Channel, DataValue from DPV where TaskID = 1 and DatatypeID = 7 and Channel > 0").fetchall()}
     etd = {(s, int(p)): v for s, p, v in cur.execute("select StationID, PosX, ResistanceValue from ElectrodeTestData").fetchall()}
     rows = []
     for j in range(len(D)):
@@ -597,7 +598,7 @@ def cmd_followup(args):
         rr = lambda p_, q_: abs(p_ - q_)
         K = 2 * np.pi / (1 / rr(xa, xm) - 1 / rr(xb, xm) - 1 / rr(xa, xn) + 1 / rr(xb, xn))
         cr = max(etd.get((r["station"], r[k]), np.nan) for k in ("A", "B", "M", "N"))
-        rows.append([np.log10(abs(K)), np.log10(abs(du[(r["measure"], r["dpid"])])), abs(xa - xb), abs(xm - xn), r["station"], np.log10(cr)])
+        rows.append([np.log10(abs(K)), np.log10(abs(du[(r["measure"], r["dpid"], r["channel"])])), abs(xa - xb), abs(xm - xn), r["station"], np.log10(cr)])
     R_ = np.array(rows, float)
     names = ["recent_use", "log10|K|", "log10|dU|", "AB span", "MN span", "station 2", "station 3", "log10 max contact R"]
     cont = R_[:, [0, 1, 2, 3, 5]]; mu, sd = cont.mean(0), cont.std(0)
@@ -654,7 +655,11 @@ def report_followup(args):
     for k in ("recent_use", "log10|K|", "log10|dU|", "AB span", "MN span", "station 2", "station 3", "log10 max contact R"):
         L.append(f"| {k} | {J['coef'][k]:+.2f} | {J['z'][k]:+.1f} | {J['ll_drop'][grp[k]]:.1f} |")
     top = sorted(J["ll_drop"].items(), key=lambda kv: -kv[1])
-    L += ["", "Covariates by drop in log-likelihood: " + ", ".join(f"{k} ({v:.1f})" for k, v in top) + ".", "",
+    L += ["", "log10|K|, AB span and MN span are nearly collinear in the multiple-gradient protocol (K is fixed by the electrode "
+          "spacings): the large opposite span coefficients with small |z| reflect that, and removing any one of the three leaves the "
+          "others to carry its share, so their individual log-likelihood drops are small. Geometry as such is not separately "
+          "identifiable here.", "",
+          "Covariates by drop in log-likelihood: " + ", ".join(f"{k} ({v:.1f})" for k, v in top) + ".", "",
           "## Outlier rate by station", "", "| station | data | outlier rate | share flagged 'recent use' |", "|---|---|---|---|"]
     for s, v in J["by_station"].items():
         L.append(f"| {s} | {v['n']} | {100*v['rate']:.1f} % | {100*v['recent_share']:.0f} % |")
