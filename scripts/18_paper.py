@@ -1336,9 +1336,83 @@ def extra_numbers(B):
     extra_numbers_v111()
     extra_numbers_v13()
     extra_numbers_v14()
+    extra_numbers_v14_groundtruth()
 
 
 V11_TRUTHS = ("T80a", "T80b", "T80c", "T80d", "T80e", "T80a_ht")
+
+
+def extra_numbers_v14_groundtruth():
+    """v1.4 ground-truth numbers (appended after the v1.4a numbers): CPT geometry and lithology, DP comparisons E15–E21,
+    same-epoch test, E14 follow-up (27_dp_groundtruth.py cpt / dp / samedate, 26_raw_abem.py followup)."""
+    d = os.path.join(os.path.dirname(DS6), "v1_4")
+    if not os.path.exists(os.path.join(d, "dp_results.json")):
+        print("[v1.4] no DP ground-truth products — skipped", flush=True)
+        return
+    rv = "results/v1_4"
+    C = json.load(open(os.path.join(d, "cpt.json"), encoding="utf-8")); F = C["fit"]
+    fc, sc = "27_dp_groundtruth.py:cmd_cpt", "`data/raw/cpt_vrancken_2024/` (unpublished, E. Vrancken)"
+    NUM.add("v14_dp_date_confirmed", "23 September 2024 (CPT and DP; E. Vrancken); gap from 7 March 2018: 2392 days",
+            "v1.4: survey date of the CPT and DP pushes and the gap to the 2018 ERT survey", fc, sc)
+    NUM.add("v14_cpt_X0fit", f"{F['X0_fit']:.1f} m (RMS {F['rms']:.1f} m); surveyed − Task A {min(F['resid_taskA']):+.1f} … {max(F['resid_taskA']):+.1f} m",
+            "v1.4: least-squares X0 from the surveyed CPT positions vs the ERT-based X0* (independent placement check)", fc, sc,
+            ref=(f"{rv}/5_cpt_inventory.md", "Least-squares X0", f"X0 = {F['X0_fit']:.1f} m"))
+    ids = sorted(C["cpts"])
+    NUM.add("v14_cpt_x", ", ".join(f"{C['cpts'][s_]['dp']} {C['cpts'][s_]['our_x']:.1f}" for s_ in ids),
+            "v1.4: surveyed DP/CPT positions on our axis (m)", fc, sc, ref=(f"{rv}/5_cpt_inventory.md", "| DP1 | S02 |", f"| {C['cpts'][ids[0]]['our_x']:.1f} |"))
+    NUM.add("v14_cpt_offset_max", f"{max(abs(C['cpts'][s_]['offset']) for s_ in ids):.1f} m", "v1.4: largest CPT offset from our line", fc, sc)
+    dz = [C["cpts"][s_]["z"] - C["cpts"][s_]["surf2018"] for s_ in ids]
+    NUM.add("v14_cpt_ground_minus_2018", f"{min(dz):+.2f} … {max(dz):+.2f} m", "v1.4: CPT ground level (2024) minus our 2018 surface", fc, sc)
+    rft = [C["cpts"][s_]["rf_step"] for s_ in ids if C["cpts"][s_]["rf_step"] is not None]
+    NUM.add("v14_cpt_rfstep", f"{max(rft):.1f} … {min(rft):.1f} mTAW ({len(rft)} CPTs)", "v1.4: top of the Rf > 2 % unit below −20 mTAW "
+            "(descriptive clay marker)", fc, sc, ref=(f"{rv}/6_lithology.md", "A sharper marker", f"{max(rft):.1f} … {min(rft):.1f} mTAW"))
+    R = json.load(open(os.path.join(d, "dp_results.json"), encoding="utf-8")); fd = "27_dp_groundtruth.py:cmd_dp"
+    sd = "`data/raw/dp_zenodo_20792093/DP_R.xzr`, CPT, 2018 products"
+    for e, v in R["final"].items():
+        V = R["verdicts"]["primary|A"][e]
+        cnt = f"{V['n_logmid']} vs {V['n_thr3']} of {V['n']}" if e == "E19" else f"{V.get('n_ok')} of {V['n']}"
+        NUM.add(f"v14_{e}", f"{v['verdict']}" + (f" ({', '.join(v['flags'])})" if v["flags"] else "") + f"; {cnt}",
+                f"v1.4 pre-registered {e} (primary geometry, scenario A; gap 2392 days)", fd, sd,
+                ref=(f"{rv}/{'3_same_epoch' if e in ('E18', 'E19', 'E20') else '2_dp_comparison'}.md", f"**{e}**", f"**{v['verdict']}**"))
+    for n_ in sorted(R["dps"], key=lambda k: R["dps"][k]["index"]):
+        o = R["dps"][n_]["per"]["primary|A"]; sw = o["sw"]
+        NUM.add(f"v14_{n_}", f"x {o['x']:.1f} m; log-midpoint base {o['logmid']:.2f} mTAW; ρ_below,DP {o['rho_below']:.2f} Ω·m"
+                + (f"; {sw[0]:.1f} [{sw[1]:.1f}, {sw[2]:.1f}] % seawater" if sw else "; not estimable"),
+                f"v1.4: {n_} (CPT {R['dps'][n_]['cpt']}, 23 Sep 2024): DP base, clean-sand ρ_below and salinity (scenario A)", fd, sd,
+                ref=(f"{rv}/2_dp_comparison.md", f"| {n_} | {R['dps'][n_]['cpt']} |", f"**{o['logmid']:.2f}**"))
+    rbs = [R["dps"][n_]["per"]["primary|A"]["rho_below"] for n_ in R["dps"]]
+    imgs = [R["dps"][n_]["per"]["primary|A"]["sd"]["rho_below_img"] for n_ in R["dps"]]
+    NUM.add("v14_rho_below_dp_range", f"DP {min(rbs):.1f}–{max(rbs):.1f} Ω·m; same-epoch image {min(imgs):.1f}–{max(imgs):.1f} Ω·m",
+            "v1.4: ρ below the lens, DP (clean sand) vs the ERT.dat image inverted with our pipeline", fd, sd)
+    SDn = np.load(os.path.join(DS6, "..", "v1_4", "samedate", "cpt.npz")) if os.path.exists(os.path.join(DS6, "..", "v1_4", "samedate", "cpt.npz")) \
+        else np.load(os.path.join(PROJ, "data", "processed", "v1_4", "samedate", "cpt.npz"))
+    NUM.add("v14_sd_data", f"{int(SDn['n_kept'])} of {int(SDn['n_data'])} kept; χ² at λ = 50 {float(SDn['lam50_chi2']):.2f}",
+            "v1.4: same-epoch inversion of ERT.dat (Stage-1 rule, v1.0 error model)", "27_dp_groundtruth.py:cmd_samedate",
+            "`data/raw/dp_zenodo_20792093/ERT.dat`", ref=(f"{rv}/3_same_epoch.md", "- Data:", f"kept {int(SDn['n_kept'])}"))
+    pa = {n_: R["dps"][n_]["per"]["primary|A"] for n_ in R["dps"]}
+    d_bel = [pa[n_]["logmid"] - pa[n_]["bel"][0] for n_ in ("DP2", "DP3", "DP4", "DP5", "DP6", "DP7")]
+    d_80 = [pa[n_]["logmid"] - pa[n_]["sal1980"] for n_ in ("DP3", "DP4", "DP5", "DP6", "DP7")]
+    d_img = [pa[n_]["sd"]["band_logmid_pooled"][1] - pa[n_]["logmid"] for n_ in ("DP3", "DP4", "DP5", "DP6", "DP7")]
+    NUM.add("v14_dp_minus_bel", f"{min(d_bel):+.2f} … {max(d_bel):+.2f} m", "v1.4: DP log-midpoint base minus the 2018 BEL median, "
+            "DP2–DP7 (positive = DP shallower; gap 2392 days)", fd, sd)
+    NUM.add("v14_dp_minus_1980", f"{min(d_80):+.2f} … {max(d_80):+.2f} m", "v1.4: DP log-midpoint base minus the 1980 saline base, "
+            "DP3–DP7", fd, sd)
+    NUM.add("v14_image_logmid_minus_dp", f"{min(d_img):+.2f} … {max(d_img):+.2f} m", "v1.4: same-epoch image λ-pooled log-midpoint "
+            "median minus the DP log-midpoint base, DP3–DP7 (positive = image shallower)", fd, sd)
+    H = json.load(open(os.path.join(d, "e14_followup.json"), encoding="utf-8")); fh = "26_raw_abem.py:cmd_followup"
+    NUM.add("v14_E14_followup_or", f"adjusted {H['or_recent_adj']:.2f} [{H['or_recent_adj90'][0]:.2f}, {H['or_recent_adj90'][1]:.2f}] "
+            f"(crude {H['or_recent_crude']:.2f})", "v1.4 E14 follow-up: odds ratio of the recent-use flag adjusted for geometry, "
+            "signal, station and contact (90 % bootstrap)", fh, "`project.db`",
+            ref=(f"{rv}/7_e14_followup.md", "Recent-use flag", f"**{H['or_recent_adj']:.2f}**"))
+    top = sorted(H["ll_drop"].items(), key=lambda kv: -kv[1])[:3]
+    NUM.add("v14_E14_followup_top", ", ".join(f"{k} ({v:.1f})" for k, v in top), "v1.4 E14 follow-up: covariates with the largest "
+            "log-likelihood drop", fh, "`project.db`")
+    dd = H["by_dU_decile"]
+    NUM.add("v14_E14_followup_dU", f"{100*dd[0]['rate']:.1f} % (smallest |ΔU| decile) → {100*dd[-1]['rate']:.1f} % (largest)",
+            "v1.4 E14 follow-up: outlier rate by |ΔU| decile", fh, "`project.db`")
+    st = H["by_station"]
+    NUM.add("v14_E14_followup_station", ", ".join(f"station {k}: {100*v['rate']:.1f} %" for k, v in st.items()),
+            "v1.4 E14 follow-up: outlier rate by roll-along station", fh, "`project.db`")
 
 
 def extra_numbers_v14():
