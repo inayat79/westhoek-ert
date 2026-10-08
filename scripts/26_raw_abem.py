@@ -540,15 +540,141 @@ def cmd_report(args):
     ax.set_xlabel("stacking error (%)"); ax.set_ylabel("reciprocal error (%)"); ax.set_title("(b) same pairs; dotted: 3 %, dashed: 1 % ErrorLimit", fontsize=7)
     fig.tight_layout(); fig.savefig(os.path.join(figs, "F_S10_errors.png"), dpi=300); plt.close(fig)
     print("\n".join(L))
+    report_followup(args)
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Task H — E14 follow-up (descriptive; decision log v1.4-9)
+# ─────────────────────────────────────────────────────────────────────────────
+def logit_fit(X, y, iters=100):
+    """Logistic regression by Newton–Raphson; returns coefficients, standard errors, log-likelihood."""
+    b = np.zeros(X.shape[1])
+    for _ in range(iters):
+        p = 1 / (1 + np.exp(-(X @ b)))
+        W = p * (1 - p); H = X.T @ (X * W[:, None]); g = X.T @ (y - p)
+        step = np.linalg.solve(H + 1e-9 * np.eye(len(b)), g); b += step
+        if np.max(np.abs(step)) < 1e-10:
+            break
+    p = np.clip(1 / (1 + np.exp(-(X @ b))), 1e-12, 1 - 1e-12)
+    W = p * (1 - p); H = X.T @ (X * W[:, None])
+    se = np.sqrt(np.diag(np.linalg.inv(H)))
+    return b, se, float(np.sum(y * np.log(p) + (1 - y) * np.log(1 - p)))
+
+
+def cmd_followup(args):
+    import bisect
+    dpp = os.path.join(args.out, "data", "processed", "v1_4")
+    con = connect(); cur = con.cursor()
+    t1 = read_task(cur, 1); D = read_land()
+    pub, _, _, _ = match_published(t1, D)
+    drop = {int(l.split("#")[0]) for l in open(DROP) if l.split("#")[0].strip()}
+    y = np.array([j in drop for j in range(len(D))], float)
+    # recent-use flag (identical to E14, time quantity)
+    meas = cur.execute("""select m.ID, m.Time, a.APosX, a.BPosX from Measures m join DPV v on v.MeasureID = m.ID
+                          join DP_ABMN a on a.ID = v.DPID join Stations s on m.StationID = s.ID
+                          where s.TaskID = 1 and v.Channel > 0 group by m.ID order by m.Time, m.ID""").fetchall()
+    morder = {mid: k for k, (mid, *_r) in enumerate(meas)}; mtime = [tsec(t) for _, t, _, _ in meas]
+    use = {}
+    for k, (_, _, a, b) in enumerate(meas):
+        use.setdefault(int(a), []).append(k); use.setdefault(int(b), []).append(k)
+    dt = np.full(len(D), np.inf)
+    for j in range(len(D)):
+        r = t1[pub[j]]; k = morder[r["measure"]]
+        for e in (r["M"], r["N"]):
+            L = use.get(e, []); q = bisect.bisect_left(L, k) - 1
+            if q >= 0:
+                dt[j] = min(dt[j], mtime[k] - mtime[L[q]])
+    q1 = np.percentile(dt[np.isfinite(dt)], 25); flag = (dt <= q1).astype(float)
+    J0 = json.load(open(os.path.join(dpp, "raw2018.json"), encoding="utf-8"))["E14"]["time"]
+    assert abs(q1 - J0["q1"]) < 1e-9 and int(flag.sum()) == J0["n_low"], "recent-use flag differs from E14"
+    # covariates
+    land, _ = wc.read_electrodes(); xe = land[:, 0]
+    du = {(m, d): v for m, d, v in cur.execute("select MeasureID, DPID, DataValue from DPV where TaskID = 1 and DatatypeID = 7 and Channel > 0").fetchall()}
+    etd = {(s, int(p)): v for s, p, v in cur.execute("select StationID, PosX, ResistanceValue from ElectrodeTestData").fetchall()}
+    rows = []
+    for j in range(len(D)):
+        r = t1[pub[j]]; xa, xb, xm, xn = (xe[N_OUR - 1 - r[k]] for k in ("A", "B", "M", "N"))
+        rr = lambda p_, q_: abs(p_ - q_)
+        K = 2 * np.pi / (1 / rr(xa, xm) - 1 / rr(xb, xm) - 1 / rr(xa, xn) + 1 / rr(xb, xn))
+        cr = max(etd.get((r["station"], r[k]), np.nan) for k in ("A", "B", "M", "N"))
+        rows.append([np.log10(abs(K)), np.log10(abs(du[(r["measure"], r["dpid"])])), abs(xa - xb), abs(xm - xn), r["station"], np.log10(cr)])
+    R_ = np.array(rows, float)
+    names = ["recent_use", "log10|K|", "log10|dU|", "AB span", "MN span", "station 2", "station 3", "log10 max contact R"]
+    cont = R_[:, [0, 1, 2, 3, 5]]; mu, sd = cont.mean(0), cont.std(0)
+    Z = (cont - mu) / sd
+    X = np.column_stack([np.ones(len(D)), flag, Z[:, 0], Z[:, 1], Z[:, 2], Z[:, 3], (R_[:, 4] == 2).astype(float),
+                         (R_[:, 4] == 3).astype(float), Z[:, 4]])
+    b, se, ll = logit_fit(X, y)
+    groups = {"recent_use": [1], "log10|K|": [2], "log10|dU|": [3], "AB span": [4], "MN span": [5], "station": [6, 7], "log10 max contact R": [8]}
+    drops = {}
+    for g, idx in groups.items():
+        keep = [i for i in range(X.shape[1]) if i not in idx]
+        drops[g] = ll - logit_fit(X[:, keep], y)[2]
+    rng = np.random.default_rng([138100]); bs = []
+    for _ in range(2000):
+        i = rng.integers(0, len(D), len(D))
+        try:
+            bs.append(np.exp(logit_fit(X[i], y[i])[0][1]))
+        except np.linalg.LinAlgError:
+            pass
+    b0, _, _ = logit_fit(X[:, :2], y)
+    out = dict(n=len(D), n_out=int(y.sum()), q1=float(q1), coef={n_: float(v) for n_, v in zip(["intercept"] + names, b)},
+               se={n_: float(v) for n_, v in zip(["intercept"] + names, se)}, z={n_: float(v / s_) for n_, v, s_ in zip(["intercept"] + names, b, se)},
+               or_recent_adj=float(np.exp(b[1])), or_recent_adj90=[float(np.percentile(bs, 5)), float(np.percentile(bs, 95))],
+               or_recent_crude=float(np.exp(b0[1])), loglik=ll, ll_drop={k: float(v) for k, v in drops.items()},
+               covariate_means=dict(zip(["log10|K|", "log10|dU|", "AB span", "MN span", "log10 max contact R"], map(float, mu))),
+               covariate_sd=dict(zip(["log10|K|", "log10|dU|", "AB span", "MN span", "log10 max contact R"], map(float, sd))),
+               n_boot=len(bs))
+    out["by_station"] = {str(s): dict(n=int((R_[:, 4] == s).sum()), rate=float(y[R_[:, 4] == s].mean()),
+                                      recent_share=float(flag[R_[:, 4] == s].mean())) for s in (1, 2, 3)}
+    dec = np.quantile(R_[:, 1], np.linspace(0, 1, 11)); di = np.clip(np.searchsorted(dec, R_[:, 1], side="right") - 1, 0, 9)
+    out["by_dU_decile"] = [dict(decile=int(k + 1), dU_lo=float(10 ** dec[k]), dU_hi=float(10 ** dec[k + 1]), n=int((di == k).sum()),
+                                rate=float(y[di == k].mean()), recent_share=float(flag[di == k].mean())) for k in range(10)]
+    out["recent_vs_dU"] = dict(median_dU_recent=float(10 ** np.median(R_[flag == 1, 1])), median_dU_rest=float(10 ** np.median(R_[flag == 0, 1])),
+                               median_AB_recent=float(np.median(R_[flag == 1, 2])), median_AB_rest=float(np.median(R_[flag == 0, 2])))
+    with open(os.path.join(dpp, "e14_followup.json"), "w", encoding="utf-8") as f:
+        json.dump(out, f, indent=1)
+    print(json.dumps({k: out[k] for k in ("or_recent_crude", "or_recent_adj", "or_recent_adj90", "ll_drop", "by_station")}, indent=1))
+
+
+def report_followup(args):
+    src = os.path.join(args.out, "data", "processed", "v1_4", "e14_followup.json")
+    if not os.path.exists(src):
+        return
+    J = json.load(open(src, encoding="utf-8")); res = os.path.join(args.out, "results", "v1_4")
+    L = ["# 7 — E14 follow-up: does geometry or contact explain the reversed result? (Task H, descriptive)", "",
+         "Logged before running: `docs/decision_log.md` v1.4-9. Logistic regression of the v1.0 outlier status "
+         f"({J['n_out']} of {J['n']} published data) on the recent-current-use flag (E14 lowest time quartile, ≤ {J['q1']:.0f} s) and "
+         "standardised covariates. Nothing here is a test.", "",
+         f"- **Recent-use flag:** crude odds ratio {J['or_recent_crude']:.2f}; adjusted for all covariates **{J['or_recent_adj']:.2f}** "
+         f"[90 % bootstrap {J['or_recent_adj90'][0]:.2f}, {J['or_recent_adj90'][1]:.2f}] ({J['n_boot']} resamples).", "",
+         "| covariate | coefficient (per SD; flag and station: per unit) | z | drop in log-likelihood when removed |", "|---|---|---|---|"]
+    grp = {"recent_use": "recent_use", "log10|K|": "log10|K|", "log10|dU|": "log10|dU|", "AB span": "AB span", "MN span": "MN span",
+           "station 2": "station", "station 3": "station", "log10 max contact R": "log10 max contact R"}
+    for k in ("recent_use", "log10|K|", "log10|dU|", "AB span", "MN span", "station 2", "station 3", "log10 max contact R"):
+        L.append(f"| {k} | {J['coef'][k]:+.2f} | {J['z'][k]:+.1f} | {J['ll_drop'][grp[k]]:.1f} |")
+    top = sorted(J["ll_drop"].items(), key=lambda kv: -kv[1])
+    L += ["", "Covariates by drop in log-likelihood: " + ", ".join(f"{k} ({v:.1f})" for k, v in top) + ".", "",
+          "## Outlier rate by station", "", "| station | data | outlier rate | share flagged 'recent use' |", "|---|---|---|---|"]
+    for s, v in J["by_station"].items():
+        L.append(f"| {s} | {v['n']} | {100*v['rate']:.1f} % | {100*v['recent_share']:.0f} % |")
+    L += ["", "## Outlier rate by |ΔU| decile", "", "| decile | |ΔU| range (V) | data | outlier rate | share flagged 'recent use' |", "|---|---|---|---|---|"]
+    for d in J["by_dU_decile"]:
+        L.append(f"| {d['decile']} | {d['dU_lo']:.2e} – {d['dU_hi']:.2e} | {d['n']} | {100*d['rate']:.1f} % | {100*d['recent_share']:.0f} % |")
+    rv = J["recent_vs_dU"]
+    L += ["", f"Median |ΔU|: {rv['median_dU_recent']:.2e} V for data flagged recent use vs "
+          f"{rv['median_dU_rest']:.2e} V (rest); median AB span {rv['median_AB_recent']:.0f} vs {rv['median_AB_rest']:.0f} m."]
+    with open(os.path.join(res, "7_e14_followup.md"), "w", encoding="utf-8") as f:
+        f.write("\n".join(L) + "\n")
 
 
 def main():
     ap = argparse.ArgumentParser()
     sub = ap.add_subparsers(dest="cmd", required=True)
-    for c in ("run", "report"):
+    for c in ("run", "report", "followup"):
         sub.add_parser(c).add_argument("--out", default=wc.ROOT)
     a = ap.parse_args()
-    dict(run=cmd_run, report=cmd_report)[a.cmd](a)
+    dict(run=cmd_run, report=cmd_report, followup=cmd_followup)[a.cmd](a)
 
 
 if __name__ == "__main__":
