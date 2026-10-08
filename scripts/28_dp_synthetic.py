@@ -358,8 +358,158 @@ def main():
         cmd_worker(a)
 
 
+def metrics():
+    """Per truth, layout, DP: offsets from the true base, coverage, damping and contrast (decision log v1.5-0)."""
+    D = dp_inputs(); out = {}
+    for t in TRUTHS:
+        for lay in LAYOUTS:
+            Z = [np.load(os.path.join(SRC(), f"{t}_{lay}_r{r}.npz"), allow_pickle=True) for r in range(N_REAL)]
+            z = Z[0]["z"]
+            for j, dp in enumerate(D):
+                base = dp["base"]; rb_true = RHO_BRACKISH if t == "T3" else dp["rho_below"]; rl_true = dp["rho_lens"]
+                thr3 = np.array([float(zz["lam50_mhat_thr3"][j]) for zz in Z]); lm50 = np.array([float(zz["lam50_mhat_logmid"][j]) for zz in Z])
+                cov3 = [bool(b_[0] >= 0.5 and b_[2] <= base <= b_[3]) for b_ in (zz["lam50_band_thr3"][:, j] for zz in Z)]
+                pl = [zz["pooled_band_logmid"][:, j] for zz in Z[:N_REAL_LAM]]; ps = [zz["pooled_band_steep"][:, j] for zz in Z[:N_REAL_LAM]]
+                rbi, rli = [], []
+                for zz, b_ in zip(Z, lm50):
+                    col = zz["lam50_col"][:, j].astype(float); ok = np.isfinite(col)
+                    w = ok & (z <= b_ - 4) & (z >= b_ - 10); u = ok & (z >= b_ + 4)
+                    rbi.append(np.median(col[w]) if w.any() else np.nan); rli.append(np.median(col[u]) if u.any() else np.nan)
+                rbi_m, rli_m = float(np.nanmedian(rbi)), float(np.nanmedian(rli))
+                ratio = (rbi_m - rli_m) / (np.log10(rb_true) - np.log10(rl_true)) if rb_true != rl_true else np.nan
+                med = lambda v: float(np.nanmedian(v))
+                out[f"{t}|{lay}|{dp['name']}"] = dict(
+                    truth=t, layout=lay, dp=dp["name"], x=dp["x"], base=base, rho_below_true=rb_true, rho_lens_true=rl_true,
+                    thr3=med(thr3), thr3_off=med(thr3) - base, logmid50_off=med(lm50) - base,
+                    logmid_pooled=med([b_[1] for b_ in pl]), logmid_off=med([b_[1] for b_ in pl]) - base,
+                    steep_pooled=med([b_[1] for b_ in ps]), steep_off=med([b_[1] for b_ in ps]) - base,
+                    cov_thr3=float(np.mean(cov3)), cov_logmid=float(np.mean([b_[0] >= 0.5 and b_[2] <= base <= b_[3] for b_ in pl])),
+                    cov_steep=float(np.mean([b_[0] >= 0.5 and b_[2] <= base <= b_[3] for b_ in ps])),
+                    rho_below_img=float(10 ** rbi_m), rho_lens_img=float(10 ** rli_m), contrast_ratio=float(ratio),
+                    chi2_50=med([float(zz["lam50_chi2"]) for zz in Z]), n_kept=int(np.median([int(zz["n_kept"]) for zz in Z])),
+                    n_data=int(Z[0]["n_data"]))
+    return out
+
+
+def field_values():
+    R = json.load(open(os.path.join(wc.ROOT, "data", "processed", "v1_4", "dp_results.json"), encoding="utf-8"))
+    out = {}
+    for n, d in R["dps"].items():
+        o = d["per"]["primary|A"]; b = o["logmid"]; s_ = o["sd"]
+        out[n] = dict(L24=dict(thr3_off=s_["thr3"] - b, logmid_off=s_["band_logmid_pooled"][1] - b, steep_off=s_["band_steep_pooled"][1] - b,
+                               rho_below_img=s_["rho_below_img"]),
+                      L18=dict(thr3_off=o["thr3_lam50"][1] - b, logmid_off=o["logmid_pooled"][1] - b, steep_off=np.nan, rho_below_img=np.nan))
+    return out
+
+
+X_DPS = ("DP3", "DP4", "DP5", "DP6", "DP7")
+
+
+def questions(M):
+    g = lambda t, l, n: M[f"{t}|{l}|{n}"]
+    x1 = [n for n in X_DPS if g("T1", "L24", n)["logmid_off"] >= 2.0 and abs(g("T1", "L24", n)["thr3_off"]) <= 2.5]
+    x2 = {t: [n for n in X_DPS if g(t, "L24", n)["rho_below_img"] < 0.5 * g(t, "L24", n)["rho_below_true"]] for t in ("T1", "T2")}
+    x3 = [n for n in X_DPS if abs(g("T3", "L24", n)["logmid_off"]) <= 2.0]
+    return dict(X1=dict(ok=x1, holds=len(x1) >= 3), X2=dict(ok=x2, holds=all(len(v) >= 4 for v in x2.values())),
+                X3=dict(ok=x3, holds=len(x3) >= 3))
+
+
 def cmd_report(args):
-    raise SystemExit("report: written after the runs")
+    import matplotlib
+    matplotlib.use("Agg")
+    import matplotlib.pyplot as plt
+    _, res = dirs(args.out); figs = os.path.join(res, "figs")
+    dpp = os.path.join(args.out, "data", "processed", "v1_5"); os.makedirs(dpp, exist_ok=True)
+    s18 = _load("p18", "18_paper.py"); s18.mpl()
+    M = metrics(); Fv = field_values(); Q = questions(M); D = dp_inputs(); names = [d["name"] for d in D]
+    f_ = lambda v, fmt="{:+.2f}": "—" if v is None or not np.isfinite(v) else fmt.format(v)
+    L = ["# 2 — Synthetic truths built from the 2024 DP/CPT logs (Task 1)", "", f"**{EXPLORATORY}**", "",
+         "T1 = the 2024 logs (0.5 m blocks); T2 = three sharp units per DP (lens / clean-sand ρ_below / clay); T3 = T2 with "
+         f"ρ_below = {RHO_BRACKISH:g} Ω·m (the 2018 BEL median, the \"brackish\" hypothesis). Layouts: L18 (2018 geometry; the truth is "
+         "the 2024 state) and L24 (ERT.dat geometry, same epoch). 5 noise realisations; Stage-1 G1 rule, v1.0 error model, λ = 50 and the "
+         "λ pool (5–100), linearised posterior; values at each DP x, offsets = image − true base (positive = image shallower). "
+         "Medians over realisations; coverage = share of realisations whose 90 % band contains the true base.", "",
+         "## Truth parameters per DP", "", "| DP | x (m) | true base (mTAW) | ρ_lens | ρ_below (T1/T2) | clay top (mTAW, source) | clay ρ (source) |",
+         "|---|---|---|---|---|---|---|"]
+    for d in D:
+        L.append(f"| {d['name']} | {d['x']:.1f} | {d['base']:.2f} | {d['rho_lens']:.2f} | {d['rho_below']:.2f} | {d['clay']:.1f} ({d['clay_source']}) | "
+                 f"{d['rho_clay']:.2f} ({d['clay_rho_source']}) |")
+    T10 = ["truth,layout,dp,x,true_base,thr3_off,logmid_pooled_off,steep_pooled_off,logmid_lam50_off,cov_thr3,cov_logmid,cov_steep,"
+           "rho_below_true,rho_below_img,img_over_true,contrast_ratio,chi2_lam50,n_kept,n_data"]
+    for t in TRUTHS:
+        for lay in LAYOUTS:
+            L += ["", f"## {t} on {lay}", "",
+                  "| DP | image 3 Ω·m − base | log-mid (pooled) − base | steepest-increase log-mid − base | cover 3 Ω·m / log-mid / steep | "
+                  "image ρ below / true ρ below (Ω·m) | recovered / true log-contrast | field (v1.4): 3 Ω·m / log-mid − DP base |",
+                  "|---|---|---|---|---|---|---|---|"]
+            for n in names:
+                m = M[f"{t}|{lay}|{n}"]; fv = Fv[n][lay]
+                L.append(f"| {n} | {f_(m['thr3_off'])} | {f_(m['logmid_off'])} | {f_(m['steep_off'])} | {100*m['cov_thr3']:.0f} / {100*m['cov_logmid']:.0f} / "
+                         f"{100*m['cov_steep']:.0f} % | {m['rho_below_img']:.2f} / {m['rho_below_true']:.2f} | {f_(m['contrast_ratio'], '{:.2f}')} | "
+                         f"{f_(fv['thr3_off'])} / {f_(fv['logmid_off'])} |")
+                T10.append(",".join(str(v) for v in [t, lay, n, f"{m['x']:.1f}", f"{m['base']:.2f}", f"{m['thr3_off']:.3f}", f"{m['logmid_off']:.3f}",
+                                                      f"{m['steep_off']:.3f}", f"{m['logmid50_off']:.3f}", f"{m['cov_thr3']:.2f}", f"{m['cov_logmid']:.2f}",
+                                                      f"{m['cov_steep']:.2f}", f"{m['rho_below_true']:.2f}", f"{m['rho_below_img']:.2f}",
+                                                      f"{m['rho_below_img'] / m['rho_below_true']:.3f}", f"{m['contrast_ratio']:.3f}",
+                                                      f"{m['chi2_50']:.2f}", m["n_kept"], m["n_data"]]))
+            ch = [M[f"{t}|{lay}|{n}"]["chi2_50"] for n in names][0]
+            L.append(f"\nλ = 50 χ² (median over realisations): {ch:.2f}; data kept by the Stage-1 rule: {M[f'{t}|{lay}|{names[0]}']['n_kept']} of "
+                     f"{M[f'{t}|{lay}|{names[0]}']['n_data']}.")
+    x1, x2, x3 = Q["X1"], Q["X2"], Q["X3"]
+    L += ["", "## Questions (exploratory)", "",
+          f"- **X1** (T1 on L24 reproduces the field pattern: at ≥ 3 of DP3–DP7 the log-midpoint ≥ 2 m shallower and the 3 Ω·m within ±2.5 m): "
+          f"**{'yes' if x1['holds'] else 'no'}** — {len(x1['ok'])} of 5 ({', '.join(x1['ok']) or 'none'}).",
+          f"- **X2** (image ρ below < 0.5 × true at ≥ 4 of DP3–DP7, T1 and T2 on L24): **{'yes' if x2['holds'] else 'no'}** — T1 "
+          f"{len(x2['ok']['T1'])} of 5, T2 {len(x2['ok']['T2'])} of 5.",
+          f"- **X3** (T3 on L24: log-midpoint within ±2 m at ≥ 3 of DP3–DP7): **{'yes' if x3['holds'] else 'no'}** — {len(x3['ok'])} of 5 "
+          f"({', '.join(x3['ok']) or 'none'}).",
+          "- **X4** (T1 vs T2, L24): see the table below."]
+    L += ["", "| DP | log-mid − base: T1 / T2 / T3 | 3 Ω·m − base: T1 / T2 / T3 | image ρ below: T1 / T2 / T3 |", "|---|---|---|---|"]
+    for n in names:
+        g = [M[f"{t}|L24|{n}"] for t in TRUTHS]
+        L.append(f"| {n} | " + " / ".join(f_(m["logmid_off"]) for m in g) + " | " + " / ".join(f_(m["thr3_off"]) for m in g) + " | "
+                 + " / ".join(f"{m['rho_below_img']:.2f}" for m in g) + " |")
+    with open(os.path.join(res, "2_dp_synthetic.md"), "w", encoding="utf-8") as f:
+        f.write("\n".join(L) + "\n")
+    with open(os.path.join(res, "T_S10_dp_synthetic.csv"), "w", encoding="utf-8") as f:
+        f.write("\n".join(T10) + "\n")
+    hdr = T10[0].split(",")
+    with open(os.path.join(res, "T_S10_dp_synthetic.md"), "w", encoding="utf-8") as f:
+        f.write(f"# T_S10 — synthetic truths from the DP logs (Markdown copy of `T_S10_dp_synthetic.csv`)\n\n{EXPLORATORY}\n\n| "
+                + " | ".join(hdr) + " |\n|" + "---|" * len(hdr) + "\n" + "\n".join("| " + " | ".join(l.split(",")) + " |" for l in T10[1:]) + "\n")
+    json.dump(dict(metrics=M, questions=Q, field=Fv), open(os.path.join(dpp, "dp_synth_summary.json"), "w", encoding="utf-8"), indent=1,
+              default=lambda o: o.item() if hasattr(o, "item") else str(o))
+    # F_14
+    fig, ax = plt.subplots(figsize=(7.4, 3.8))
+    xs = np.array([d["x"] for d in D]); ax.plot(xs, [d["base"] for d in D], "k_", ms=16, mew=2, label="true base (DP log-midpoint)")
+    cols = {"T1": "#1f4e9c", "T2": "#1b9e77", "T3": "#d35400"}
+    for k, t in enumerate(TRUTHS):
+        dx = (k - 1) * 5
+        ax.plot(xs + dx, [M[f"{t}|L24|{n}"]["thr3"] for n in names], "o", color=cols[t], ms=4, label=f"{t}: 3 Ω·m (λ = 50)")
+        ax.plot(xs + dx, [M[f"{t}|L24|{n}"]["logmid_pooled"] for n in names], "^", color=cols[t], ms=4, mfc="none", label=f"{t}: log-midpoint (pooled)")
+    fb = np.array([d["base"] for d in D])
+    ax.plot(xs + 9, fb + np.array([Fv[n]["L24"]["thr3_off"] for n in names]), "s", color="0.3", ms=4, label="field ERT.dat: 3 Ω·m")
+    ax.plot(xs + 9, fb + np.array([Fv[n]["L24"]["logmid_off"] for n in names]), "s", color="0.3", ms=4, mfc="none", label="field ERT.dat: log-midpoint")
+    for n, x in zip(names, xs):
+        ax.text(x, -24, n, ha="center", fontsize=6)
+    ax.set_xlabel("x (m)"); ax.set_ylabel("Elevation (mTAW)"); ax.set_ylim(-25, 0); ax.legend(fontsize=5.8, ncol=2, loc="lower right")
+    ax.set_title("Synthetic (L24) vs field: lens base by definition — " + EXPLORATORY, fontsize=7)
+    fig.tight_layout(); fig.savefig(os.path.join(figs, "F_14_synthetic_vs_field.png"), dpi=300); plt.close(fig)
+    # F_S12
+    xg = np.arange(0, 506, 1.0); zg = np.arange(6.0, -40.01, -0.25); X, Zg = np.meshgrid(xg, zg)
+    topo = g27.cpt_topography(); surf = topo(xg)
+    fig, axes = plt.subplots(3, 1, figsize=(7.2, 7.2), sharex=True)
+    for ax, t in zip(axes, TRUTHS):
+        V = TruthModel(t).log10rho(X, Zg); V[Zg > surf[None, :]] = np.nan
+        pc = ax.pcolormesh(xg, zg, 10 ** V, cmap="RdBu_r", norm=s18.rho_norm(), shading="auto", rasterized=True)
+        ax.plot(xs, [d["base"] for d in D], "kD", ms=3); ax.plot(xg, surf, "k-", lw=0.7)
+        ax.set_ylabel("mTAW"); ax.set_title({"T1": "T1 — 2024 logs (0.5 m blocks)", "T2": "T2 — three units per DP",
+                                             "T3": f"T3 — T2 with ρ_below = {RHO_BRACKISH:g} Ω·m"}[t], fontsize=8)
+        s18.dune_hatch(ax)
+    axes[-1].set_xlabel("x (m)"); fig.colorbar(pc, ax=axes, fraction=0.025).set_label("ρ (Ω·m)")
+    fig.suptitle(EXPLORATORY, fontsize=7)
+    fig.savefig(os.path.join(figs, "F_S12_dp_truths.png"), dpi=300); plt.close(fig)
+    print("\n".join(L))
 
 
 if __name__ == "__main__":
