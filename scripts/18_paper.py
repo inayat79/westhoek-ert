@@ -1447,6 +1447,16 @@ def extra_numbers_v15():
                 f"{V['base_in_sub']} of 6", "v1.5.2: checks of the 2018 L24-stretch BEL" + ex, f6, s6_)
         NUM.add("v15_layout_readout", V["readout"], "v1.5.2: pre-logged read-out, layout vs time (decision log v1.5-2)" + ex, f6,
                 "`data/processed/v1_5/layout_vs_time.json`", ref=(r7, "**", V["readout"]))
+        if "T1_sub" in V:                                   # v1.5.3 (decision log v1.5-3)
+            w = V["T1_sub"]; s7_ = "`data/processed/v1_5/bel_v4_layout/t1_subset.npz`"
+            NUM.add("v15_layout_T1_stretch", f"{w['median']:.2f} [{w['p5']:.2f}, {w['p95']:.2f}] Ω·m; DP2–DP7 bases covered in all "
+                    f"realisations: {V['T1_sub_base_in']} of 6", "v1.5.3: BEL v4 (2018 L24-stretch BELs) on T1 restricted to the same 1141 "
+                    "quadrupoles, ρ_below (median of posterior medians, pooled 90 %)" + ex, f6, s7_,
+                    ref=(r7, "| **T1, L24-stretch subset (v1.5-3)**", f"**{w['median']:.2f}**"))
+            NUM.add("v15_layout_field_over_T1_stretch", f"{V['ratio_sub']:.2f}", "v1.5.3: 2018-subset field median ÷ T1/subset median" + ex,
+                    f6, s7_, ref=(r7, "Field ÷ T1 on the subset", f"**{V['ratio_sub']:.2f}**"))
+            NUM.add("v15_layout_readout_sub", V["readout_sub"], "v1.5.3: pre-logged read-out (decision log v1.5-3)" + ex, f6,
+                    "`data/processed/v1_5/layout_vs_time.json`", ref=(r7, "**", V["readout_sub"]))
 
 
 def extra_numbers_v14_groundtruth():

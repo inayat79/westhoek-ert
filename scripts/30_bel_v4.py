@@ -656,6 +656,52 @@ def falsify(bel, D, y):
                 q=float(np.mean(bel.pd.resid(D) < bel.pd.resid(y[None])[0])))
 
 
+def stretch_sets():
+    """The v1.5-2 B2 training / held-out sets (L18 v4 ensemble restricted to the L24-stretch columns) and the base BEL."""
+    import stage6_analysis as s6
+    s6.init(); s6.TX = b13.TX
+    cols, x0 = l24_stretch_cols()
+    mu_d, dev = b13.approx_stats()
+    d = os.path.join(D4(), "train"); sets = []
+    for f in sorted(os.listdir(d)):
+        if f.endswith(".npz") and "tmp" not in f:
+            z = np.load(os.path.join(d, f), allow_pickle=True)
+            sets.append((int(f[1:-4]), {"R_medium": z["R_medium"], "theta": z["theta"], "target": z["target"]}))
+    S = {}
+    for name, ss in (("tr", [x for x in sets if x[0] < ID0 + N_TR]), ("ho", [x for x in sets if x[0] >= ID0 + N_TR])):
+        Dd, kp = prior_data_cols(ss, mu_d, dev, cols); zm = {i: z for i, z in ss}
+        th_ = [json.loads(str(zm[i]["theta"])) for i in kp]; T_ = np.array([zm[i]["target"] for i in kp])
+        m = np.array([s6.site(t, tt) and t["rho_lens"] >= s6.PHYS_RHO_LENS_MIN for t, tt in zip(th_, T_)], dtype=bool)
+        S[name] = dict(D=Dd[m], T=T_[m], th=[t for t, k in zip(th_, m) if k], n_all=len(ss), n_pos=len(kp), n_kept=int(m.sum()))
+    return cols, x0, S, b13.BEL(S["tr"]["D"], S["tr"]["T"])
+
+
+def cmd_layout_t1(args):
+    """v1.5-3: BEL v4 (B2 BELs) on T1/L18 synthetic data restricted to the L24-stretch columns."""
+    g28 = _load("g28", "28_dp_synthetic.py")
+    os.makedirs(DLT(), exist_ok=True); t0 = time.time()
+    cols, x0, S, bel = stretch_sets()
+    Ytr = np.array([g14.derived_targets(t) for t in S["tr"]["th"]])
+    s15.RHO_BOUNDS.update(rho_lens=(0.4, 3.0), rho_below=RHO_BELOW_V4, rho_discharge=RHO_DIS_V4)
+    b2 = s15.BEL2(S["tr"]["D"], Ytr, bounded=True)
+    keep = np.asarray(wc.load_run("deep_drop_data")["keep_idx"], int)
+    ti = g28.TRUTHS.index("T1") + 1
+    R_true = np.load(os.path.join(g28.SRC(), "fwd_T1_L18.npz"))["R"]
+    out = {}
+    for real in range(g28.N_REAL):
+        rng = np.random.default_rng([150000, ti, 0, real])
+        R = R_true + np.sqrt((0.03 * R_true) ** 2 + 1e-4 ** 2) * rng.standard_normal(len(R_true))
+        y = R[keep][cols]
+        if np.any(y <= 0):
+            out[f"T1sub_r{real}_skipped"] = np.array(1); continue
+        y = np.log10(y)
+        out[f"T1sub_r{real}_base"] = bel.posterior(y, N_POST, np.random.default_rng([SEED_BASE, 510_000 + real]), "kde").astype(np.float32)
+        out[f"T1sub_r{real}_P2"] = b2.posterior(y, N_POST, np.random.default_rng([SEED_2, 510_000 + real])).astype(np.float32)
+        print(f"[layout-t1] T1/subset r{real}: ρ_below median {np.median(10 ** out[f'T1sub_r{real}_P2'][:, 3]):.2f} Ω·m", flush=True)
+    np.savez(os.path.join(DLT(), "t1_subset.npz"), TX=b13.TX, cols=cols, **out)
+    print(f"[layout-t1] done ({time.time() - t0:.0f} s)", flush=True)
+
+
 def cmd_layout(args):
     import stage6_analysis as s6
     os.makedirs(DLT(), exist_ok=True); t0 = time.time(); out = {}
@@ -679,23 +725,9 @@ def cmd_layout(args):
         out[f"T1L24_r{real}_P2"] = b2.posterior(y, N_POST, np.random.default_rng([L24_SEED_2, 300_000 + 10 * ti + real])).astype(np.float32)
         print(f"[layout] T1/L24 r{real}: ρ_below median {np.median(10 ** out[f'T1L24_r{real}_P2'][:, 3]):.2f} Ω·m", flush=True)
     # (B2) BEL v4 (L18 ensemble) on the 2018 field data restricted to the L24 stretch
-    s6.init(); s6.TX = b13.TX
-    cols, x0 = l24_stretch_cols()
-    mu_d, dev = b13.approx_stats()
-    d = os.path.join(D4(), "train"); sets = []
-    for f in sorted(os.listdir(d)):
-        if f.endswith(".npz") and "tmp" not in f:
-            z = np.load(os.path.join(d, f), allow_pickle=True)
-            sets.append((int(f[1:-4]), {"R_medium": z["R_medium"], "theta": z["theta"], "target": z["target"]}))
-    S = {}
-    for name, ss in (("tr", [x for x in sets if x[0] < ID0 + N_TR]), ("ho", [x for x in sets if x[0] >= ID0 + N_TR])):
-        Dd, kp = prior_data_cols(ss, mu_d, dev, cols); zm = {i: z for i, z in ss}
-        th_ = [json.loads(str(zm[i]["theta"])) for i in kp]; T_ = np.array([zm[i]["target"] for i in kp])
-        m = np.array([s6.site(t, tt) and t["rho_lens"] >= s6.PHYS_RHO_LENS_MIN for t, tt in zip(th_, T_)], dtype=bool)
-        S[name] = dict(D=Dd[m], T=T_[m], th=[t for t, k in zip(th_, m) if k], n_all=len(ss), n_pos=len(kp), n_kept=int(m.sum()))
+    cols, x0, S, bel = stretch_sets()
     obs, _ = b13.observed_sets(); y = obs["field"][cols]
     D, T, th = S["tr"]["D"], S["tr"]["T"], S["tr"]["th"]
-    bel = b13.BEL(D, T)
     Pf = bel.posterior(y, N_POST, np.random.default_rng([SEED_BASE, LAY_SEED_FIELD + 1]), "kde")
     cov = []
     for j, (yy, t) in enumerate(zip(S["ho"]["D"], S["ho"]["T"])):
@@ -813,6 +845,34 @@ def report_layout(args):
           "2017, 5 days after full moon), not from the 2018 table. The first instrument record is at 11:22–11:24, so the clock was "
           "most likely on local time (CET): the survey ran from about low water (11:24 CET) to 13:41 CET on a rising tide. "
           "**Estimated; to be confirmed with the 2018 tide table or the Nieuwpoort gauge record.**"]
+    pT1s = None
+    if os.path.exists(os.path.join(DLT(), "t1_subset.npz")):            # v1.5-3
+        Z3 = np.load(os.path.join(DLT(), "t1_subset.npz"))
+        o["T1_sub"], pT1s = synth(Z3, "T1sub_r", Z3["TX"]); ts_ = o["T1_sub"]; t, mf = ts_["median"], su["median"]
+        rr = dict(a=bool(t / 1.5 <= mf <= 1.5 * t), b=bool(t > 1.5 * mf), c=bool(t < mf / 1.5))
+        tx3 = dict(a="the 2018 data on this stretch are consistent with the 2024 state: no evidence of change in the water below the lens",
+                   b="on this stretch the 2018 data read more conductive than the 2024 state would: change since 2018 or model error remain possible",
+                   c="the 2018 data read fresher than the 2024 state")
+        ro3 = "; ".join(f"({k}) {tx3[k]}" for k in ("a", "b", "c") if rr[k])
+        o.update(ratio_sub=mf / t, rules_sub=rr, readout_sub=ro3)
+        M += ["", "## v1.5-3: T1 on the same 1141-quadrupole subset (logged before running)", "",
+              "BEL's ρ_below is a single profile-wide value, so every ρ_below here is a layout-weighted effective value, not the "
+              "resistivity at a given place.", "",
+              f"The B2 BELs (retrained on the subset, same approximation-error subset) on T1/L18 realisations 0–4 restricted to the same "
+              f"{su['n_data']} quadrupoles (skipped: {ts_['skipped']}).", "",
+              "| data | ρ_below: median (of posterior medians) | 90 % interval (pooled) | per realisation |", "|---|---|---|---|",
+              f"| T1, full 2018 layout (v1.5-1) | {t18['median']:.2f} | [{t18['p5']:.2f}, {t18['p95']:.2f}] | " + ", ".join(f"{v:.2f}" for v in t18["per_real"]) + " |",
+              f"| **T1, L24-stretch subset (v1.5-3)** | **{t:.2f}** | [{ts_['p5']:.2f}, {ts_['p95']:.2f}] | " + ", ".join(f"{v:.2f}" for v in ts_["per_real"]) + " |",
+              f"| 2018 field, L24-stretch subset (B2) | {mf:.2f} | [{su['p5']:.2f}, {su['p95']:.2f}] | — |", "",
+              f"Field ÷ T1 on the subset = {mf:.2f} / {t:.2f} = **{mf / t:.2f}**; subsetting changes T1 by a factor {t / t18['median']:.2f}.", "",
+              "Base coverage of the T1/subset BEL (share of realisations whose 90 % interval contains the true base; median of the posterior medians):", "",
+              "| DP | x | true base | coverage / median |", "|---|---|---|---|"]
+        for n in names:
+            if n != "DP1":
+                M.append(f"| {n} | {Dg[n]['x']:.1f} | {Dg[n]['base']:.2f} | {100*ts_['cov'][n]:.0f} % / {ts_['base_med'][n]:.2f} |")
+        o["T1_sub_base_in"] = int(sum(ts_["cov"][n] == 1.0 for n in names if n != "DP1"))
+        M += ["", f"(a) t/1.5 ≤ m ≤ 1.5 t: {'yes' if rr['a'] else 'no'}; (b) t > 1.5 m: {'yes' if rr['b'] else 'no'}; "
+              f"(c) t < m/1.5: {'yes' if rr['c'] else 'no'} (t = {t:.2f}, m = {mf:.2f} Ω·m).", "", f"**{ro3}.**"]
     with open(os.path.join(res, "7_layout_vs_time.md"), "w", encoding="utf-8") as f:
         f.write("\n".join(M) + "\n")
     json.dump(o, open(os.path.join(dpp, "layout_vs_time.json"), "w", encoding="utf-8"), indent=1)
@@ -821,6 +881,8 @@ def report_layout(args):
     ax = axes[0]; bins = np.logspace(np.log10(1.5), np.log10(120), 40)
     ax.hist(pT18, bins, density=True, alpha=0.40, color="#1f4e9c", label="T1/L18 (synthetic)")
     ax.hist(pT24, bins, density=True, alpha=0.40, color="#7fa6e0", label="T1/L24 (synthetic)")
+    if pT1s is not None:
+        ax.hist(pT1s, bins, density=True, histtype="step", lw=1.2, ls="-.", color="#1f4e9c", label="T1, L24-stretch subset (synthetic)")
     ax.hist(r_full, bins, density=True, histtype="step", lw=1.2, color="#d35400", label="2018, full line")
     ax.hist(r_sub, bins, density=True, histtype="step", lw=1.2, ls="--", color="#d35400", label="2018, L24 stretch")
     ax.hist(r_ert, bins, density=True, histtype="step", lw=1.3, color="k", label="ERT.dat (2024)")
@@ -851,6 +913,7 @@ def main():
     sub.add_parser("report").add_argument("--out", default=wc.ROOT)
     sub.add_parser("synth").add_argument("--out", default=wc.ROOT)
     sub.add_parser("layout").add_argument("--out", default=wc.ROOT)
+    sub.add_parser("layout-t1").add_argument("--out", default=wc.ROOT)
     l = sub.add_parser("l24"); l.add_argument("--out", default=wc.ROOT); l.add_argument("--workers", type=int, default=6)
     l.add_argument("--time-only", action="store_true")
     w = sub.add_parser("worker"); w.add_argument("--worker-id", type=int, required=True); w.add_argument("--dual", action="store_true")
@@ -858,7 +921,7 @@ def main():
     a = ap.parse_args()
     if a.cmd == "worker" and a.l24:
         l24_worker(a); return
-    dict(run=cmd_run, resume=cmd_run, report=cmd_report, worker=cmd_worker, synth=cmd_synth, l24=cmd_l24, layout=cmd_layout)[a.cmd](a)
+    dict(run=cmd_run, resume=cmd_run, report=cmd_report, worker=cmd_worker, synth=cmd_synth, l24=cmd_l24, layout=cmd_layout, **{"layout-t1": cmd_layout_t1})[a.cmd](a)
 
 
 if __name__ == "__main__":
