@@ -112,7 +112,7 @@ def measured(lay):
         return R, np.array([j not in drop for j in range(n)]), "2018 data (6.5-year gap)"
     E = g28.g27.read_ert()
     keep = np.load(os.path.join(wc.ROOT, "data", "processed", "v1_4", "samedate", "cpt.npz"))["keep"]
-    return E["R"], keep.astype(bool), "ERT.dat (same epoch, date unconfirmed)"
+    return E["R"], keep.astype(bool), "ERT.dat (same epoch: within a few days of the CPTs (T. Hermans, pers. comm.))"
 
 
 def cmd_report(args):

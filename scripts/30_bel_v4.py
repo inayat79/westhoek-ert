@@ -10,6 +10,8 @@ known (docs/decision_log.md v1.5-0). Prior v4 = prior v3 with exactly two change
                                                    20 dual samples (fine + medium), then fit the BELs → ROOT/data/processed/v1_5/bel_v4/
   resume [--workers 6] [--out ROOT]                as run, skipping finished samples
   report [--out ROOT]                              ROOT/results/v1_5/4_bel_v4.md, T_S11_bel_v4.{csv,md}, figs/F_16_bel_v3_v4.png
+  synth / l24 / layout [--out ROOT]                v1.5-1 / v1.5-2 checks (decision log): BEL v4 on synthetic data, same-epoch
+                                                   BEL on ERT.dat, and layout vs time (T1/L24; 2018 data on the L24 stretch)
   worker                                           (internal)
 
 Seeds (the v2/v3 scheme with ids offset by 10 000 000): parameters default_rng([88000, id]), noise default_rng([99000, id]),
@@ -305,6 +307,8 @@ def cmd_report(args):
     print("\n".join(L))
     if os.path.exists(os.path.join(D4(), "synth.npz")) and os.path.exists(os.path.join(D4L(), "bel_v4_l24.npz")):
         report_checks(args)
+    if os.path.exists(os.path.join(DLT(), "layout_vs_time.npz")):
+        report_layout(args)
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -588,6 +592,256 @@ def report_checks(args):
     print("\n".join(M))
 
 
+# ─────────────────────────────────────────────────────────────────────────────
+# v1.5-2 (B): layout vs time for ρ_below — no new prior ensemble
+# ─────────────────────────────────────────────────────────────────────────────
+LAY_SEED_FIELD, LAY_SEED_HO_BASE, LAY_SEED_HO_2 = 500_000, 590_000, 560_000
+
+
+def DLT():
+    return os.path.join(wc.ROOT, "data", "processed", "v1_5", "bel_v4_layout")
+
+
+def l24_sets():
+    """The L24 training / held-out sets exactly as in l24_analyse()."""
+    import stage6_analysis as s6
+    s6.init(); s6.TX = TX_L24
+    g28, _, _, keep, _ = l24_geometry()
+    dual = [np.load(os.path.join(D4L(), "dual", f)) for f in sorted(os.listdir(os.path.join(D4L(), "dual"))) if f.endswith(".npz") and "tmp" not in f]
+    dl = np.array([np.log10(z["R_fine"]) - np.log10(z["R_medium"]) for z in dual]); mu_d = dl.mean(0); dev = dl - mu_d
+    d = os.path.join(D4L(), "train"); sets = []
+    for f in sorted(os.listdir(d)):
+        if f.endswith(".npz") and "tmp" not in f:
+            z = np.load(os.path.join(d, f), allow_pickle=True)
+            sets.append((int(f[1:-4]), {"R_medium": z["R_medium"], "theta": z["theta"], "target": z["target"]}))
+    C = {}
+    for name, ss in (("tr", [x for x in sets if x[0] < L24_ID0 + N_TR]), ("ho", [x for x in sets if x[0] >= L24_ID0 + N_TR])):
+        D, kp = b13.prior_data(ss, mu_d, dev); zm = {i: z for i, z in ss}
+        th = [json.loads(str(zm[i]["theta"])) for i in kp]; T = np.array([zm[i]["target"] for i in kp])
+        m = np.array([s6.site(t, tt) and t["rho_lens"] >= s6.PHYS_RHO_LENS_MIN for t, tt in zip(th, T)], dtype=bool)
+        C[name] = dict(D=D[m], T=T[m], th=[t for t, k in zip(th, m) if k], n_all=len(ss), n_kept=int(m.sum()))
+    return g28, keep, C
+
+
+def l24_stretch_cols():
+    """2018 G1 quadrupoles (columns of the BEL data vector) whose four electrodes all lie at x ≥ the L24 line start."""
+    g27 = _load("g27x", "27_dp_groundtruth.py")
+    E = g27.read_ert(); x0 = float(g27.X0_CPT - E["xloc"].max())
+    sch = b13.pilot.build_scheme()
+    x = np.array([p[0] for p in sch.sensors()])
+    A = np.array([np.asarray(sch(k), int) for k in ("a", "b", "m", "n")]).T
+    assert A.min() >= 0 and len(A) == len(wc.load_run("deep_drop_data")["keep_idx"])
+    return np.where((x[A] >= x0).all(1))[0], x0
+
+
+def prior_data_cols(samples, mu, dev, cols):
+    """13_bel_full.prior_data on the full G1 vector (same seeds), restricted to `cols`; positivity checked on `cols`."""
+    out, keep = [], []
+    n1 = dev.shape[0] - 1
+    for i, z in samples:
+        l = np.log10(z["R_medium"]) + mu
+        e = dev.T @ np.random.default_rng([b13.APPROX_SEED, i]).standard_normal(dev.shape[0]) / np.sqrt(n1)
+        R = 10 ** (l + e)
+        Rn = R + np.sqrt((b13.ERR_REL * R) ** 2 + b13.ERR_ABS ** 2) * np.random.default_rng([b13.NOISE_SEED, i]).standard_normal(len(R))
+        if np.all(Rn[cols] > 0):
+            out.append(np.log10(Rn[cols])); keep.append(i)
+    return np.array(out), keep
+
+
+def falsify(bel, D, y):
+    sc = bel.Sd; var = sc.var(0, ddof=1); sf = bel.pd.fwd(y[None])[0]
+    mu, Cm = b13.pilot.fast_mcd(sc); Ci = np.linalg.inv(Cm)
+    return dict(t2=float(np.mean(np.sum(sc ** 2 / var, 1) < np.sum(sf ** 2 / var))),
+                t2r=float(np.mean(np.einsum("ij,jk,ik->i", sc - mu, Ci, sc - mu) < (sf - mu) @ Ci @ (sf - mu))),
+                q=float(np.mean(bel.pd.resid(D) < bel.pd.resid(y[None])[0])))
+
+
+def cmd_layout(args):
+    import stage6_analysis as s6
+    os.makedirs(DLT(), exist_ok=True); t0 = time.time(); out = {}
+    # (B1) BEL v4 (L24 ensemble) on T1/L24 synthetic data
+    g28, keep, C = l24_sets()
+    assert g28.sb.ERR_REL == b13.ERR_REL and g28.sb.ERR_ABS == b13.ERR_ABS
+    D, T, th = C["tr"]["D"], C["tr"]["T"], C["tr"]["th"]
+    bel = b13.BEL(D, T); Ytr = np.array([g14.derived_targets(t) for t in th])
+    s15.RHO_BOUNDS.update(rho_lens=(0.4, 3.0), rho_below=RHO_BELOW_V4, rho_discharge=RHO_DIS_V4)
+    b2 = s15.BEL2(D, Ytr, bounded=True)
+    ti, li = g28.TRUTHS.index("T1") + 1, g28.LAYOUTS.index("L24")
+    R_true = np.load(os.path.join(g28.SRC(), "fwd_T1_L24.npz"))["R"]; assert len(R_true) == len(keep)
+    for real in range(g28.N_REAL):
+        rng = np.random.default_rng([150000, ti, li, real])
+        R = R_true + np.sqrt((b13.ERR_REL * R_true) ** 2 + b13.ERR_ABS ** 2) * rng.standard_normal(len(R_true))
+        y = R[keep]
+        if np.any(y <= 0):
+            out[f"T1L24_r{real}_skipped"] = np.array(1); continue
+        y = np.log10(y)
+        out[f"T1L24_r{real}_base"] = bel.posterior(y, N_POST, np.random.default_rng([L24_SEED_BASE, 300_000 + 10 * ti + real]), "kde").astype(np.float32)
+        out[f"T1L24_r{real}_P2"] = b2.posterior(y, N_POST, np.random.default_rng([L24_SEED_2, 300_000 + 10 * ti + real])).astype(np.float32)
+        print(f"[layout] T1/L24 r{real}: ρ_below median {np.median(10 ** out[f'T1L24_r{real}_P2'][:, 3]):.2f} Ω·m", flush=True)
+    # (B2) BEL v4 (L18 ensemble) on the 2018 field data restricted to the L24 stretch
+    s6.init(); s6.TX = b13.TX
+    cols, x0 = l24_stretch_cols()
+    mu_d, dev = b13.approx_stats()
+    d = os.path.join(D4(), "train"); sets = []
+    for f in sorted(os.listdir(d)):
+        if f.endswith(".npz") and "tmp" not in f:
+            z = np.load(os.path.join(d, f), allow_pickle=True)
+            sets.append((int(f[1:-4]), {"R_medium": z["R_medium"], "theta": z["theta"], "target": z["target"]}))
+    S = {}
+    for name, ss in (("tr", [x for x in sets if x[0] < ID0 + N_TR]), ("ho", [x for x in sets if x[0] >= ID0 + N_TR])):
+        Dd, kp = prior_data_cols(ss, mu_d, dev, cols); zm = {i: z for i, z in ss}
+        th_ = [json.loads(str(zm[i]["theta"])) for i in kp]; T_ = np.array([zm[i]["target"] for i in kp])
+        m = np.array([s6.site(t, tt) and t["rho_lens"] >= s6.PHYS_RHO_LENS_MIN for t, tt in zip(th_, T_)], dtype=bool)
+        S[name] = dict(D=Dd[m], T=T_[m], th=[t for t, k in zip(th_, m) if k], n_all=len(ss), n_pos=len(kp), n_kept=int(m.sum()))
+    obs, _ = b13.observed_sets(); y = obs["field"][cols]
+    D, T, th = S["tr"]["D"], S["tr"]["T"], S["tr"]["th"]
+    bel = b13.BEL(D, T)
+    Pf = bel.posterior(y, N_POST, np.random.default_rng([SEED_BASE, LAY_SEED_FIELD + 1]), "kde")
+    cov = []
+    for j, (yy, t) in enumerate(zip(S["ho"]["D"], S["ho"]["T"])):
+        P = bel.posterior(yy, N_POST, np.random.default_rng([SEED_BASE, LAY_SEED_HO_BASE + j]), "kde"); lo, hi = np.percentile(P, [5, 95], 0)
+        cov.append((t >= lo) & (t <= hi))
+    fal = falsify(bel, D, y)
+    Ytr = np.array([g14.derived_targets(t) for t in th]); Yho = np.array([g14.derived_targets(t) for t in S["ho"]["th"]])
+    s15.RHO_BOUNDS.update(rho_lens=(0.4, 3.0), rho_below=RHO_BELOW_V4, rho_discharge=RHO_DIS_V4)
+    b2 = s15.BEL2(D, Ytr, bounded=True)
+    P2 = b2.posterior(y, N_POST, np.random.default_rng([SEED_2, LAY_SEED_FIELD + 3]))
+    c2 = []
+    for j, yy in enumerate(S["ho"]["D"]):
+        P = b2.posterior(yy, N_POST, np.random.default_rng([SEED_2, LAY_SEED_HO_2 + j])); lo, hi = np.percentile(P, [5, 95], 0)
+        c2.append((Yho[j] >= lo) & (Yho[j] <= hi))
+    print(f"[layout] 2018 L24 stretch ({len(cols)} data): ρ_below median {np.median(10 ** P2[:, 3]):.2f} Ω·m", flush=True)
+    np.savez(os.path.join(DLT(), "layout_vs_time.npz"), TX=b13.TX, TX_L24=TX_L24, cols=cols, x0=x0, sub_Pf=Pf, sub_P2=P2,
+             sub_ho_cov=np.array(cov), sub_cov2=np.array(c2), sub_fal=json.dumps(fal),
+             sub_n=json.dumps({k: {kk: v for kk, v in S[k].items() if kk.startswith("n_")} for k in ("tr", "ho")}),
+             sub_kd=bel.pd.k, sub_kt=bel.pt.k, **out)
+    print(f"[layout] done ({time.time() - t0:.0f} s)", flush=True)
+
+
+def report_layout(args):
+    """7_layout_vs_time.md, F_19 and layout_vs_time.json (v1.5-2 B)."""
+    import matplotlib
+    matplotlib.use("Agg")
+    import matplotlib.pyplot as plt
+    res = os.path.join(args.out, "results", "v1_5"); figs = os.path.join(res, "figs")
+    dpp = os.path.join(args.out, "data", "processed", "v1_5")
+    Z = np.load(os.path.join(DLT(), "layout_vs_time.npz"), allow_pickle=True)
+    S = np.load(os.path.join(D4(), "synth.npz")); F = np.load(os.path.join(D4(), "bel_v4.npz"), allow_pickle=True)
+    L = np.load(os.path.join(D4L(), "bel_v4_l24.npz"), allow_pickle=True)
+    g28 = _load("g28", "28_dp_synthetic.py"); Dg = {d["name"]: d for d in g28.dp_inputs()}
+    names = [d["name"] for d in sorted(g28.dp_inputs(), key=lambda d: -d["x"])]
+    q = lambda v: [float(np.median(v)), float(np.percentile(v, 5)), float(np.percentile(v, 95))]
+    fm = lambda v: f"{v[0]:.2f} [{v[1]:.2f}, {v[2]:.2f}]"
+    col = lambda TX, x: int(np.argmin(np.abs(TX - x)))
+
+    def synth(Zs, pre, TX):
+        keys = [k[:-3] for k in Zs.files if k.startswith(pre) and k.endswith("_P2")]
+        meds = [float(np.median(10 ** Zs[f"{k}_P2"][:, 3])) for k in keys]
+        pooled = np.concatenate([10 ** Zs[f"{k}_P2"][:, 3] for k in keys])
+        cov = {n: float(np.mean([np.percentile(Zs[f"{k}_base"][:, col(TX, Dg[n]['x'])], 5) <= Dg[n]["base"]
+                                 <= np.percentile(Zs[f"{k}_base"][:, col(TX, Dg[n]['x'])], 95) for k in keys])) for n in names}
+        bm = {n: float(np.median([np.median(Zs[f"{k}_base"][:, col(TX, Dg[n]['x'])]) for k in keys])) for n in names}
+        return dict(fresh(meds, pooled), n=len(keys), skipped=sum(1 for k in Zs.files if k.startswith(pre) and k.endswith("skipped")),
+                    per_real=meds, cov=cov, base_med=bm), pooled
+
+    def field(P2, Pf, TX):
+        rb = 10 ** P2[:, 3]
+        base = {n: dict(bel=q(Pf[:, col(TX, Dg[n]["x"])]), col=float(TX[col(TX, Dg[n]["x"])])) for n in names}
+        for n in names:
+            base[n]["inside"] = bool(base[n]["bel"][1] <= Dg[n]["base"] <= base[n]["bel"][2])
+        return dict(fresh([np.median(rb)], rb), base=base), rb
+
+    o = {}
+    o["T1_L18"], pT18 = synth(S, "T1_r", S["TX"])
+    o["T1_L24"], pT24 = synth(Z, "T1L24_r", Z["TX_L24"])
+    o["F18_full"], r_full = field(F["P2"], F["Pf"], F["TX"])
+    o["F18_full"].update(cov=float(np.mean(F["ho_cov"])), cov2=float(np.mean(F["cov2"][:, 3])), fal=json.loads(str(F["fal"])))
+    o["F18_sub"], r_sub = field(Z["sub_P2"], Z["sub_Pf"], Z["TX"])
+    o["F18_sub"].update(cov=float(np.mean(Z["sub_ho_cov"])), cov2=float(np.mean(Z["sub_cov2"][:, 3])), fal=json.loads(str(Z["sub_fal"])),
+                        n=json.loads(str(Z["sub_n"])), n_data=int(len(Z["cols"])), kd=int(Z["sub_kd"]), kt=int(Z["sub_kt"]))
+    o["ERT"], r_ert = field(L["P2"], L["Pf"], L["TX"])
+    r = o["T1_L24"]["median"] / o["T1_L18"]["median"]; m = o["F18_sub"]["median"]
+    rules = dict(i=bool(1 / 1.5 <= r <= 1.5 and m < 8.0), ii=bool(m >= 8.0), iii=bool(r > 1.5))
+    txt = dict(i="the 2018–2024 difference is in the data (change since 2018, or something specific to the 2018 data), not the layout",
+               ii="the dune part / layout of the 2018 survey drove the low 2018 value (layout or model-class effect, not time)",
+               iii="the L24 layout tends to read ρ_below high — a caveat on the same-epoch value")
+    hit = [k for k in ("i", "ii", "iii") if rules[k]]
+    readout = "; ".join(f"({k}) {txt[k]}" for k in hit) if hit else "none of the logged outcomes applies (r < 1/1.5 and m < 8 Ω·m)"
+    o.update(ratio=r, rules=rules, readout=readout, x0=float(Z["x0"]))
+    M = ["# 7 — Layout vs time for ρ_below (v1.5-2 B)", "", f"**{EXPLORATORY}** Decisions and read-out logged before running "
+         "(`docs/decision_log.md` v1.5-2). No new prior ensemble: (B1) the L24 BEL v4 (v1.5-1) on T1/L24 synthetic data; (B2) the "
+         f"L18 BEL v4 retrained on the 2018 G1 quadrupoles with all four electrodes at x ≥ {o['x0']:.2f} m (the L24 line start).", "",
+         "ERT.dat date: within a few days of the CPTs (T. Hermans, pers. comm.); same epoch as the DP logs (23 September 2024).", "",
+         "## ρ_below", "",
+         "| data | BEL (ensemble) | data used | ρ_below: median (of posterior medians) | 90 % interval (pooled) | per realisation | fresh (≥ 8 and interval ⊇ 10.89–14.80)? |",
+         "|---|---|---|---|---|---|---|"]
+    t18, t24, fu, su, er = o["T1_L18"], o["T1_L24"], o["F18_full"], o["F18_sub"], o["ERT"]
+    yn = lambda b: "**yes**" if b else "**no**"
+    M += [f"| T1/L18 (v1.5-1) | L18 v4 | 1974 G1 | {t18['median']:.2f} | [{t18['p5']:.2f}, {t18['p95']:.2f}] | "
+          + ", ".join(f"{v:.2f}" for v in t18["per_real"]) + f" | {yn(t18['fresh'])} |",
+          f"| T1/L24 (B1) | L24 v4 | 1643 Stage-1 kept | {t24['median']:.2f} | [{t24['p5']:.2f}, {t24['p95']:.2f}] | "
+          + ", ".join(f"{v:.2f}" for v in t24["per_real"]) + f" | {yn(t24['fresh'])} |",
+          f"| 2018 field, full line (v1.5 Task 3) | L18 v4 | 1974 G1 | {fu['median']:.2f} | [{fu['p5']:.2f}, {fu['p95']:.2f}] | — | {yn(fu['fresh'])} |",
+          f"| 2018 field, L24 stretch (B2) | L18 v4, retrained on the subset | {su['n_data']} of 1974 G1 | {su['median']:.2f} | "
+          f"[{su['p5']:.2f}, {su['p95']:.2f}] | — | {yn(su['fresh'])} |",
+          f"| ERT.dat, same epoch (v1.5-1) | L24 v4 | 1643 Stage-1 kept | {er['median']:.2f} | [{er['p5']:.2f}, {er['p95']:.2f}] | — | {yn(er['fresh'])} |", "",
+          f"Ratio r = T1/L24 ÷ T1/L18 = **{r:.2f}**; 2018 L24-stretch median m = **{m:.2f} Ω·m**.", "",
+          "## Checks on the 2018 L24-stretch BEL (B2)", "",
+          f"- Training {su['n']['tr']['n_kept']} (of {su['n']['tr']['n_all']}; {su['n']['tr']['n_pos']} positive on the subset), held-out "
+          f"{su['n']['ho']['n_kept']}; PCA components: data {su['kd']}, target {su['kt']}.",
+          f"- Prior falsification (share of training samples below the field value): T² {100*su['fal']['t2']:.1f} %, robust T² "
+          f"{100*su['fal']['t2r']:.1f} %, Q {100*su['fal']['q']:.1f} % (full line: {100*fu['fal']['t2']:.1f} / {100*fu['fal']['t2r']:.1f} / "
+          f"{100*fu['fal']['q']:.1f} %).",
+          f"- Held-out 90 % coverage: lens base {100*su['cov']:.1f} %, ρ_below {100*su['cov2']:.1f} % (full line: {100*fu['cov']:.1f} %, "
+          f"{100*fu['cov2']:.1f} %).", "",
+          "## Lens base at the DP x positions", "",
+          "| DP | x | true / DP base | T1/L18: coverage / median | T1/L24: coverage / median | 2018 full: median [P5, P95] | 2018 L24 stretch: median [P5, P95] | inside (full / stretch) |",
+          "|---|---|---|---|---|---|---|---|"]
+    for n in names:
+        M.append(f"| {n} | {Dg[n]['x']:.1f} | {Dg[n]['base']:.2f} | {100*t18['cov'][n]:.0f} % / {t18['base_med'][n]:.2f} | "
+                 f"{100*t24['cov'][n]:.0f} % / {t24['base_med'][n]:.2f} | {fm(fu['base'][n]['bel'])} | {fm(su['base'][n]['bel'])} | "
+                 f"{'yes' if fu['base'][n]['inside'] else 'no'} / {'yes' if su['base'][n]['inside'] else 'no'} |")
+    nin = lambda b: sum(b["base"][n]["inside"] for n in names if n != "DP1")
+    o.update(base_in_full=nin(fu), base_in_sub=nin(su))
+    M += ["", f"DP2–DP7 bases inside the 90 % intervals: 2018 full {nin(fu)} of 6, 2018 L24 stretch {nin(su)} of 6.", "",
+          "## Read-out (logged before running)", "",
+          f"(i) 1/1.5 ≤ r ≤ 1.5 and m < 8 Ω·m: {'yes' if rules['i'] else 'no'}; (ii) m ≥ 8 Ω·m: {'yes' if rules['ii'] else 'no'}; "
+          f"(iii) r > 1.5: {'yes' if rules['iii'] else 'no'}.", "", f"**{readout}.**", "",
+          "## 2018 survey timing (v1.5-2 A2)", "",
+          "Measurement started at low tide (T. Hermans, pers. comm.). Estimated morning low water at Nieuwpoort on 7 March 2018 ≈ "
+          "10:55 CET (09:55 UTC) ± about 30 min, from the official 2017 Nieuwpoort tide table at the same lunar phase (17–18 March "
+          "2017, 5 days after full moon), not from the 2018 table. The first instrument record is at 11:22–11:24, so the clock was "
+          "most likely on local time (CET): the survey ran from about low water (11:24 CET) to 13:41 CET on a rising tide. "
+          "**Estimated; to be confirmed with the 2018 tide table or the Nieuwpoort gauge record.**"]
+    with open(os.path.join(res, "7_layout_vs_time.md"), "w", encoding="utf-8") as f:
+        f.write("\n".join(M) + "\n")
+    json.dump(o, open(os.path.join(dpp, "layout_vs_time.json"), "w", encoding="utf-8"), indent=1)
+    # F_19
+    fig, axes = plt.subplots(1, 2, figsize=(7.4, 3.3), gridspec_kw=dict(width_ratios=[1, 1.6]))
+    ax = axes[0]; bins = np.logspace(np.log10(1.5), np.log10(120), 40)
+    ax.hist(pT18, bins, density=True, alpha=0.40, color="#1f4e9c", label="T1/L18 (synthetic)")
+    ax.hist(pT24, bins, density=True, alpha=0.40, color="#7fa6e0", label="T1/L24 (synthetic)")
+    ax.hist(r_full, bins, density=True, histtype="step", lw=1.2, color="#d35400", label="2018, full line")
+    ax.hist(r_sub, bins, density=True, histtype="step", lw=1.2, ls="--", color="#d35400", label="2018, L24 stretch")
+    ax.hist(r_ert, bins, density=True, histtype="step", lw=1.3, color="k", label="ERT.dat (2024)")
+    for v in (10.89, 13.57, 14.80):
+        ax.axvline(v, color="#1f4e9c", ls=":", lw=0.7)
+    ax.axvline(8.0, color="0.5", ls="-", lw=0.5)
+    ax.set_xscale("log"); ax.set_xlabel("ρ_below (Ω·m)"); ax.set_title("(a) ρ_below posteriors (BEL v4)", fontsize=7); ax.legend(fontsize=5.6)
+    ax = axes[1]
+    for P, TX, c, lab, a in ((F["Pf"], F["TX"], "#d35400", "2018, full line", 0.15), (Z["sub_Pf"], Z["TX"], "#1b9e77", "2018, L24 stretch", 0.25)):
+        lo, md, hi = np.percentile(P, [5, 50, 95], 0)
+        ax.fill_between(TX, lo, hi, color=c, alpha=a, lw=0); ax.plot(TX, md, color=c, lw=1.3, label=lab)
+    ax.plot(L["TX"], np.median(L["Pf"], 0), color="k", lw=1.0, ls="--", label="ERT.dat (2024), median")
+    ax.axvline(o["x0"], color="0.5", lw=0.6, ls=":"); ax.text(o["x0"] + 2, 3.5, "L24 start", fontsize=6, color="0.4")
+    ax.plot([Dg[n]["x"] for n in names], [Dg[n]["base"] for n in names], "kD", ms=4, label="DP base (2024)")
+    ax.set_xlabel("x (m)"); ax.set_ylabel("Elevation (mTAW)"); ax.set_ylim(-25, 5); ax.legend(fontsize=5.6, loc="lower right")
+    ax.set_title("(b) lens base, 90 % intervals", fontsize=7)
+    fig.suptitle(EXPLORATORY, fontsize=7); fig.tight_layout(rect=(0, 0, 1, 0.94))
+    fig.savefig(os.path.join(figs, "F_19_layout_vs_time.png"), dpi=300); plt.close(fig)
+    print("\n".join(M))
+
+
 def main():
     ap = argparse.ArgumentParser()
     sub = ap.add_subparsers(dest="cmd", required=True)
@@ -596,6 +850,7 @@ def main():
         s.add_argument("--time-only", action="store_true")
     sub.add_parser("report").add_argument("--out", default=wc.ROOT)
     sub.add_parser("synth").add_argument("--out", default=wc.ROOT)
+    sub.add_parser("layout").add_argument("--out", default=wc.ROOT)
     l = sub.add_parser("l24"); l.add_argument("--out", default=wc.ROOT); l.add_argument("--workers", type=int, default=6)
     l.add_argument("--time-only", action="store_true")
     w = sub.add_parser("worker"); w.add_argument("--worker-id", type=int, required=True); w.add_argument("--dual", action="store_true")
@@ -603,7 +858,7 @@ def main():
     a = ap.parse_args()
     if a.cmd == "worker" and a.l24:
         l24_worker(a); return
-    dict(run=cmd_run, resume=cmd_run, report=cmd_report, worker=cmd_worker, synth=cmd_synth, l24=cmd_l24)[a.cmd](a)
+    dict(run=cmd_run, resume=cmd_run, report=cmd_report, worker=cmd_worker, synth=cmd_synth, l24=cmd_l24, layout=cmd_layout)[a.cmd](a)
 
 
 if __name__ == "__main__":

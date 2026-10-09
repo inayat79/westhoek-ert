@@ -337,7 +337,7 @@ def cmd_report(args):
          f"- {c['task1']} task-1 R values ({c['task1_on_published_electrodes']} on our electrodes p ≤ 101, our number = 102 − p); "
          f"{c['task2']} task-2 values (the reciprocal of station 3). All {c['matched']} published data matched (`1_raw_abem.md`).",
          f"- Published data {t['published'][0][11:16]}–{t['published'][1][11:16]}, session {t['session'][0][11:16]}–{t['session'][1][11:16]} "
-         "on 7 March 2018, instrument clock (time zone unknown — asked T. Hermans).",
+         "on 7 March 2018, instrument clock, most likely CET (v1.5-2). Estimated morning low water at Nieuwpoort on 7 March 2018 ≈ 10:55 CET (09:55 UTC) ± about 30 min, from the official 2017 Nieuwpoort tide table at the same lunar phase (17–18 March 2017, 5 days after full moon), not from the 2018 table; measurement started at low tide (T. Hermans, pers. comm., October 2026). The first instrument record is at 11:22–11:24, so the clock was most likely on local time (CET): the survey ran from about low water (11:24 CET) to 13:41 CET on a rising tide. Estimated; to be confirmed with the 2018 tide table or the Nieuwpoort gauge record.",
          "- Coordinate system: positions in electrode units along the line (5 m); instrument GPS per injection (WGS84 lat/lon).", "",
          "## 2. Zenodo record 10.5281/zenodo.20792093 (Vrancken, Paepen & Hermans 2026; CC-BY 4.0)", "",
          f"\"{meta['title']}\"; published {meta['publication_date']}; no version number; downloaded 2026-10-03.", "",
@@ -802,7 +802,7 @@ def pg_mesh_copy(m):
 DP_SURVEY = "2024-09-23"
 GAP_DAYS = 2392
 GAP_TXT = "time gap 7 March 2018 → 23 September 2024: 2392 days (≈ 6.5 years)"
-SD_DATE_TXT = "ERT.dat date: probably the same campaign, unconfirmed (asked T. Hermans)"
+SD_DATE_TXT = "ERT.dat date: within a few days of the CPTs (T. Hermans, pers. comm.)"
 TEMP_B = 1.26
 SMOOTH_N, DZG, Z_STOP, RB_OFF, FRESH_R = 51, 0.2, -25.0, 2.0, 20.0
 N_ARCH = 20000
@@ -1270,7 +1270,7 @@ def fig_location_v14(R, names, plt, s18, path):
     d = P[1] - P[0]; Lc = np.hypot(*d)
     pt = lambda x: P[0] + d * (x - X[0]) / (X[1] - X[0])
     a_, b_ = pt(X0_CPT - 355.0), pt(X0_CPT)
-    ax.plot([a_[0], b_[0]], [a_[1], b_[1]], "-", color="#d35400", lw=1.0, label="recent ERT line (Zenodo; date unconfirmed)")
+    ax.plot([a_[0], b_[0]], [a_[1], b_[1]], "-", color="#d35400", lw=1.0, label="recent ERT line (Zenodo; within a few days of the CPTs, T. Hermans pers. comm.)")
     cx = [J["cpts"][s]["lambert_x"] for s in sorted(J["cpts"])]; cy = [J["cpts"][s]["lambert_y"] for s in sorted(J["cpts"])]
     ax.plot(cx, cy, "o", ms=3.2, color="k", label="CPT / DP S02–S08 (surveyed; 23 Sep 2024)")
     ax.text(cx[0] + 25, cy[0] - 10, "DP1", fontsize=6); ax.text(cx[-1] + 25, cy[-1] - 10, "DP7", fontsize=6)

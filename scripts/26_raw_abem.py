@@ -425,14 +425,14 @@ def cmd_report(args):
          "(both values occur in the settings); protocols "
          + ", ".join(f"task {k}: {v}" for k, s_, v in J['settings']['task_settings'] if s_ in ("ProtocolFile", "SpreadFile")) + ".",
          "- Per-datum table: `T_S8_raw_2018.csv` (all task-1 data).", "",
-         "## (b) Survey timing (instrument clock; time zone unknown — asked T. Hermans)", "",
+         "## (b) Survey timing (instrument clock; most likely CET — see the note below the table, v1.5-2)", "",
          "| station | published data, instrument clock | if the clock is UTC: UTC+1 (CET) | if the clock is UTC+1: UTC | n |", "|---|---|---|---|---|"]
     for s, (a, b, n) in t["stations"].items():
         L.append(f"| {s} | {hm(a)}–{hm(b)} | {sh(a, 1)}–{sh(b, 1)} | {sh(a, -1)}–{sh(b, -1)} | {n} |")
     L += ["", f"Published data {hm(t['published'][0])}–{hm(t['published'][1])}; the whole session (incl. task 2, the reciprocal "
           f"measurements of station 3, {hm(t['task2'][0])}–{hm(t['task2'][1])}) {hm(t['session'][0])}–{hm(t['session'][1])} "
-          f"instrument clock, 7 March 2018. Instrument temperature {t['temp'][0]:.1f}–{t['temp'][1]:.1f} °C. Tide levels not "
-          "fetched in this round.", "",
+          f"instrument clock, 7 March 2018. Instrument temperature {t['temp'][0]:.1f}–{t['temp'][1]:.1f} °C. "
+          "Estimated morning low water at Nieuwpoort on 7 March 2018 ≈ 10:55 CET (09:55 UTC) ± about 30 min, from the official 2017 Nieuwpoort tide table at the same lunar phase (17–18 March 2017, 5 days after full moon), not from the 2018 table; measurement started at low tide (T. Hermans, pers. comm., October 2026). The first instrument record is at 11:22–11:24, so the clock was most likely on local time (CET): the survey ran from about low water (11:24 CET) to 13:41 CET on a rising tide. Estimated; to be confirmed with the 2018 tide table or the Nieuwpoort gauge record.", "",
           "## (c) Errors", "",
           "| quantity | median / P90 / P99 |", "|---|---|",
           f"| stacking error, all task-1 data | {dist(e['stack_all'])} |",

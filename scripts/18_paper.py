@@ -1428,6 +1428,25 @@ def extra_numbers_v15():
                 "v1.5.1: log-midpoint within ±2 m at DP3–DP7 per variant and layout (ablation)" + ex, f5, "`data/processed/v1_5/dp_synth/`")
         NUM.add("v15_dp7_line_end", f"{A['dp7_from_line_end']:.2f} m", "v1.5.1: DP7's distance from the landward end of the L24 line" + ex,
                 f5, "`data/raw/dp_zenodo_20792093/ERT.dat`", ref=(f"{rv}/6_ablation.md", "DP7 (x =", f"{A['dp7_from_line_end']:.2f} m"))
+    # v1.5.2 (decision log v1.5-2 B): layout vs time — appended after all earlier v1.5 rows
+    if os.path.exists(os.path.join(d, "layout_vs_time.json")):
+        V = json.load(open(os.path.join(d, "layout_vs_time.json"), encoding="utf-8")); f6 = "30_bel_v4.py:report_layout"
+        r7 = f"{rv}/7_layout_vs_time.md"; s6_ = "`data/processed/v1_5/bel_v4_layout/layout_vs_time.npz`"
+        t = V["T1_L24"]
+        NUM.add("v15_layout_T1_L24", f"{t['median']:.2f} [{t['p5']:.2f}, {t['p95']:.2f}] Ω·m; sees fresh water: {yn(t['fresh'])}",
+                "v1.5.2: BEL v4 (L24 ensemble) on T1/L24 synthetic data, ρ_below (median of posterior medians, pooled 90 %)" + ex, f6, s6_,
+                ref=(r7, "| T1/L24 (B1)", f"| {t['median']:.2f} |"))
+        NUM.add("v15_layout_ratio", f"{V['ratio']:.2f}", "v1.5.2: ρ_below median ratio T1/L24 ÷ T1/L18" + ex, f6, s6_,
+                ref=(r7, "Ratio r", f"**{V['ratio']:.2f}**"))
+        u = V["F18_sub"]
+        NUM.add("v15_layout_2018_stretch", f"{u['median']:.2f} [{u['p5']:.2f}, {u['p95']:.2f}] Ω·m ({u['n_data']} of 1974 G1 data); "
+                f"fresh: {yn(u['fresh'])}", "v1.5.2: BEL v4 on the 2018 data restricted to the L24 stretch (x ≥ 148.75 m), ρ_below" + ex,
+                f6, s6_, ref=(r7, "| 2018 field, L24 stretch (B2)", f"| {u['median']:.2f} |"))
+        NUM.add("v15_layout_2018_stretch_checks", f"held-out coverage base {100*u['cov']:.1f} %, ρ_below {100*u['cov2']:.1f} %; falsification "
+                f"T² {100*u['fal']['t2']:.1f} %, robust T² {100*u['fal']['t2r']:.1f} %, Q {100*u['fal']['q']:.1f} %; DP2–DP7 bases inside "
+                f"{V['base_in_sub']} of 6", "v1.5.2: checks of the 2018 L24-stretch BEL" + ex, f6, s6_)
+        NUM.add("v15_layout_readout", V["readout"], "v1.5.2: pre-logged read-out, layout vs time (decision log v1.5-2)" + ex, f6,
+                "`data/processed/v1_5/layout_vs_time.json`", ref=(r7, "**", V["readout"]))
 
 
 def extra_numbers_v14_groundtruth():
