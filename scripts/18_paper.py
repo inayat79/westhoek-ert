@@ -1401,6 +1401,33 @@ def extra_numbers_v15():
                 f"{yn(x6['base'])}", "v1.5 X6 (post hoc)" + ex, f3, s3)
         NUM.add("v15_bel_v4_learning", f"posterior 90 % width {100*B['width_post']/B['width_prior']:.0f} % of the prior's (log10)",
                 "v1.5: how much the 2018 data narrow ρ_below under prior v4" + ex, f3, s3)
+    # v1.5.1 (decision log v1.5-1): BEL checks and ablation — appended after all earlier v1.5 rows
+    if os.path.exists(os.path.join(d, "bel_checks.json")):
+        K = json.load(open(os.path.join(d, "bel_checks.json"), encoding="utf-8")); f4 = "30_bel_v4.py:report_checks"
+        for t in ("T1", "T3"):
+            o = K[t]
+            NUM.add(f"v15_bel_synth_{t}", f"{o['median']:.2f} [{o['p5']:.2f}, {o['p95']:.2f}] Ω·m; sees fresh water: {yn(o['fresh'])}",
+                    f"v1.5.1: BEL v4 on {t}/L18 synthetic data, ρ_below (median of posterior medians, pooled 90 %)" + ex, f4,
+                    "`data/processed/v1_5/bel_v4/synth.npz`", ref=(f"{rv}/5_bel_checks.md", f"| {t} | {o['n']}", f"| {o['median']:.2f} |"))
+        e = K["ERT"]
+        NUM.add("v15_bel_l24_rho_below", f"{e['median']:.2f} [{e['p5']:.2f}, {e['p95']:.2f}] Ω·m; finds fresh water: {yn(e['fresh'])}",
+                "v1.5.1: same-epoch BEL v4 on ERT.dat (L24 geometry), ρ_below median [P5, P95]" + ex, f4,
+                "`data/processed/v1_5/bel_v4_l24/`", ref=(f"{rv}/5_bel_checks.md", "ρ_below (ERT.dat, same epoch)",
+                                                          f"{e['median']:.2f} [{e['p5']:.2f}, {e['p95']:.2f}]"))
+        NUM.add("v15_bel_l24_checks", f"held-out coverage base {100*e['cov']:.1f} %, ρ_below {100*e['cov2']:.1f} %; falsification T² "
+                f"{100*e['fal']['t2']:.1f} %, robust T² {100*e['fal']['t2r']:.1f} %, Q {100*e['fal']['q']:.1f} %",
+                "v1.5.1: same-epoch BEL v4 checks" + ex, f4, "`data/processed/v1_5/bel_v4_l24/`")
+        nin = sum(r["inside"] for r in e["base"] if r["dp"] != "DP1")
+        NUM.add("v15_bel_l24_base_in", f"{nin} of 6", "v1.5.1: DP2–DP7 bases inside the same-epoch BEL v4 90 % intervals" + ex, f4,
+                "`data/processed/v1_5/bel_v4_l24/`")
+        NUM.add("v15_bel_readout", K["readout"], "v1.5.1: pre-logged read-out of the BEL checks (decision log v1.5-1)" + ex, f4,
+                "`data/processed/v1_5/bel_checks.json`", ref=(f"{rv}/5_bel_checks.md", "**", K["readout"]))
+    if os.path.exists(os.path.join(d, "ablation.json")):
+        A = json.load(open(os.path.join(d, "ablation.json"), encoding="utf-8")); f5 = "28_dp_synthetic.py:report_ablation"
+        NUM.add("v15_ablation", "; ".join(f"{k}: {len(v)} of 5" for k, v in A["ok"].items()) + f"; criterion met by: {', '.join(A['fixes']) or 'none'}",
+                "v1.5.1: log-midpoint within ±2 m at DP3–DP7 per variant and layout (ablation)" + ex, f5, "`data/processed/v1_5/dp_synth/`")
+        NUM.add("v15_dp7_line_end", f"{A['dp7_from_line_end']:.2f} m", "v1.5.1: DP7's distance from the landward end of the L24 line" + ex,
+                f5, "`data/raw/dp_zenodo_20792093/ERT.dat`", ref=(f"{rv}/6_ablation.md", "DP7 (x =", f"{A['dp7_from_line_end']:.2f} m"))
 
 
 def extra_numbers_v14_groundtruth():
