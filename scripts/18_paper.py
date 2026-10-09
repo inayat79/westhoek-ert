@@ -1338,9 +1338,52 @@ def extra_numbers(B):
     extra_numbers_v14()
     extra_numbers_v14_groundtruth()
     extra_numbers_v15()
+    extra_numbers_v16()
 
 
 V11_TRUTHS = ("T80a", "T80b", "T80c", "T80d", "T80e", "T80a_ht")
+
+
+def extra_numbers_v16():
+    """v1.6 numbers (appended after all v1.5 numbers; exploratory: scores chosen after the DP results were known, metric
+    definitions logged before computing): 31_scores.py."""
+    p = os.path.join(os.path.dirname(DS6), "v1_6", "scores.json")
+    if not os.path.exists(p):
+        print("[v1.6] no v1.6 products — skipped", flush=True)
+        return
+    O = json.load(open(p, encoding="utf-8")); rv = "results/v1_6/1_scores.md"; ex = " (exploratory; post hoc metric choice)"
+    fn, src = "31_scores.py:cmd_report", "`data/processed/v1_6/cases.csv`"
+    yn = lambda b: "yes" if b else "no"
+    c = O["regen"]
+    NUM.add("v16_regen_identical", f"{yn(c['all_identical'])} (v3 held-out {c['v3_heldout']['n']}, v4 {c['v4_heldout']['n']}, v4-L24 "
+            f"{c['v4L24_heldout']['n']}, v3 on 4 truths)", "v1.6: regenerated BEL posteriors reproduce the stored summaries exactly" + ex,
+            "31_scores.py:cmd_run", "`data/processed/v1_6/regen_check.json`")
+    ci = lambda o, k: f"{o[k]['mean']:.2f} [{o[k]['lo']:.2f}, {o[k]['hi']:.2f}]"
+    sk = lambda o, k: f"{o[k]['skill']:+.2f} [{o[k]['skill_lo']:+.2f}, {o[k]['skill_hi']:+.2f}]"
+    for m in ("BEL3-18", "BEL4-18", "BEL4-18s", "BEL4-24"):
+        o = O["field"][m]
+        NUM.add(f"v16_field_{m.replace('-', '_')}", f"IS {ci(o, 'IS')}, skill {sk(o, 'IS')}; CRPS {ci(o, 'CRPS')}, skill {sk(o, 'CRPS')}; "
+                f"{o['cov']} of {o['n']} inside; sharpness {o['width']:.2f} m",
+                f"v1.6: field lens-base scores of {m} at DP2–DP7 vs {o['prior']} (bootstrap 90 %)" + ex, fn, src,
+                ref=(rv, f"| {m} | {o['prior']} |", ci(o, "IS")))
+    pr = O["field"]["PRIOR4"]
+    NUM.add("v16_field_prior_sharpness", f"{pr['width']:.2f} m (PRIOR4); BEL {min(O['field'][m]['width'] for m in ('BEL3-18', 'BEL4-18', 'BEL4-18s', 'BEL4-24')):.2f}–"
+            f"{max(O['field'][m]['width'] for m in ('BEL3-18', 'BEL4-18', 'BEL4-18s', 'BEL4-24')):.2f} m",
+            "v1.6: median 90 % width at DP2–DP7, prior vs BEL" + ex, fn, src)
+    NUM.add("v16_field_pairs", "; ".join(f"{k}: P(IS) {v['IS']['p']:.3f}, P(CRPS) {v['CRPS']['p']:.3f}" for k, v in O["pairs"].items()),
+            "v1.6: paired bootstrap P(score_A < score_B) over DP2–DP7" + ex, fn, src)
+    H = {g["set"]: g for g in O["synthetic"] if g["group"] == "held-out"}
+    NUM.add("v16_heldout_skill", "; ".join(f"{k}: IS {H[k]['skill_IS']:+.2f}, CRPS {H[k]['skill_CRPS']:+.2f}" for k in ("ho_v3", "ho_v4", "ho_v4L24")),
+            "v1.6: BEL lens-base skill against the prior on the held-out sets" + ex, fn, src)
+    V = O["verdicts"]
+    NUM.add("v16_S1", f"{yn(V['S1']['holds'])} (vs prior {yn(V['S1']['vs_prior'])}, vs LIN-LM-24 {yn(V['S1']['vs_lin_lm'])}, vs LIN-3-24 "
+            f"{yn(V['S1']['vs_lin_3'])})", "v1.6 S1: BEL4-24 better than its prior and both linearised same-epoch methods" + ex, fn, src)
+    NUM.add("v16_S2", f"{yn(V['S2']['holds'])} (BEL4-18 {yn(V['S2']['BEL4-18'])}, BEL3-18 {yn(V['S2']['BEL3-18'])})",
+            "v1.6 S2: 2018 BEL skill > 0 against the prior (IS and CRPS)" + ex, fn, src)
+    NUM.add("v16_S3", f"{yn(V['S3']['holds'])} (v3 {H['ho_v3']['skill_IS']:+.2f}, v4 {H['ho_v4']['skill_IS']:+.2f})",
+            "v1.6 S3: held-out IS skill ≥ 0.3" + ex, fn, src)
+    NUM.add("v16_S4", f"{yn(V['S4']['holds'])} ({V['S4']['n_true']} of {V['S4']['n']} paired comparisons)",
+            "v1.6 S4: linearised mean IS higher than BEL on comparable synthetic truths (r ≤ 10 m)" + ex, fn, src)
 
 
 def extra_numbers_v15():

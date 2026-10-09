@@ -150,6 +150,8 @@ RAW_STEPS = [
     ("30-layout", ["30_bel_v4.py", "layout"], "15 min (BEL refits; no forward runs)", True),
     ("30-layout-t1", ["30_bel_v4.py", "layout-t1"], "5 min (BEL refits; no forward runs)", True),
     ("30-report", ["30_bel_v4.py", "report"], "1 min", True),
+    ("31-run", ["31_scores.py", "run"], "30 min (re-draws of the stored BEL fits, verified; no forward runs)", True),
+    ("31-report", ["31_scores.py", "report"], "1 min", True),
     ("27-report", ["27_dp_groundtruth.py", "report"], "< 1 min", True),
     ("19", ["19_rho_lens_bound_check.py"], "3 min", False),
     ("18", ["18_paper.py", "all"], "7 min", True),
@@ -189,6 +191,9 @@ PRODUCERS = [   # (regex, step id or callable(match) → step id, script, eviden
     (r"^data/processed/v1_5/bel_v4_layout/t1_subset\.npz$", "30-layout-t1", "30_bel_v4.py", "t1_subset.npz"),
     (r"^data/processed/v1_5/bel_v4_layout/", "30-layout", "30_bel_v4.py", "bel_v4_layout"),
     (r"^data/processed/v1_5/layout_vs_time\.json$", "30-report", "30_bel_v4.py", "layout_vs_time.json"),
+    (r"^data/processed/v1_6/(cases\.csv|regen_check\.json|rho_below_log10\.npz)$", "31-run", "31_scores.py", "cases.csv"),
+    (r"^data/processed/v1_6/scores\.json$", "31-report", "31_scores.py", "scores.json"),
+    (r"^results/v1_6/(1_scores\.md|T_S12_scores\.(csv|md))$", "31-report", "31_scores.py", "1_scores.md"),
     (r"^results/v1_5/7_layout_vs_time\.md$", "30-report", "30_bel_v4.py", "7_layout_vs_time.md"),
     (r"^data/processed/v1_5/bel_checks\.json$", "30-report", "30_bel_v4.py", "bel_checks.json"),
     (r"^data/processed/v1_5/ablation\.json$", "28-report", "28_dp_synthetic.py", "ablation.json"),
@@ -423,7 +428,8 @@ def check(out):
     L.append(f"- cross-checks against earlier stored reports: {n_ref_ok} / {n_ref} found")
     files_same = files_diff = 0
     for sub in (os.path.join("results", "stage6_v2"), os.path.join("results", "paper"), os.path.join("results", "v1_1"),
-                os.path.join("results", "v1_3"), os.path.join("results", "v1_4"), os.path.join("results", "v1_5")):
+                os.path.join("results", "v1_3"), os.path.join("results", "v1_4"), os.path.join("results", "v1_5"),
+                os.path.join("results", "v1_6")):
         d_new = os.path.join(out, sub)
         if not os.path.isdir(d_new) or os.path.abspath(out) == ROOT:
             continue
@@ -536,7 +542,8 @@ def from_cache(out, do_check):
                       ("26r", ["26_raw_abem.py", "report"]), ("27", ["27_dp_groundtruth.py", "run"]),
                       ("27c", ["27_dp_groundtruth.py", "cpt"]), ("27d", ["27_dp_groundtruth.py", "dp"]),
                       ("27r", ["27_dp_groundtruth.py", "report"]), ("28r", ["28_dp_synthetic.py", "report"]),
-                      ("29r", ["29_detectability.py", "report"]), ("30r", ["30_bel_v4.py", "report"])):
+                      ("29r", ["29_detectability.py", "report"]), ("30r", ["30_bel_v4.py", "report"]),
+                      ("31r", ["31_scores.py", "report"])):
         t[sid] = run(argv + ["--out", out], SCRIPT_DIR, log)
     t["18"] = run(["18_paper.py", "all", "--out", out, "--recompute"], SCRIPT_DIR, log)
     print(f"[from-cache] done: " + ", ".join(f"{k} {v:.0f} s" for k, v in t.items()) + f"; total {sum(t.values())/60:.1f} min")
