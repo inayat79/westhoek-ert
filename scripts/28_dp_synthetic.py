@@ -53,6 +53,8 @@ c11 = g27._load("c11", "11_stage4_closeout.py")
 sb = c11.sb
 
 TRUTHS = ["T1", "T2", "T3"]
+ABL = ["T2a", "T2b", "T2c"]                                  # v1.5-1 ablation of the log-midpoint's shallow bias
+N_REAL_ABL = 3
 LAYOUTS = ["L18", "L24"]
 N_REAL, N_REAL_LAM = 5, 2
 LAMS = [50.0, 5.0, 10.0, 20.0, 100.0]
@@ -133,6 +135,14 @@ class TruthModel:
             self.lr = {k: np.log10(np.array([d[k] for d in self.D])) for k in ("rho_lens", "rho_below", "rho_clay")}
             if name == "T3":
                 self.lr["rho_below"] = np.full(len(self.D), np.log10(RHO_BRACKISH))
+            if name == "T2a":                                    # flat base at the DP3–DP7 mean
+                m = [i for i, d in enumerate(self.D) if d["name"] in ("DP3", "DP4", "DP5", "DP6", "DP7")]
+                self.par["base"] = np.full(len(self.D), float(np.mean(self.par["base"][m])))
+            if name == "T2b":                                    # no clay: ρ_below down to −35 mTAW, 8.44 Ω·m below
+                self.par["clay"] = np.full(len(self.D), Z_DEEPEST)
+                self.lr["rho_clay"] = np.full(len(self.D), np.log10(DEEP))
+            if name == "T2c":                                    # ρ_lens = 1.5 Ω·m everywhere (DP1's top unit → lens)
+                self.lr["rho_lens"] = np.full(len(self.D), np.log10(1.5))
 
     def log10rho(self, x, z):
         x = np.asarray(x, float); z = np.asarray(z, float); shp = np.broadcast(x, z).shape
@@ -217,10 +227,13 @@ def run_job(d, truth, lay, real, m02, log):
     out = os.path.join(d, f"{truth}_{lay}_r{real}.npz")
     if os.path.exists(out):
         log(f"skip {truth} {lay} r{real}"); return
-    t0 = time.time(); ti, li = TRUTHS.index(truth) + 1, LAYOUTS.index(lay)
+    t0 = time.time(); li = LAYOUTS.index(lay)
+    abl = truth in ABL
+    ti = ABL.index(truth) + 1 if abl else TRUTHS.index(truth) + 1
+    s_noise, s_post, s_pre = (151000, 151100, 151200) if abl else (150000, 150100, 150200)
     R_true = forward(d, truth, lay)["R"]
     elec, q, (sx, sz) = layout(lay)
-    rng = np.random.default_rng([150000, ti, li, real])
+    rng = np.random.default_rng([s_noise, ti, li, real])
     R = R_true + np.sqrt((sb.ERR_REL * R_true) ** 2 + sb.ERR_ABS ** 2) * rng.standard_normal(len(R_true))
     pos = R > 0
     xcol = dp_x()
@@ -229,15 +242,15 @@ def run_job(d, truth, lay, real, m02, log):
         data = m02.build_datacont(land, elec, err_rel=sb.ERR_REL)[0]
         mgr = m02.run_inversion(data, lam=20.0, para_depth=sb.PARA_DEPTH, para_dx=sb.PARA_DX, max_iter=sb.MAX_ITER)
         ncell = mgr.paraDomain.cellCount(); cs = wc.ColumnSampler(g27.pg_mesh_copy(mgr.paraDomain), xcol)
-        pre, _ = sb.one_inversion(m02, land, elec, 20.0, np.zeros(ncell), cs, [150200, ti, li, real])
+        pre, _ = sb.one_inversion(m02, land, elec, 20.0, np.zeros(ncell), cs, [s_pre, ti, li, real])
         r = pre["resid"]; med = np.median(r); mad = np.median(np.abs(r - med)); keep = np.abs(r) <= 3 * 1.4826 * mad
         land2 = dict({k: v[keep] for k, v in land.items() if k in ("C1", "C2", "P1", "P2")}, R=land["R"][keep], n=int(keep.sum()),
                      err=np.zeros(int(keep.sum())))
         save = dict(truth=truth, layout=lay, real=real, xcol=xcol, z=cs.z, n_data=int(pos.sum()), n_kept=int(keep.sum()),
                     stage1_chi2=pre["chi2"])
-        lams = LAMS if real < N_REAL_LAM else [50.0]; pooled = []
+        lams = LAMS if (abl or real < N_REAL_LAM) else [50.0]; pooled = []
         for lam in lams:
-            info, S = sb.one_inversion(m02, land2, elec, lam, np.zeros(ncell), cs, [150100, ti, li, real, int(lam)])
+            info, S = sb.one_inversion(m02, land2, elec, lam, np.zeros(ncell), cs, [s_post, ti, li, real, int(lam)])
             V = cs(np.log10(info["model"].astype(float))); hat = c11.interfaces_all(V[:, :, None], cs.z); p = f"lam{int(lam)}_"
             save.update({p + "chi2": info["chi2"], p + "col": V.astype(np.float32)})
             for dd in ("thr3", "maxgrad", "logmid"):
@@ -247,7 +260,7 @@ def run_job(d, truth, lay, real, m02, log):
             bands = c11.sample_defs(cs, S)
             for dd in ("thr3", "logmid"):
                 save[p + f"band_{dd}"] = bands[dd]
-            if real < N_REAL_LAM:
+            if abl or real < N_REAL_LAM:
                 pooled.append(S.astype(np.float32))
             log(f"{truth} {lay} r{real} λ={lam:g}: χ²={info['chi2']:.2f}")
         if pooled:
@@ -310,15 +323,16 @@ def cmd_run(args):
                 run_job(d, "T2", lay, 2, m02, lambda m: logs.append(m))
             tj[lay] = (time.time() - t) / 2
         plan(res, tf, tj, args.workers); return
-    launch(d, [f"F:{t}:{l}:0" for t in TRUTHS for l in LAYOUTS if not os.path.exists(os.path.join(d, f"fwd_{t}_{l}.npz"))],
+    TT, NR = (ABL, N_REAL_ABL) if args.ablation else (TRUTHS, N_REAL)
+    launch(d, [f"F:{t}:{l}:0" for t in TT for l in LAYOUTS if not os.path.exists(os.path.join(d, f"fwd_{t}_{l}.npz"))],
            args.workers, root)
-    jobs = [f"J:{t}:{l}:{r}" for r in range(N_REAL) for t in TRUTHS for l in LAYOUTS
+    jobs = [f"J:{t}:{l}:{r}" for r in range(NR) for t in TT for l in LAYOUTS
             if not os.path.exists(os.path.join(d, f"{t}_{l}_r{r}.npz"))]
     jobs.sort(key=lambda j: int(j.split(":")[3]) >= N_REAL_LAM)
     print(f"[run] {len(jobs)} jobs on {args.workers} workers", flush=True)
     launch(d, jobs, args.workers, root)
-    n = sum(os.path.exists(os.path.join(d, f"{t}_{l}_r{r}.npz")) for t in TRUTHS for l in LAYOUTS for r in range(N_REAL))
-    print(f"[run] {n}/{len(TRUTHS) * len(LAYOUTS) * N_REAL} jobs done ({time.time() - t0:.0f} s)", flush=True)
+    n = sum(os.path.exists(os.path.join(d, f"{t}_{l}_r{r}.npz")) for t in TT for l in LAYOUTS for r in range(NR))
+    print(f"[run] {n}/{len(TT) * len(LAYOUTS) * NR} jobs done ({time.time() - t0:.0f} s)", flush=True)
 
 
 def plan(res, tf, tj, workers):
@@ -345,7 +359,7 @@ def main():
     sub = ap.add_subparsers(dest="cmd", required=True)
     for c in ("run", "resume"):
         s = sub.add_parser(c); s.add_argument("--out", default=wc.ROOT); s.add_argument("--workers", type=int, default=6)
-        s.add_argument("--time-only", action="store_true")
+        s.add_argument("--time-only", action="store_true"); s.add_argument("--ablation", action="store_true")
     sub.add_parser("report").add_argument("--out", default=wc.ROOT)
     w = sub.add_parser("worker"); w.add_argument("--worker-id", type=int, required=True); w.add_argument("--out", default=wc.ROOT)
     w.add_argument("--jobs", nargs="+", required=True)
@@ -510,6 +524,70 @@ def cmd_report(args):
     fig.suptitle(EXPLORATORY, fontsize=7)
     fig.savefig(os.path.join(figs, "F_S12_dp_truths.png"), dpi=300); plt.close(fig)
     print("\n".join(L))
+    if all(os.path.exists(os.path.join(SRC(), f"{t}_{l}_r{r}.npz")) for t in ABL for l in LAYOUTS for r in range(N_REAL_ABL)):
+        report_ablation(args, plt)
+
+
+def report_ablation(args, plt):
+    """6_ablation.md and F_18 (decision log v1.5-1 (3))."""
+    _, res = dirs(args.out); figs = os.path.join(res, "figs"); dpp = os.path.join(args.out, "data", "processed", "v1_5")
+    D = dp_inputs(); names = [d["name"] for d in D]; X = ("DP3", "DP4", "DP5", "DP6", "DP7")
+    def offs(t, lay, nreal):
+        Z = [np.load(os.path.join(SRC(), f"{t}_{lay}_r{r}.npz"), allow_pickle=True) for r in range(nreal)]
+        pooled_n = nreal if t in ABL else N_REAL_LAM
+        tb = TruthModel(t).par["base"]                     # the variant's own true base (T2a: flat)
+        o = {}
+        for j, d in enumerate(D):
+            o[d["name"]] = dict(logmid=float(np.median([zz["pooled_band_logmid"][1, j] for zz in Z[:pooled_n]])) - float(tb[j]),
+                                thr3=float(np.median([zz["lam50_mhat_thr3"][j] for zz in Z])) - float(tb[j]), base=float(tb[j]))
+        return o
+    E = g27.read_ert(); line_start = g27.X0_CPT - float(E["xloc"].max())
+    dp7 = [d for d in D if d["name"] == "DP7"][0]
+    R = {}
+    for lay in LAYOUTS:
+        R[f"T2|{lay}"] = offs("T2", lay, N_REAL)
+        for t in ABL:
+            R[f"{t}|{lay}"] = offs(t, lay, N_REAL_ABL)
+    ok = {k: [n for n in X if abs(v[n]["logmid"]) <= 2.0] for k, v in R.items()}
+    f_ = lambda v: "—" if not np.isfinite(v) else f"{v:+.2f}"
+    desc = dict(T2="T2 (reference, v1.5)", T2a="T2a flat base at the DP3–DP7 mean", T2b="T2b no clay (ρ_below to −35 mTAW)",
+                T2c="T2c ρ_lens = 1.5 Ω·m everywhere (DP1 top unit → lens)")
+    L = ["# 6 — Ablation of the log-midpoint's shallow bias (v1.5-1 (3))", "", f"**{EXPLORATORY}** Logged before running "
+         "(`docs/decision_log.md` v1.5-1).", "",
+         "λ-pooled log-midpoint median − true base (positive = too shallow; median over realisations) and λ = 50 3 Ω·m − true base. "
+         "T2a–T2c: 3 realisations, each pooled over λ = 5–100; T2: the v1.5 runs (5 realisations, pooling over realisations 0–1). "
+         "Criterion: log-midpoint within ±2 m at ≥ 3 of DP3–DP7.", "",
+         f"DP7 (x = {dp7['x']:.1f} m) lies **{dp7['x'] - line_start:.2f} m** from the landward end of the L24 line (x = {line_start:.2f} m); "
+         "on L18 it is mid-line.", ""]
+    for lay in LAYOUTS:
+        L += [f"## {lay}", "", "| variant | " + " | ".join(f"{n}: log-mid / 3 Ω·m" for n in X) + " | within ±2 m | criterion met |",
+              "|---|" + "---|" * len(X) + "---|---|"]
+        for t in ["T2"] + ABL:
+            k = f"{t}|{lay}"
+            L.append(f"| {desc[t]} | " + " | ".join(f"{f_(R[k][n]['logmid'])} / {f_(R[k][n]['thr3'])}" for n in X)
+                     + f" | {len(ok[k])} of 5 ({', '.join(ok[k]) or 'none'}) | {'**yes**' if len(ok[k]) >= 3 else 'no'} |")
+        L.append("")
+    fixes = sorted({k.split("|")[0] for k in ok if len(ok[k]) >= 3 and not k.startswith("T2|")})
+    L += ["## Which change brings the log-midpoint within ±2 m?", "",
+          ("Variants meeting the criterion on at least one layout: " + ", ".join(desc[t] for t in fixes) + "." if fixes
+           else "None of the three single changes brings the log-midpoint within ±2 m at ≥ 3 of DP3–DP7 on either layout.")]
+    with open(os.path.join(res, "6_ablation.md"), "w", encoding="utf-8") as f:
+        f.write("\n".join(L) + "\n")
+    json.dump(dict(offsets=R, ok=ok, fixes=fixes, dp7_from_line_end=dp7["x"] - line_start),
+              open(os.path.join(dpp, "ablation.json"), "w", encoding="utf-8"), indent=1)
+    fig, axes = plt.subplots(1, 2, figsize=(7.4, 3.2), sharey=True)
+    cols = dict(T2="k", T2a="#1f4e9c", T2b="#1b9e77", T2c="#d35400")
+    xs = np.arange(len(X))
+    for ax, lay in zip(axes, LAYOUTS):
+        for k_, t in enumerate(["T2"] + ABL):
+            ax.plot(xs + (k_ - 1.5) * 0.12, [R[f"{t}|{lay}"][n]["logmid"] for n in X], "o", color=cols[t], ms=4, label=desc[t])
+        ax.axhspan(-2, 2, color="0.9", lw=0); ax.axhline(0, color="0.5", lw=0.6)
+        ax.set_xticks(xs); ax.set_xticklabels(X, fontsize=7); ax.set_title(f"{lay}: log-midpoint − true base", fontsize=8)
+    axes[0].set_ylabel("m (positive = too shallow)"); axes[1].legend(fontsize=5.8)
+    fig.suptitle(EXPLORATORY + " Grey band: ±2 m.", fontsize=7); fig.tight_layout(rect=(0, 0, 1, 0.93))
+    fig.savefig(os.path.join(figs, "F_18_ablation.png"), dpi=300); plt.close(fig)
+    print("\n".join(L))
+
 
 
 if __name__ == "__main__":
