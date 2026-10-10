@@ -1339,9 +1339,27 @@ def extra_numbers(B):
     extra_numbers_v14_groundtruth()
     extra_numbers_v15()
     extra_numbers_v16()
+    extra_numbers_v17()
 
 
 V11_TRUTHS = ("T80a", "T80b", "T80c", "T80d", "T80e", "T80a_ht")
+
+
+def extra_numbers_v17():
+    """v1.7 numbers quoted in the Fig. 1 caption draft (appended after all v1.6 numbers): 32_location_map.py."""
+    p = os.path.join(os.path.dirname(DS6), "v1_7", "location_map.json")
+    if not os.path.exists(p):
+        print("[v1.7] no location-map products — skipped", flush=True)
+        return
+    O = json.load(open(p, encoding="utf-8")); cap = "results/figs/F_01_caption_draft.md"; fn = "32_location_map.py:cmd_build"
+    NUM.add("v17_ortho_year", f"{O['image_year']} ({O['ortho_layer']})", "v1.7: year of the Digitaal Vlaanderen winter orthophoto in Fig. 1c",
+            fn, "`data/external/basemap/sources.json`", ref=(cap, "winter mosaic", str(O["image_year"])))
+    L = O["line2024"]
+    NUM.add("v17_line2024_offset", f"{L['mean_abs_offset_m']:.1f} m (ends {L['offset_from_2018_at_x148_75_m']:.2f} / "
+            f"{L['offset_from_2018_at_x503_75_m']:.2f} m; angle {L['angle_deg']:.2f}°)",
+            "v1.7: perpendicular offset of the 2024 ERT line (least-squares line through S02–S08) from the 2018 K1 chord",
+            fn, "`data/raw/cpt_vrancken_2024/CPT/Location.txt`, `data/raw/GPS_coordinate.xlsx`",
+            ref=(cap, "from K1", f"{L['mean_abs_offset_m']:.1f} m"))
 
 
 def extra_numbers_v16():
