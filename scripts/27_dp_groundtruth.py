@@ -551,7 +551,9 @@ def report_cpt(args, plt, s18):
     L = ["# 5 — CPT inventory and surveyed DP geometry (Task E)", "",
          "Mechanical CPT soundings of E. Vrancken (Ghent University; unpublished, used with permission, not to be "
          "redistributed; received 8 October 2026), carried out on **23 September 2024**. Per E. Vrancken and T. Hermans the "
-         "Zenodo DP resistivity logs are CPT-EC measurements from the same pushes: same date and positions. Raw files: "
+         "Zenodo DP resistivity logs are CPT-EC measurements from the same pushes: same date and positions. The CPTs were made by "
+         "Group Verbeke with a Gouda Geo-Equipment cone; no temperature information exists in the report or the data (E. Vrancken, "
+         "pers. comm., October 2026). Raw files: "
          "`data/raw/cpt_vrancken_2024/` (git-ignored; available from the data owner). Extracted files verified byte-identical "
          "to the archive members.", "",
          "| file | SHA256 |", "|---|---|"] + [f"| `{k}` | `{v}` |" for k, v in sorted(J["sha256"].items())]
@@ -802,7 +804,7 @@ def pg_mesh_copy(m):
 DP_SURVEY = "2024-09-23"
 GAP_DAYS = 2392
 GAP_TXT = "time gap 7 March 2018 → 23 September 2024: 2392 days (≈ 6.5 years)"
-SD_DATE_TXT = "ERT.dat date: within a few days of the CPTs (T. Hermans, pers. comm.)"
+SD_DATE_TXT = "2025 ERT line (ERT.dat): April 2025, about seven months after the CPTs (E. Vrancken, pers. comm.)"
 TEMP_B = 1.26
 SMOOTH_N, DZG, Z_STOP, RB_OFF, FRESH_R = 51, 0.2, -25.0, 2.0, 20.0
 N_ARCH = 20000
@@ -1046,10 +1048,11 @@ def report_dp(args, plt, s18):
     # ── 3_same_epoch.md ──
     SDn = np.load(os.path.join(wc.ROOT, "data", "processed", "v1_4", SD_DIR_NAME, "cpt.npz"), allow_pickle=True)
     SDf = np.load(os.path.join(wc.ROOT, "data", "processed", "v1_4", SD_DIR_NAME, "flat.npz"), allow_pickle=True)
-    M = ["# 3 — Same-epoch test: ERT.dat inverted with our pipeline vs the DP logs (Task D)", "",
+    M = ["# 3 — The 2025 ERT line (ERT.dat) inverted with our pipeline vs the DP logs (Task D)", "",
          f"**{G}; {R['sd_date']}.** ERT.dat electrodes at our_x = {X0_CPT:g} − x_local (X0 fitted to the surveyed CPT positions), "
          "on the CPT ground levels (flat topography as a check); Stage-1 G1 outlier rule, v1.0 error model, λ = 5–100 with "
          "pooling, linearised posterior (seeds `default_rng([139000, λ])`). Pre-registration: v1.4-6, v1.4-8.", "",
+         "**Note (v1.7-1):** this test was pre-registered and evaluated assuming a near-simultaneous survey; the 2025 ERT line (ERT.dat) was measured in April 2025, about seven months after the CPTs of 23 September 2024 (E. Vrancken, pers. comm.). The gap is reported as a limitation; no verdict changes.", "",
          f"- Data: {int(SDn['n_data'])} positive data; Stage-1 rule kept {int(SDn['n_kept'])} ({int(SDn['n_data']) - int(SDn['n_kept'])} removed); "
          f"stage-1 χ² {float(SDn['stage1_chi2']):.2f}. χ² per λ (topography): " +
          ", ".join(f"λ = {int(l)}: {float(SDn[f'lam{int(l)}_chi2']):.2f}" for l in SD_LAMS) + "; flat: " +
@@ -1076,7 +1079,7 @@ def report_dp(args, plt, s18):
     with open(os.path.join(res, "T_S7_same_epoch.csv"), "w", encoding="utf-8") as f:
         f.write("\n".join(T7).replace("—", "") + "\n")
     with open(os.path.join(res, "T_S7_same_epoch.md"), "w", encoding="utf-8") as f:
-        f.write("# T_S7 — same-epoch image vs DP (Markdown copy of `T_S7_same_epoch.csv`)\n\n" + G + "; " + R["sd_date"] + ".\n\n"
+        f.write("# T_S7 — image of the 2025 ERT line vs DP (Markdown copy of `T_S7_same_epoch.csv`)\n\n" + G + "; " + R["sd_date"] + ".\n\n"
                 + "| " + " | ".join(T7[0].split(",")) + " |\n|" + "---|" * len(T7[0].split(",")) + "\n"
                 + "\n".join("| " + " | ".join(l.split(",")) + " |" for l in T7[1:]) + "\n")
     # ── T_S6 (geometry + resistivity) ──
@@ -1191,12 +1194,13 @@ def figures_dp(R, names, plt, s18, figs):
         ax.set_xscale("log"); ax.set_xlim(0.3, 300); ax.set_ylim(-36, 6)
         ax.set_title(f"{nm}: x = {o['x']:.0f} m\nimage r = {f_r(s_['r'])} m", fontsize=7); ax.tick_params(labelsize=6)
     axes[0].set_ylabel("Elevation (mTAW)")
-    h = [Line2D([], [], color="k", label="DP log, 0.5 m median"), Line2D([], [], color="#1b9e77", label="ERT.dat image (our pipeline, λ = 50)"),
+    h = [Line2D([], [], color="k", label="DP log, 0.5 m median"), Line2D([], [], color="#1b9e77", label="2025 ERT line image (our pipeline, λ = 50)"),
          Patch(facecolor="none", edgecolor=COL["logmid"], hatch="////", label="image log-midpoint, λ-pooled 90 %"),
          Patch(facecolor=COL["thr3"], alpha=0.3, label="image 3 Ω·m, λ = 50 90 %")]
     fig.legend(handles=h, loc="lower center", ncol=4, fontsize=6.5, frameon=False)
-    fig.suptitle(f"Same epoch: DP logs vs ERT.dat inverted with our pipeline ({R['sd_date']})", fontsize=8)
-    fig.tight_layout(rect=(0, 0.07, 1, 0.95)); fig.savefig(os.path.join(figs, "F_12b_dp_vs_samedate.png"), dpi=300); plt.close(fig)
+    fig.suptitle(f"DP logs vs the 2025 ERT line inverted with our pipeline ({R['sd_date']})", fontsize=8)
+    fig.tight_layout(rect=(0, 0.07, 1, 0.95)); fig.savefig(os.path.join(figs, "F_12b_dp_vs_samedate.png"), dpi=300)
+    wc.save_publication(fig, os.path.dirname(os.path.dirname(os.path.dirname(figs))), "F_12b_dp_vs_2025_ert_line"); plt.close(fig)
     # F_13: section
     k1 = _load("k1c", "21_k1_comparison.py")
     v4 = np.load(s18.LIN_V4); x4, b4, r4 = v4["x"], v4["pooled_logmid"], v4["r_logmid"]
@@ -1270,7 +1274,7 @@ def fig_location_v14(R, names, plt, s18, path):
     d = P[1] - P[0]; Lc = np.hypot(*d)
     pt = lambda x: P[0] + d * (x - X[0]) / (X[1] - X[0])
     a_, b_ = pt(X0_CPT - 355.0), pt(X0_CPT)
-    ax.plot([a_[0], b_[0]], [a_[1], b_[1]], "-", color="#d35400", lw=1.0, label="recent ERT line (Zenodo; within a few days of the CPTs, T. Hermans pers. comm.)")
+    ax.plot([a_[0], b_[0]], [a_[1], b_[1]], "-", color="#d35400", lw=1.0, label="2025 ERT line (Zenodo; April 2025)")
     cx = [J["cpts"][s]["lambert_x"] for s in sorted(J["cpts"])]; cy = [J["cpts"][s]["lambert_y"] for s in sorted(J["cpts"])]
     ax.plot(cx, cy, "o", ms=3.2, color="k", label="CPT / DP S02–S08 (surveyed; 23 Sep 2024)")
     ax.text(cx[0] + 25, cy[0] - 10, "DP1", fontsize=6); ax.text(cx[-1] + 25, cy[-1] - 10, "DP7", fontsize=6)
@@ -1305,7 +1309,7 @@ def report_method(args):
          "- **Differences from our pipeline.** Their uncertainty comes from the spread of an ensemble of regularised "
          "deterministic models (λ, correlation lengths, reference model), not from a linearised posterior or a learned "
          "prior; 10 % instead of our 3 % + 1e-4 Ω error model; no outlier removal beyond non-positive values; flat "
-         "topography (all electrodes at z = 0). Our same-epoch test (`3_same_epoch.md`) inverts their ERT.dat with our "
+         "topography (all electrodes at z = 0). Our test on the 2025 ERT line (`3_same_epoch.md`) inverts their ERT.dat with our "
          "pipeline instead."]
     with open(os.path.join(res, "4_inreview_method.md"), "w", encoding="utf-8") as f:
         f.write("\n".join(L) + "\n")

@@ -544,6 +544,7 @@ def cmd_report(args):
          f"Regenerated BEL posteriors (decision log v1.6-0) reproduce the stored summaries exactly: {yn(chk['all_identical'])} "
          f"(v3 held-out {chk['v3_heldout']['n']}, v4 held-out {chk['v4_heldout']['n']}, v4-L24 held-out {chk['v4L24_heldout']['n']}, "
          "v3 on the four v1.0 truths).", "",
+         "Method ids ending in -24 refer to the 2025 ERT line (ERT.dat, L24 layout; April 2025, about seven months after the CPTs (E. Vrancken, pers. comm.)); the ids are kept from v1.6-0.", "",
          "## Field — DP2–DP7 (n = 6), truth = DP log-midpoint base", "",
          "Bootstrap: paired over the 6 DPs, 10 000 resamples (`default_rng([160100, 0])`); [90 % interval].", "",
          "| method | prior | n | inside 90 % | sharpness | mean abs. error | mean IS | IS skill | mean CRPS | CRPS skill |",
@@ -647,7 +648,8 @@ def cmd_report(args):
     ax.set_title("(c) coverage vs sharpness\nfilled: field; open squares: synthetic sets (grey: their priors)", fontsize=7); ax.tick_params(labelsize=6.5)
     fig.suptitle("Scores chosen after the DP results were known; metric definitions logged before computing (decision log v1.6-0). "
                  "Blue BEL, orange linearised, grey prior.", fontsize=6.5)
-    fig.tight_layout(rect=(0, 0, 1, 0.93)); fig.savefig(os.path.join(figs, "F_20_scores.png"), dpi=300); plt.close(fig)
+    fig.tight_layout(rect=(0, 0, 1, 0.93)); fig.savefig(os.path.join(figs, "F_20_scores.png"), dpi=300)
+    wc.save_publication(fig, args.out, "F_20_scores"); plt.close(fig)
     # ── F_S13 ──
     fig, axes = plt.subplots(1, 2, figsize=(9.0, 0.22 * len(SG) + 1.4), sharey=True)
     ys = np.arange(len(SG))[::-1]; labs = [f"{g['group']}: {g['label']}" + (" ‡" if g["approx"] else "") for g in SG]

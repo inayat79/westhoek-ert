@@ -68,6 +68,25 @@ def read_electrodes():
     return np.array(sorted(land)), np.array(sorted(sea))
 
 
+def save_publication(fig, out_root, name, clear_axes_titles=()):
+    """Publication copy of a report figure → <out_root>/results/figs/<name>.{png,pdf}: no working title (the suptitle and the
+    given axes titles are hidden for this save and restored afterwards), 600 dpi PNG, PDF without date metadata."""
+    d = os.path.join(out_root, "results", "figs"); os.makedirs(d, exist_ok=True)
+    st = getattr(fig, "_suptitle", None); vis = st.get_visible() if st is not None else None
+    old = [(ax, ax.get_title()) for ax in clear_axes_titles]
+    if st is not None:
+        st.set_visible(False)
+    for ax, _ in old:
+        ax.set_title("")
+    fig.savefig(os.path.join(d, name + ".png"), dpi=600, bbox_inches="tight", pad_inches=0.03, metadata={"Software": None})
+    fig.savefig(os.path.join(d, name + ".pdf"), bbox_inches="tight", pad_inches=0.03,
+                metadata={"CreationDate": None, "ModDate": None, "Producer": None, "Creator": None})
+    if st is not None:
+        st.set_visible(vis)
+    for ax, t in old:
+        ax.set_title(t)
+
+
 def land_surface():
     land, _ = read_electrodes()
     return land[:, 0], land[:, 1]

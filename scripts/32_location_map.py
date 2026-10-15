@@ -472,7 +472,7 @@ def cmd_build(args):
     axc.plot(*E.T, "-", color=COL["land"], lw=2.0, zorder=4, path_effects=stroke(3.0), label="2018 land ERT (K1)")
     axc.plot([M1[0], M2[0]], [M1[1], M2[1]], color=COL["marine"], lw=1.2, ls=(0, (5, 2.5)), zorder=4, path_effects=stroke(2.2),
              label="2018 marine ERT (high tide)")
-    axc.plot(*E24[[0, -1]].T, "-", color=COL["e24"], lw=0.8, zorder=5, path_effects=stroke(1.5), label="2024 ERT")
+    axc.plot(*E24[[0, -1]].T, "-", color=COL["e24"], lw=0.8, zorder=5, path_effects=stroke(1.5), label="2025 ERT")
     pin = pin_marker()
     axc.plot(*cp.T, ls="none", marker=pin, ms=9, mfc=COL["cpt"], mec="k", mew=0.6, zorder=7, label="CPT / CPT-EC (2024)†")
     for i, s in enumerate(G["cpt_names"]):
@@ -505,7 +505,7 @@ def cmd_build(args):
     yb = -1.6
     axd.plot([148.75, 503.75], [yb, yb], "-", color="k", lw=2.4, solid_capstyle="butt", zorder=4)
     axd.plot([148.75, 503.75], [yb, yb], "-", color=COL["e24"], lw=1.4, solid_capstyle="butt", zorder=5)
-    axd.text(326, yb + 0.45, "2024 ERT (x = 148.75–503.75 m)", fontsize=7, ha="center", va="bottom")
+    axd.text(326, yb + 0.45, "2025 ERT (x = 148.75–503.75 m)", fontsize=7, ha="center", va="bottom")
     for xv, lab in ((90, "dune\nfoot"), (G["x_hw"], f"HW 2018\n(x = {G['x_hw']:.0f} m)"), (G["x_lw"], "LW")):
         axd.axvline(xv, color="0.25", lw=0.6, ls=(0, (3, 2)), zorder=1)
         axd.text(xv + (-4 if xv > 480 else 4), 8.4, lab, fontsize=7, ha="right" if xv > 480 else "left", va="top")
@@ -546,7 +546,7 @@ def cmd_build(args):
            "**Fig. 1.** Location of the Westhoek K1 profile (De Panne, Belgium). (a) Overview; red box: (b). (b) Coastal relief "
            "(sea: EMODnet DTM 2024, depth below LAT; land: Copernicus DEM GLO-30, EGM2008; datums not unified; land clipped at 40 m); "
            "black box: (c). (c) Site on the 2025 winter orthophoto: 2018 land ERT line K1 (E1–E102, 5 m spacing; Paepen et al., 2020; "
-           "Hermans et al., 2020), 2018 marine ERT line at high tide (E103–E538; Hermans et al., 2020), 2024 ERT line (72 electrodes; "
+           "Hermans et al., 2020), 2018 marine ERT line at high tide (E103–E538; Hermans et al., 2020), 2025 ERT line (72 electrodes, April 2025; "
            f"Vrancken et al., 2026), on average {off:.1f} m from K1, and the CPT / CPT-EC soundings DP1–DP7 (2024)†. "
            "(d) Elevation along K1: 2018 electrodes and 2024 CPT ground levels; HW/LW: high- and low-water lines of the 2018 survey.",
            "", "† Unpublished data (E. Vrancken), used with permission.", "",

@@ -530,7 +530,7 @@ def report_checks(args):
                               lin_logmid=s_["band_logmid_pooled"][1:4], lin_thr3=s_["band_thr3"][1:4]))
     out["ERT"]["base"] = base_rows
     plan = json.load(open(os.path.join(D4L(), "plan.json"), encoding="utf-8"))
-    M = ["# 5 — BEL checks: synthetic data and the same-epoch ERT.dat (v1.5-1)", "", f"**{EXPLORATORY}** Decisions and read-out logged "
+    M = ["# 5 — BEL checks: synthetic data and the 2025 ERT line (ERT.dat; v1.5-1)", "", f"**{EXPLORATORY}** Decisions and read-out logged "
          "before running (`docs/decision_log.md` v1.5-1).", "",
          "## (1) BEL v4 on synthetic data (T1 and T3 on the 2018 layout, 1974 G1 quadrupoles)", "",
          "| truth | realisations | ρ_below: median of posterior medians | pooled 90 % interval | per realisation | true ρ_below (DP3–DP5) | sees fresh water? |",
@@ -546,7 +546,7 @@ def report_checks(args):
         M.append(f"| {n} | {Dg[n]['x']:.1f} | {Dg[n]['base']:.2f} | {100*out['T1']['cov'][n]:.0f} % / {out['T1']['base_med'][n]:.2f} | "
                  f"{100*out['T3']['cov'][n]:.0f} % / {out['T3']['base_med'][n]:.2f} |")
     e = out["ERT"]
-    M += ["", "## (2) Same-epoch BEL v4 on ERT.dat (L24 geometry, own prior ensemble)", "",
+    M += ["", "## (2) BEL v4 on the 2025 ERT line (ERT.dat, April 2025, about seven months after the CPTs (E. Vrancken, pers. comm.); L24 geometry, own prior ensemble)", "",
           f"Ensemble {e['n']['tr']['n_all']} training + {e['n']['ho']['n_all']} held-out (after filters {e['n']['tr']['n_kept']} / "
           f"{e['n']['ho']['n_kept']}); timing: 20 runs, mean {plan['mean_s']:.1f} s (dual {plan['dual_mean_s']:.1f} s) → projected "
           f"{plan['wall_h']:.1f} h on {plan['workers']} workers (limit 24 h). Approximation error ({e['approx']['n']} dual samples): median "
@@ -554,14 +554,14 @@ def report_checks(args):
           f"- Prior falsification against ERT.dat (share of training samples below the field value): T² {100*e['fal']['t2']:.1f} %, "
           f"robust T² {100*e['fal']['t2r']:.1f} %, Q {100*e['fal']['q']:.1f} %.",
           f"- Held-out 90 % coverage: lens base {100*e['cov']:.1f} %, ρ_below {100*e['cov2']:.1f} %.",
-          f"- **ρ_below (ERT.dat, same epoch): {e['median']:.2f} [{e['p5']:.2f}, {e['p95']:.2f}] Ω·m**; DP3–DP5 (clean sand): "
+          f"- **ρ_below (2025 ERT line): {e['median']:.2f} [{e['p5']:.2f}, {e['p95']:.2f}] Ω·m**; DP3–DP5 (clean sand): "
           "10.89–14.80 Ω·m → finds fresh water: " + ("**yes**" if e["fresh"] else "**no**") + ".", "",
           "| DP | x | BEL column | BEL base median [P5, P95] | DP base | inside | linearised λ-pooled log-midpoint (v1.4 T_S7) | linearised λ = 50 3 Ω·m |",
           "|---|---|---|---|---|---|---|---|"]
     for r in base_rows:
         M.append(f"| {r['dp']} | {r['x']:.1f} | {r['col']:g} | {fm(r['bel'])} | {r['dp_base']:.2f} | {'yes' if r['inside'] else 'no'} | "
                  f"{fm(r['lin_logmid'])} | {fm(r['lin_thr3'])} |")
-    M += ["", f"## Read-out (logged before running)", "", f"**{readout}.**"]
+    M += ["", f"## Read-out (logged before running)", "", f"**{readout}.**", "", "**Note (v1.7-1):** this test was pre-registered and evaluated assuming a near-simultaneous survey; the 2025 ERT line (ERT.dat) was measured in April 2025, about seven months after the CPTs of 23 September 2024 (E. Vrancken, pers. comm.). The gap is reported as a limitation; no verdict changes."]
     with open(os.path.join(res, "5_bel_checks.md"), "w", encoding="utf-8") as f:
         f.write("\n".join(M) + "\n")
     out["readout"] = readout
@@ -572,23 +572,24 @@ def report_checks(args):
     for t, col in (("T1", "#1f4e9c"), ("T3", "#d35400")):
         pooled = np.concatenate([10 ** S[f"{k[:-3]}_P2"][:, 3] for k in S.files if k.startswith(t) and k.endswith("_P2")])
         ax.hist(pooled, bins, density=True, alpha=0.45, color=col, label=f"BEL v4 on {t}/L18")
-    ax.hist(rbL, bins, density=True, histtype="step", lw=1.3, color="k", label="BEL v4 on ERT.dat (same epoch)")
+    ax.hist(rbL, bins, density=True, histtype="step", lw=1.3, color="k", label="BEL v4 on the 2025 ERT line")
     for v in (10.89, 13.57, 14.80):
         ax.axvline(v, color="#1f4e9c", ls=":", lw=0.7)
     ax.axvline(4.93, color="#d35400", ls=":", lw=0.7); ax.set_xscale("log"); ax.set_xlabel("ρ_below (Ω·m)")
     ax.set_title("(a) ρ_below posteriors; dotted: true / DP values", fontsize=7); ax.legend(fontsize=5.8)
     ax = axes[1]
     lo, md, hi = np.percentile(L["Pf"], [5, 50, 95], 0)
-    ax.fill_between(TXL, lo, hi, color="#1b9e77", alpha=0.25, lw=0); ax.plot(TXL, md, color="#1b9e77", lw=1.4, label="BEL v4 on ERT.dat")
+    ax.fill_between(TXL, lo, hi, color="#1b9e77", alpha=0.25, lw=0); ax.plot(TXL, md, color="#1b9e77", lw=1.4, label="BEL v4 on the 2025 ERT line")
     xr = [r["x"] for r in base_rows]
     ax.errorbar(np.array(xr) + 3, [r["lin_logmid"][0] for r in base_rows],
                 yerr=[[r["lin_logmid"][0] - r["lin_logmid"][1] for r in base_rows], [r["lin_logmid"][2] - r["lin_logmid"][0] for r in base_rows]],
                 fmt="^", color="#1f4e9c", ms=3.5, lw=0.8, label="linearised log-midpoint, λ-pooled (v1.4)")
     ax.plot(xr, [r["dp_base"] for r in base_rows], "kD", ms=4, label="DP base (2024)")
     ax.set_xlabel("x (m)"); ax.set_ylabel("Elevation (mTAW)"); ax.set_ylim(-25, 5); ax.legend(fontsize=5.8, loc="lower right")
-    ax.set_title("(b) same epoch: lens base", fontsize=7)
+    ax.set_title("(b) 2025 ERT line: lens base", fontsize=7)
     fig.suptitle(EXPLORATORY, fontsize=7); fig.tight_layout(rect=(0, 0, 1, 0.94))
-    fig.savefig(os.path.join(figs, "F_17_bel_synthetic_and_same_epoch.png"), dpi=300); plt.close(fig)
+    fig.savefig(os.path.join(figs, "F_17_bel_synthetic_and_same_epoch.png"), dpi=300)
+    wc.save_publication(fig, args.out, "F_17_bel_synthetic_and_2025_ert_line"); plt.close(fig)
     print("\n".join(M))
 
 
@@ -803,7 +804,7 @@ def report_layout(args):
     M = ["# 7 — Layout vs time for ρ_below (v1.5-2 B)", "", f"**{EXPLORATORY}** Decisions and read-out logged before running "
          "(`docs/decision_log.md` v1.5-2). No new prior ensemble: (B1) the L24 BEL v4 (v1.5-1) on T1/L24 synthetic data; (B2) the "
          f"L18 BEL v4 retrained on the 2018 G1 quadrupoles with all four electrodes at x ≥ {o['x0']:.2f} m (the L24 line start).", "",
-         "ERT.dat date: within a few days of the CPTs (T. Hermans, pers. comm.); same epoch as the DP logs (23 September 2024).", "",
+         "2025 ERT line (ERT.dat): April 2025, about seven months after the CPTs (E. Vrancken, pers. comm.); the CPTs / DP logs date from 23 September 2024.", "", "**Note (v1.7-1):** this test was pre-registered and evaluated assuming a near-simultaneous survey; the 2025 ERT line (ERT.dat) was measured in April 2025, about seven months after the CPTs of 23 September 2024 (E. Vrancken, pers. comm.). The gap is reported as a limitation; no verdict changes.", "",
          "## ρ_below", "",
          "| data | BEL (ensemble) | data used | ρ_below: median (of posterior medians) | 90 % interval (pooled) | per realisation | fresh (≥ 8 and interval ⊇ 10.89–14.80)? |",
          "|---|---|---|---|---|---|---|"]
@@ -816,7 +817,7 @@ def report_layout(args):
           f"| 2018 field, full line (v1.5 Task 3) | L18 v4 | 1974 G1 | {fu['median']:.2f} | [{fu['p5']:.2f}, {fu['p95']:.2f}] | — | {yn(fu['fresh'])} |",
           f"| 2018 field, L24 stretch (B2) | L18 v4, retrained on the subset | {su['n_data']} of 1974 G1 | {su['median']:.2f} | "
           f"[{su['p5']:.2f}, {su['p95']:.2f}] | — | {yn(su['fresh'])} |",
-          f"| ERT.dat, same epoch (v1.5-1) | L24 v4 | 1643 Stage-1 kept | {er['median']:.2f} | [{er['p5']:.2f}, {er['p95']:.2f}] | — | {yn(er['fresh'])} |", "",
+          f"| 2025 ERT line (ERT.dat; v1.5-1) | L24 v4 | 1643 Stage-1 kept | {er['median']:.2f} | [{er['p5']:.2f}, {er['p95']:.2f}] | — | {yn(er['fresh'])} |", "",
           f"Ratio r = T1/L24 ÷ T1/L18 = **{r:.2f}**; 2018 L24-stretch median m = **{m:.2f} Ω·m**.", "",
           "## Checks on the 2018 L24-stretch BEL (B2)", "",
           f"- Training {su['n']['tr']['n_kept']} (of {su['n']['tr']['n_all']}; {su['n']['tr']['n_pos']} positive on the subset), held-out "
@@ -885,7 +886,7 @@ def report_layout(args):
         ax.hist(pT1s, bins, density=True, histtype="step", lw=1.2, ls="-.", color="#1f4e9c", label="T1, L24-stretch subset (synthetic)")
     ax.hist(r_full, bins, density=True, histtype="step", lw=1.2, color="#d35400", label="2018, full line")
     ax.hist(r_sub, bins, density=True, histtype="step", lw=1.2, ls="--", color="#d35400", label="2018, L24 stretch")
-    ax.hist(r_ert, bins, density=True, histtype="step", lw=1.3, color="k", label="ERT.dat (2024)")
+    ax.hist(r_ert, bins, density=True, histtype="step", lw=1.3, color="k", label="2025 ERT line")
     for v in (10.89, 13.57, 14.80):
         ax.axvline(v, color="#1f4e9c", ls=":", lw=0.7)
     ax.axvline(8.0, color="0.5", ls="-", lw=0.5)
@@ -894,13 +895,14 @@ def report_layout(args):
     for P, TX, c, lab, a in ((F["Pf"], F["TX"], "#d35400", "2018, full line", 0.15), (Z["sub_Pf"], Z["TX"], "#1b9e77", "2018, L24 stretch", 0.25)):
         lo, md, hi = np.percentile(P, [5, 50, 95], 0)
         ax.fill_between(TX, lo, hi, color=c, alpha=a, lw=0); ax.plot(TX, md, color=c, lw=1.3, label=lab)
-    ax.plot(L["TX"], np.median(L["Pf"], 0), color="k", lw=1.0, ls="--", label="ERT.dat (2024), median")
+    ax.plot(L["TX"], np.median(L["Pf"], 0), color="k", lw=1.0, ls="--", label="2025 ERT line, median")
     ax.axvline(o["x0"], color="0.5", lw=0.6, ls=":"); ax.text(o["x0"] + 2, 3.5, "L24 start", fontsize=6, color="0.4")
     ax.plot([Dg[n]["x"] for n in names], [Dg[n]["base"] for n in names], "kD", ms=4, label="DP base (2024)")
     ax.set_xlabel("x (m)"); ax.set_ylabel("Elevation (mTAW)"); ax.set_ylim(-25, 5); ax.legend(fontsize=5.6, loc="lower right")
     ax.set_title("(b) lens base, 90 % intervals", fontsize=7)
     fig.suptitle(EXPLORATORY, fontsize=7); fig.tight_layout(rect=(0, 0, 1, 0.94))
-    fig.savefig(os.path.join(figs, "F_19_layout_vs_time.png"), dpi=300); plt.close(fig)
+    fig.savefig(os.path.join(figs, "F_19_layout_vs_time.png"), dpi=300)
+    wc.save_publication(fig, args.out, "F_19_layout_vs_time"); plt.close(fig)
     print("\n".join(M))
 
 

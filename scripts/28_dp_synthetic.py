@@ -440,7 +440,7 @@ def cmd_report(args):
     L = ["# 2 — Synthetic truths built from the 2024 DP/CPT logs (Task 1)", "", f"**{EXPLORATORY}**", "",
          "T1 = the 2024 logs (0.5 m blocks); T2 = three sharp units per DP (lens / clean-sand ρ_below / clay); T3 = T2 with "
          f"ρ_below = {RHO_BRACKISH:g} Ω·m (the 2018 BEL median, the \"brackish\" hypothesis). Layouts: L18 (2018 geometry; the truth is "
-         "the 2024 state) and L24 (ERT.dat geometry, same epoch). 5 noise realisations; Stage-1 G1 rule, v1.0 error model, λ = 50 and the "
+         "the 2024 state) and L24 (geometry of the 2025 ERT line, ERT.dat). 5 noise realisations; Stage-1 G1 rule, v1.0 error model, λ = 50 and the "
          "λ pool (5–100), linearised posterior; values at each DP x, offsets = image − true base (positive = image shallower). "
          "Medians over realisations; coverage = share of realisations whose 90 % band contains the true base.", "",
          "## Truth parameters per DP", "", "| DP | x (m) | true base (mTAW) | ρ_lens | ρ_below (T1/T2) | clay top (mTAW, source) | clay ρ (source) |",
@@ -502,13 +502,14 @@ def cmd_report(args):
         ax.plot(xs + dx, [M[f"{t}|L24|{n}"]["thr3"] for n in names], "o", color=cols[t], ms=4, label=f"{t}: 3 Ω·m (λ = 50)")
         ax.plot(xs + dx, [M[f"{t}|L24|{n}"]["logmid_pooled"] for n in names], "^", color=cols[t], ms=4, mfc="none", label=f"{t}: log-midpoint (pooled)")
     fb = np.array([d["base"] for d in D])
-    ax.plot(xs + 9, fb + np.array([Fv[n]["L24"]["thr3_off"] for n in names]), "s", color="0.3", ms=4, label="field ERT.dat: 3 Ω·m")
-    ax.plot(xs + 9, fb + np.array([Fv[n]["L24"]["logmid_off"] for n in names]), "s", color="0.3", ms=4, mfc="none", label="field ERT.dat: log-midpoint")
+    ax.plot(xs + 9, fb + np.array([Fv[n]["L24"]["thr3_off"] for n in names]), "s", color="0.3", ms=4, label="field, 2025 ERT line: 3 Ω·m")
+    ax.plot(xs + 9, fb + np.array([Fv[n]["L24"]["logmid_off"] for n in names]), "s", color="0.3", ms=4, mfc="none", label="field, 2025 ERT line: log-midpoint")
     for n, x in zip(names, xs):
         ax.text(x, -24, n, ha="center", fontsize=6)
     ax.set_xlabel("x (m)"); ax.set_ylabel("Elevation (mTAW)"); ax.set_ylim(-25, 0); ax.legend(fontsize=5.8, ncol=2, loc="lower right")
     ax.set_title("Synthetic (L24) vs field: lens base by definition — " + EXPLORATORY, fontsize=7)
-    fig.tight_layout(); fig.savefig(os.path.join(figs, "F_14_synthetic_vs_field.png"), dpi=300); plt.close(fig)
+    fig.tight_layout(); fig.savefig(os.path.join(figs, "F_14_synthetic_vs_field.png"), dpi=300)
+    wc.save_publication(fig, args.out, "F_14_synthetic_vs_field", clear_axes_titles=(ax,)); plt.close(fig)
     # F_S12
     xg = np.arange(0, 506, 1.0); zg = np.arange(6.0, -40.01, -0.25); X, Zg = np.meshgrid(xg, zg)
     topo = g27.cpt_topography(); surf = topo(xg)

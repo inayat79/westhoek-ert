@@ -1473,7 +1473,7 @@ def extra_numbers_v15():
         e = K["ERT"]
         NUM.add("v15_bel_l24_rho_below", f"{e['median']:.2f} [{e['p5']:.2f}, {e['p95']:.2f}] Ω·m; finds fresh water: {yn(e['fresh'])}",
                 "v1.5.1: same-epoch BEL v4 on ERT.dat (L24 geometry), ρ_below median [P5, P95]" + ex, f4,
-                "`data/processed/v1_5/bel_v4_l24/`", ref=(f"{rv}/5_bel_checks.md", "ρ_below (ERT.dat, same epoch)",
+                "`data/processed/v1_5/bel_v4_l24/`", ref=(f"{rv}/5_bel_checks.md", "ρ_below (2025 ERT line)",
                                                           f"{e['median']:.2f} [{e['p5']:.2f}, {e['p95']:.2f}]"))
         NUM.add("v15_bel_l24_checks", f"held-out coverage base {100*e['cov']:.1f} %, ρ_below {100*e['cov2']:.1f} %; falsification T² "
                 f"{100*e['fal']['t2']:.1f} %, robust T² {100*e['fal']['t2r']:.1f} %, Q {100*e['fal']['q']:.1f} %",
