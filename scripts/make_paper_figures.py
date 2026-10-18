@@ -8,6 +8,8 @@ Westhoek ERT v1.8 — redraw the 21 paper figures in the paper style from the sa
                                                    inputs_sha256_after.txt, protected_sha256_{before,after}.txt, contact_sheet.png
   python make_paper_figures.py --only Fig09_ERT2025AtSoundings --draft-only --out <dir>
                                                    quick look: draft PNG only, no checks
+  python make_paper_figures.py --corel             v1.10: CorelDRAW versions → Coral Draw/ (SVG, EPS, PDF, preview PNG; one
+                                                   font, live text, all-vector data, named groups); results/ is not written
   python make_paper_figures.py --wrr               v1.9: WRR (AGU) export → results/figs_wrr/ under the WRR numbering: TIFF
                                                    (1000 dpi, RGB, LZW) and PDF, 300 dpi draft PNG, figure data data/<label>.csv,
                                                    colour maps, CVD sheet, value comparison with tag v1.8, checks.json
@@ -207,6 +209,8 @@ CVD_ALREADY = [
 
 def all_axes(f):
     out = list(f.axes)
+    for a in list(out):                         # inset axes (e.g. the colour bar of Figure 2)
+        out += [c for c in getattr(a, "child_axes", []) if c not in out]
     for sf in getattr(f, "subfigs", []):
         out += all_axes(sf)
     return out
@@ -794,6 +798,724 @@ def wrr_main(a):
 
 
 
+# ----------------------------------------------------------------------------------------------------------------------
+# v1.10: font inventory (which font draws each glyph of each text) and text roles
+# ----------------------------------------------------------------------------------------------------------------------
+_CMAPS = {}
+
+
+def _cmap(path):
+    if path not in _CMAPS:
+        from matplotlib.ft2font import FT2Font
+        f = FT2Font(path)
+        _CMAPS[path] = (f.family_name + (" " + f.style_name if f.style_name not in ("Regular",) else ""), set(f.get_charmap()))
+    return _CMAPS[path]
+
+
+def drawn_texts(fig):
+    """ids of the Text artists that are actually drawn (Text.draw is recorded during one render)."""
+    from matplotlib.text import Text
+    seen = set(); orig = Text.draw
+
+    def rec(self, renderer):
+        if self.get_visible() and self.get_text().strip():
+            seen.add(id(self))
+        return orig(self, renderer)
+    Text.draw = rec
+    try:
+        fig.canvas.draw()
+    finally:
+        Text.draw = orig
+    return seen
+
+
+def text_role(t, fig):
+    """Role of a text artist: panel letter, axis label, tick label, colour-bar label / tick, legend, annotation."""
+    import ert_plot_style as eps
+    gid = t.get_gid() or ""
+    if gid in ("panel_label", "panel_ident") or gid.startswith("panel_letter"):
+        return "panel letter / identifier"
+    ax = t.axes
+    for a in all_axes(fig):
+        cb = _is_cbar(a)
+        if t is a.xaxis.label or t is a.yaxis.label:
+            return "colour-bar label" if cb else "axis label"
+        for axis in (a.xaxis, a.yaxis):
+            for tk in axis.get_major_ticks() + axis.get_minor_ticks():
+                if t is tk.label1 or t is tk.label2:
+                    return "colour-bar tick" if cb else "tick label"
+    for lg in eps._legends(fig):
+        if t in lg.get_texts() or t is lg.get_title():
+            return "legend"
+    return "annotation"
+
+
+def text_inventory(fig):
+    """Every drawn, non-empty text: role, string, size (pt), and the font of each glyph as matplotlib resolves it
+    (plain text: first font of the family fallback list whose character map has the glyph; mathtext: the parser's glyph
+    fonts)."""
+    from matplotlib import font_manager
+    from matplotlib.mathtext import MathTextParser
+    from matplotlib.text import Text
+    fig.canvas.draw()
+    drawn = set()
+    for a in all_axes(fig):
+        for axis in (a.xaxis, a.yaxis):
+            for tk in axis._update_ticks():
+                drawn.update((id(tk.label1), id(tk.label2)))
+    tick_all = set()
+    for a in all_axes(fig):
+        for axis in (a.xaxis, a.yaxis):
+            for tk in axis.get_major_ticks() + axis.get_minor_ticks():
+                tick_all.update((id(tk.label1), id(tk.label2)))
+    mp_ = MathTextParser("path")
+    out = []
+    shown = drawn_texts(fig)
+    for t in fig.findobj(Text):
+        s = t.get_text()
+        if id(t) not in shown:
+            continue
+        if t.axes is not None and not t.axes.get_visible():
+            continue
+        prop = t.get_fontproperties()
+        s2, ismath = t._preprocess_math(s)
+        fonts = {}
+        if ismath:
+            try:
+                vp = mp_.parse(s2, 72, prop)
+                for font, fsize, num, ox, oy in vp.glyphs:
+                    nm = font.family_name + ("" if font.style_name == "Regular" else " " + font.style_name)
+                    fonts.setdefault(nm, []).append(chr(num))
+            except Exception as e:
+                fonts.setdefault(f"(parse error {e})", []).append(s2)
+        else:
+            paths = font_manager.fontManager._find_fonts_by_props(prop)
+            for ch in s2:
+                if ch in "\n\t ":
+                    continue
+                nm = None
+                for p in paths:
+                    fam, cm = _cmap(str(p))
+                    if ord(ch) in cm:
+                        nm = fam; break
+                fonts.setdefault(nm or "(missing glyph)", []).append(ch)
+        out.append(dict(role=text_role(t, fig), text=s, size=round(t.get_fontsize(), 2), weight=str(t.get_fontweight()),
+                        style=t.get_fontstyle(), math=bool(ismath), fonts={k: "".join(v) for k, v in fonts.items()}))
+    return out
+
+
+# ----------------------------------------------------------------------------------------------------------------------
+# v1.10: CorelDRAW versions → "Coral Draw/" (SVG, EPS, PDF, 300 dpi preview): one font, live text, all-vector data,
+# named groups, clip paths only where data leave the axes
+# ----------------------------------------------------------------------------------------------------------------------
+OUT_COREL = os.path.join(ROOT, "Coral Draw")
+IMG_DPI = 600                    # embedded map imagery of Figure 1 (orthophoto, relief) at print size
+
+
+def text_overlaps(fig, shrink_px=0.5):
+    """Pairs of drawn texts whose boxes overlap (texts of one legend excluded; the legend lays them out)."""
+    import ert_plot_style as eps
+    from matplotlib.text import Text
+    from matplotlib.transforms import Bbox
+    fig.canvas.draw(); r = fig.canvas.get_renderer()
+    drawn, tick_all = set(), set()
+    for a in all_axes(fig):
+        for axis in (a.xaxis, a.yaxis):
+            for tk in axis.get_major_ticks() + axis.get_minor_ticks():
+                tick_all.update((id(tk.label1), id(tk.label2)))
+            for tk in axis._update_ticks():
+                drawn.update((id(tk.label1), id(tk.label2)))
+    legs = eps._legends(fig)
+    in_leg = {id(t): i for i, lg in enumerate(legs) for t in list(lg.get_texts()) + [lg.get_title()]}
+    T = []
+    shown = drawn_texts(fig)
+    for t in fig.findobj(Text):
+        if id(t) not in shown:
+            continue
+        if t.axes is not None and not t.axes.get_visible():
+            continue
+        try:
+            b = t.get_window_extent(r)
+        except Exception:
+            continue
+        if b.width <= 0:
+            continue
+        T.append((t, Bbox.from_extents(b.x0 + shrink_px, b.y0 + shrink_px, b.x1 - shrink_px, b.y1 - shrink_px)))
+    hits = []
+    for i in range(len(T)):
+        for j in range(i + 1, len(T)):
+            (t1, b1), (t2, b2) = T[i], T[j]
+            if id(t1) in in_leg and in_leg.get(id(t1)) == in_leg.get(id(t2)):
+                continue
+            if b1.overlaps(b2):
+                hits.append(f"{t1.get_text()[:25]!r} / {t2.get_text()[:25]!r}")
+    return hits
+
+
+def split_translucent_hatches(fig):
+    """A translucent hatched area is written to SVG as a pattern whose background carries the fill; CorelDRAW makes that
+    background opaque. Split each such patch / collection into the translucent fill (no hatch) and a hatch-only copy on
+    top, so both survive the import. Opaque hatched fills (bars, strips) are left as they are. Returns the count."""
+    from matplotlib.patches import PathPatch
+    from matplotlib.collections import PolyCollection
+    n = 0
+    for ax in all_axes(fig):
+        for p in list(ax.patches):
+            h = p.get_hatch(); fc = p.get_facecolor()
+            if h and 0 < fc[3] < 1:
+                hc = getattr(p, "_hatch_color", (0, 0, 0, 1))
+                q = PathPatch(p.get_path(), transform=p.get_transform(), facecolor="none", edgecolor=hc, linewidth=0,
+                              hatch=h, zorder=p.get_zorder(), clip_on=p.get_clip_on(), label="_hatch")
+                q._hatch_color = hc
+                if p.get_clip_path() is not None:
+                    q.set_clip_path(p.get_clip_path())
+                p.set_hatch(None); ax.add_artist(q); n += 1
+        for c in list(ax.collections):
+            if type(c).__name__ not in ("PolyCollection", "FillBetweenPolyCollection") or not c.get_hatch():
+                continue
+            fc = c.get_facecolors()
+            if len(fc) and (0 < fc[:, 3]).any() and (fc[:, 3] < 1).any():
+                hc = getattr(c, "_hatch_color", (0, 0, 0, 1))
+                q = PolyCollection([pp.vertices for pp in c.get_paths()], facecolors="none", edgecolors=[hc], linewidths=0,
+                                   hatch=c.get_hatch(), zorder=c.get_zorder(), transform=c.get_transform(), label="_hatch")
+                q._hatch_color = hc
+                c.set_hatch(None); ax.add_collection(q, autolim=False); n += 1
+    return n
+
+
+def vectorize(fig):
+    """No rasterised layer: switch rasterisation off for every artist (colour-bar solids included). Returns the count."""
+    n = 0
+    for a in fig.findobj():
+        if hasattr(a, "get_rasterized") and a.get_rasterized() and type(a).__name__ != "AxesImage":
+            a.set_rasterized(False); n += 1
+    return n
+
+
+def cut_polygons_to_axes(ax, c):
+    """Cut every polygon of a data-space PolyCollection to the axes view rectangle (linear axes only), so that the layer
+    needs no clip path. Values stay attached to their cells; cells entirely outside the view are dropped (they were not
+    visible). Only the drawing geometry changes; the plotted values were checked before."""
+    import numpy as np
+    from matplotlib.transforms import Bbox
+    if ax.get_xscale() != "linear" or ax.get_yscale() != "linear" or c.get_transform() != ax.transData:
+        return False
+    (x0, x1), (y0, y1) = sorted(ax.get_xlim()), sorted(ax.get_ylim())
+    bb = Bbox.from_extents(x0, y0, x1, y1)
+    arr = c.get_array(); paths = c.get_paths()
+    keep_p, keep_i = [], []
+    for i, p in enumerate(paths):
+        v = p.vertices
+        if len(v) == 0:
+            continue
+        if v[:, 0].min() >= x0 and v[:, 0].max() <= x1 and v[:, 1].min() >= y0 and v[:, 1].max() <= y1:
+            keep_p.append(p); keep_i.append(i); continue
+        q = p.clip_to_bbox(bb, inside=True)
+        if len(q.vertices) >= 3:
+            keep_p.append(q); keep_i.append(i)
+    c.set_verts([q.vertices for q in keep_p])          # PolyCollection takes vertex arrays (not Path objects)
+    if arr is not None:
+        a = np.ma.asarray(arr).ravel()
+        if a.size == len(paths):
+            c.set_array(a[keep_i])
+    fc = c.get_facecolors()
+    if c.get_array() is None and len(fc) == len(paths) and len(paths) > 1:
+        c.set_facecolor(fc[keep_i])
+    return True
+
+
+def _view_box(ax):
+    from shapely.geometry import box
+    (x0, x1), (y0, y1) = sorted(ax.get_xlim()), sorted(ax.get_ylim())
+    return box(x0, y0, x1, y1)
+
+
+def _linear_data(ax, a):
+    return ax.get_xscale() == "linear" and ax.get_yscale() == "linear" and a.get_transform() == ax.transData
+
+
+def _custom_clip(ax, a):
+    cp = a.get_clip_path()
+    return cp is not None and getattr(cp, "_patch", None) is not ax.patch
+
+
+def quadmesh_to_cells(ax, qm):
+    """Replace a QuadMesh by a PolyCollection of its unmasked cells, cut to the axes view and to a custom clip polygon
+    (if any), with the same colour map, norm, values, z-order and edges, so that no clip path is needed."""
+    import numpy as np
+    from matplotlib.collections import PolyCollection
+    from shapely.geometry import Polygon as SP
+    from shapely.prepared import prep
+    if ax.get_xscale() != "linear" or ax.get_yscale() != "linear":
+        return False
+    region = _view_box(ax)
+    cp = qm.get_clip_path()
+    if _custom_clip(ax, qm):
+        patch = getattr(cp, "_patch", None)
+        if patch is None or not hasattr(patch, "get_xy"):
+            return False
+        region = region.intersection(SP(patch.get_xy()))
+    pr = prep(region)
+    co = qm.get_coordinates(); arr = np.ma.asarray(qm.get_array())
+    ny, nx = co.shape[0] - 1, co.shape[1] - 1
+    vals = arr.reshape(ny, nx)
+    polys, keep = [], []
+    for j in range(ny):
+        for i in range(nx):
+            v = vals[j, i]
+            if v is np.ma.masked:
+                continue
+            q = [co[j, i], co[j, i + 1], co[j + 1, i + 1], co[j + 1, i]]
+            g = SP(q)
+            if pr.contains(g):
+                polys.append(np.asarray(q)); keep.append(v)
+            elif pr.intersects(g):
+                h = g.intersection(region)
+                for part in getattr(h, "geoms", [h]):
+                    if part.geom_type == "Polygon" and part.area > 0:
+                        polys.append(np.asarray(part.exterior.coords)); keep.append(v)
+    pc = PolyCollection(polys, array=np.asarray(keep, float), cmap=qm.get_cmap(), norm=qm.norm, edgecolors="face",
+                        linewidths=qm.get_linewidth(), antialiased=True, zorder=qm.get_zorder(), clip_on=False)
+    pc.set_label(qm.get_label()); pc.set_gid(qm.get_gid())
+    qm.remove(); ax.add_collection(pc, autolim=False)
+    return True
+
+
+def cut_lines(ax, a):
+    """Cut a LineCollection or a marker-less Line2D at the axes view (shapely), so that it needs no clip path."""
+    import numpy as np
+    from shapely.geometry import LineString
+    region = _view_box(ax)
+    if type(a).__name__ == "LineCollection":
+        segs = []
+        for sgm in a.get_segments():
+            if len(sgm) < 2:
+                continue
+            g = LineString(sgm).intersection(region)
+            for part in getattr(g, "geoms", [g]):
+                if part.geom_type == "LineString" and len(part.coords) >= 2:
+                    segs.append(np.asarray(part.coords))
+        cols = a.get_colors()
+        a.set_segments(segs)
+        if len(cols) > 1:
+            return False if len(cols) != len(segs) else True
+        return True
+    if type(a).__name__ == "Line2D" and a.get_marker() in ("None", None, "", " ", "none"):
+        xy = np.asarray(a.get_xydata(), float)
+        parts, cur = [], []
+        for p in xy:
+            if np.all(np.isfinite(p)):
+                cur.append(p)
+            elif cur:
+                parts.append(cur); cur = []
+        if cur:
+            parts.append(cur)
+        out = []
+        for pp in parts:
+            if len(pp) < 2:
+                continue
+            g = LineString(pp).intersection(region)
+            for part in getattr(g, "geoms", [g]):
+                if part.geom_type == "LineString" and len(part.coords) >= 2:
+                    out.append(np.asarray(part.coords)); out.append(np.array([[np.nan, np.nan]]))
+        if not out:
+            return False
+        xy2 = np.vstack(out[:-1]); a.set_data(xy2[:, 0], xy2[:, 1])
+        return True
+    return False
+
+
+def unclip(fig, tol_px=0.5):
+    """Remove the clip path of every artist whose drawn extent lies inside its axes (CorelDRAW would turn each clip path
+    into a PowerClip). Artists that really extend beyond the axes keep it. Returns (kept, removed) counts."""
+    from matplotlib.transforms import Bbox
+    fig.canvas.draw(); r = fig.canvas.get_renderer()
+    kept = removed = 0
+    for ax in all_axes(fig):
+        box = Bbox.from_extents(ax.bbox.x0 - tol_px, ax.bbox.y0 - tol_px, ax.bbox.x1 + tol_px, ax.bbox.y1 + tol_px)
+        arts = list(ax.lines) + list(ax.collections) + list(ax.patches) + list(ax.images) + list(ax.texts)
+        arts += ax.xaxis.get_gridlines() + ax.yaxis.get_gridlines()
+        if _is_cbar(ax):                        # colour-bar solids fill exactly the colour-bar axes
+            for a in arts:
+                if a.get_clip_on():
+                    a.set_clip_on(False); removed += 1
+            continue
+        for a in arts:
+            if not a.get_visible() or not a.get_clip_on():
+                continue
+            if type(a).__name__ == "QuadMesh" and a.get_array() is not None:
+                try:
+                    if quadmesh_to_cells(ax, a):
+                        removed += 1; continue
+                except Exception:
+                    pass
+            if _custom_clip(ax, a):
+                kept += 1; continue                 # a clip path drawn on purpose (e.g. water-table outline): keep
+            if type(a).__name__ == "Rectangle" and a.get_data_transform() == ax.transData and \
+                    ax.get_xscale() == "linear" and ax.get_yscale() == "linear":
+                (x0, x1), (y0, y1) = sorted(ax.get_xlim()), sorted(ax.get_ylim())
+                rx0, rx1 = sorted((a.get_x(), a.get_x() + a.get_width())); ry0, ry1 = sorted((a.get_y(), a.get_y() + a.get_height()))
+                nx0, nx1, ny0, ny1 = max(rx0, x0), min(rx1, x1), max(ry0, y0), min(ry1, y1)
+                if nx1 > nx0 and ny1 > ny0 and a.get_angle() == 0:
+                    a.set_xy((nx0, ny0)); a.set_width(nx1 - nx0); a.set_height(ny1 - ny0)
+                    a.set_clip_on(False); removed += 1; continue
+            if type(a).__name__ in ("LineCollection", "Line2D") and _linear_data(ax, a):
+                try:
+                    if cut_lines(ax, a):                 # (a LineCollection reports no window extent: always cut)
+                        a.set_clip_on(False); removed += 1; continue
+                except Exception:
+                    pass
+            if type(a).__name__ == "PolyCollection" and len(a.get_paths()) > 1:
+                if cut_polygons_to_axes(ax, a):
+                    a.set_clip_on(False); removed += 1; continue
+            try:
+                b = a.get_window_extent(r)
+            except Exception:
+                b = None
+            if b is not None and b.width >= 0 and box.x0 <= b.x0 and box.y0 <= b.y0 and b.x1 <= box.x1 and b.y1 <= box.y1:
+                a.set_clip_on(False); removed += 1
+            else:
+                kept += 1
+    return kept, removed
+
+
+def _safe(s):
+    s = re.sub(r"\$[^$]*\$", lambda m: re.sub(r"\\mathbf|\\mathdefault|[{}\\^_$]", "", m.group(0)), s or "")
+    s = re.sub(r"[^0-9A-Za-zΑ-Ωα-ω.+-]+", "_", s).strip("_")
+    return s[:48] or "x"
+
+
+def assign_gids(fig):
+    """Named groups for CorelDRAW's Object Manager: one group per panel (panel_a …) with its axes, ticks, labels,
+    series, legend and colour bar inside; panel letters as panel_letter_a. Ids are unique within the figure."""
+    import ert_plot_style as eps
+    used = {}
+
+    def uid(g):
+        n = used.get(g, 0); used[g] = n + 1
+        return g if n == 0 else f"{g}_{n + 1}"
+    axes = all_axes(fig); names = {}; prev = "main"; k = {}
+    for ax in axes:
+        if _is_cbar(ax):
+            continue
+        pl = next((t for t in ax.texts if (t.get_gid() or "") == "panel_label"), None)
+        if pl is not None:
+            prev = re.match(r"\(([a-z])\)", pl.get_text()).group(1); k[prev] = 0; names[ax] = f"panel_{prev}"
+        else:
+            k[prev] = k.get(prev, 0) + 1; names[ax] = f"panel_{prev}" if prev == "main" and k[prev] == 1 else f"panel_{prev}_{k[prev]}"
+    for ax in axes:
+        if _is_cbar(ax):
+            cb = ax._colorbar
+            owner = getattr(cb.mappable, "axes", None)
+            base = names.get(owner, "figure")
+            ax.set_gid(uid(f"{base}/colorbar"))
+            for axis, nm in ((ax.xaxis, "ticks_x"), (ax.yaxis, "ticks_y")):
+                axis.set_gid(uid(f"{base}/colorbar/{nm}"))
+            continue
+        n = names[ax]
+        ax.set_gid(uid(n)); ax.patch.set_gid(uid(f"{n}/axes/background"))
+        for sn, sp in ax.spines.items():
+            sp.set_gid(uid(f"{n}/axes/frame_{sn}"))
+        ax.xaxis.set_gid(uid(f"{n}/ticks_x")); ax.yaxis.set_gid(uid(f"{n}/ticks_y"))
+        ax.xaxis.label.set_gid(uid(f"{n}/labels/x_label")); ax.yaxis.label.set_gid(uid(f"{n}/labels/y_label"))
+        for i, ln in enumerate(ax.lines):
+            lab = ln.get_label() or ""
+            ln.set_gid(uid(f"{n}/series/{_safe(lab) if not lab.startswith('_') else f'line_{i}'}"))
+        for i, c in enumerate(ax.collections):
+            lab = c.get_label() or ""
+            tn = type(c).__name__
+            kind = ("cells" if tn in ("PolyCollection", "QuadMesh") and c.get_array() is not None else
+                    "contours" if "Contour" in tn else "band" if tn in ("PolyCollection", "FillBetweenPolyCollection") else
+                    "points" if tn == "PathCollection" else tn.lower())
+            c.set_gid(uid(f"{n}/series/{_safe(lab) if not lab.startswith('_') else kind}"))
+        for i, p in enumerate(ax.patches):
+            lab = p.get_label() or ""
+            p.set_gid(uid(f"{n}/patches/{_safe(lab) if not lab.startswith('_') else type(p).__name__.lower()}"))
+        for i, im in enumerate(ax.images):
+            im.set_gid(uid(f"{n}/image_{i}"))
+        for t in ax.texts:
+            g = t.get_gid() or ""
+            if g == "panel_label":
+                t.set_gid(uid(f"panel_letter_{n.split('_')[1]}"))
+            elif g == "panel_ident":
+                t.set_gid(uid(f"{n}/labels/identifier"))
+            else:
+                t.set_gid(uid(f"{n}/labels/{_safe(t.get_text())}"))
+        lg = ax.get_legend()
+        if lg is not None:
+            lg.set_gid(uid(f"{n}/legend"))
+    for i, lg in enumerate(fig.legends):
+        lg.set_gid(uid("figure/legend" if i == 0 else f"figure/legend_{i + 1}"))
+    for i, t in enumerate(fig.texts):
+        t.set_gid(uid(f"figure/labels/{_safe(t.get_text())}"))
+    fig.patch.set_gid("figure/background")
+
+
+def opaque_for_eps(fig):
+    """PostScript has no transparency: composite every translucent face / edge colour over white (same look where
+    nothing overlaps; overlapping translucent areas become opaque — SVG and PDF keep the transparency)."""
+    import numpy as np
+    from matplotlib.colors import to_rgba
+    n = 0
+
+    def comp(c):
+        c = np.asarray(c, float)
+        if c.ndim == 1:
+            return comp(c[None])[0]
+        a = c[:, 3:4]
+        return np.hstack([c[:, :3] * a + (1 - a), np.where(a > 0, 1.0, 0.0)])
+    for a in fig.findobj():
+        try:
+            al = a.get_alpha()
+        except Exception:
+            continue
+        if hasattr(a, "get_facecolor") and hasattr(a, "set_facecolor"):
+            try:
+                fc = a.get_facecolor(); ec = a.get_edgecolor()
+                fcn = np.asarray(fc, float); ecn = np.asarray(ec, float)
+                if (fcn.size and (fcn[..., 3] < 1).any() and (fcn[..., 3] > 0).any()) or al is not None:
+                    if al is not None:
+                        fcn = np.atleast_2d(fcn).copy(); fcn[:, 3] *= al
+                        ecn = np.atleast_2d(ecn).copy() if ecn.size else ecn
+                        if ecn.size:
+                            ecn[:, 3] *= al
+                        a.set_alpha(None)
+                    a.set_facecolor(comp(fcn) if fcn.size else fc)
+                    if ecn.size:
+                        a.set_edgecolor(comp(ecn))
+                    n += 1
+            except Exception:
+                pass
+        elif al is not None and hasattr(a, "get_color") and hasattr(a, "set_color"):
+            try:
+                c = to_rgba(a.get_color(), al); a.set_alpha(None); a.set_color(tuple(comp(c))); n += 1
+            except Exception:
+                pass
+    return n
+
+
+_ADV = {}
+
+
+def _advance(ch, size, bold=True, italic=False):
+    """Advance width (px at 72 dpi = pt) of one Times New Roman character, as matplotlib's mathtext places it."""
+    from matplotlib import font_manager
+    from matplotlib.ft2font import FT2Font, LOAD_NO_HINTING
+    key = (bold, italic)
+    if key not in _ADV:
+        fp = font_manager.FontProperties(family="Times New Roman", weight="bold" if bold else "normal",
+                                         style="italic" if italic else "normal")
+        _ADV[key] = FT2Font(font_manager.findfont(fp, fallback_to_default=False))
+    f = _ADV[key]
+    f.set_size(size, 72)
+    return f.load_char(ord(ch), flags=LOAD_NO_HINTING).linearHoriAdvance / 65536.0
+
+
+def svg_mathtext_runs(path, tol=0.6):
+    """matplotlib writes mathtext as <tspan x="x1 x2 x3 …"> with one position per character; CorelDRAW misplaces such
+    runs (overlapping words, lost text after a subscript). Rewrite every multi-position tspan as tspans with a single
+    start position, split where a character does not follow the previous one at its natural advance, and keep spaces
+    (xml:space="preserve"). Returns the number of tspans rewritten."""
+    import html
+    s = open(path, encoding="utf-8").read()
+    pat = re.compile(r'<tspan style="([^"]*)" x="([^"]+)" y="([^"]+)">([^<]*)</tspan>')
+    n = 0
+
+    def rep(m):
+        nonlocal n
+        style, xs, y, txt = m.group(1), m.group(2).split(), m.group(3), html.unescape(m.group(4))
+        if len(xs) <= 1 or len(xs) != len(txt):
+            return m.group(0)
+        size = float(re.search(r"font-size: ([0-9.]+)px", style).group(1))
+        bold = "font-weight: bold" in style; italic = "font-style: italic" in style
+        xs = [float(v) for v in xs]
+        runs, start = [], 0
+        for i in range(1, len(txt)):
+            if abs(xs[i] - (xs[i - 1] + _advance(txt[i - 1], size, bold, italic))) > tol:
+                runs.append((start, i)); start = i
+        runs.append((start, len(txt)))
+        # CorelDRAW drops leading spaces of a run: start each run at its first non-space character, at its own position
+        runs = [(next((k for k in range(a, b) if not txt[k].isspace()), b), b) for a, b in runs]   # incl. U+00A0
+        runs = [(a, b) for a, b in runs if a < b]
+        n += 1
+        # mathtext writes spaces as U+00A0, which CorelDRAW renders too narrow: plain spaces (kept by xml:space="preserve")
+        return "".join(f'<tspan style="{style}" x="{xs[a]:.6g}" y="{y}">{html.escape(txt[a:b].replace(chr(160), " "), quote=False)}</tspan>'
+                       for a, b in runs)
+    s2 = pat.sub(rep, s)
+    s2 = s2.replace("<text>", '<text xml:space="preserve">')
+    # with xml:space="preserve" the indentation between tspans would become text: remove it inside <text> elements
+    s2 = re.sub(r'(<text xml:space="preserve">)\s+(?=<tspan)', r"\1", s2)
+    s2 = re.sub(r"</tspan>\s+(?=<tspan|</text>)", "</tspan>", s2)
+    # CorelDRAW still misplaces several positioned tspans in one <text> (rotated labels, spaces between runs): write each
+    # run of a multi-run text as its own <text> element (one text object per run in CorelDRAW)
+    tsp = re.compile(r'<tspan (style="[^"]*") (x="[^"]*") (y="[^"]*")>([^<]*)</tspan>')
+
+    def split_text(m):
+        parts = tsp.findall(m.group(1))
+        if len(parts) < 2:
+            return m.group(0)
+        return "".join(f'<text xml:space="preserve" {st} {x} {y}>{t}</text>' for st, x, y, t in parts)
+    s2 = re.sub(r'<text xml:space="preserve">((?:<tspan [^>]*>[^<]*</tspan>)+)</text>', split_text, s2)
+    open(path, "w", encoding="utf-8", newline="\n").write(s2)
+    return n
+
+
+def svg_explicit_fonts(path):
+    """Rewrite matplotlib's CSS shorthand 'font: [italic] 700 7.5px 'Times New Roman', serif' as explicit properties
+    (font-family, font-size, font-weight, font-style): CorelDRAW reads these and keeps the bold weight."""
+    s = open(path, encoding="utf-8").read()
+    pat = re.compile(r"font:\s*(italic\s+|oblique\s+)?(?:(\d{3}|bold|normal)\s+)?([0-9.]+)px\s+([^;\"]+)")
+
+    def rep(m):
+        style = "italic" if m.group(1) else "normal"
+        w = m.group(2) or "400"
+        w = "bold" if w in ("700", "bold") or (w.isdigit() and int(w) >= 600) else "normal"
+        fam = m.group(4).strip()
+        return f"font-family: {fam}; font-size: {m.group(3)}px; font-weight: {w}; font-style: {style}"
+    s2, n = pat.subn(rep, s)
+    open(path, "w", encoding="utf-8", newline="\n").write(s2)
+    return n
+
+
+def _read_csv_rows(p):
+    import csv
+    with open(p, encoding="utf-8", newline="") as f:
+        rows = list(csv.reader(f))
+    return rows[1:]
+
+
+def corel_main(a):
+    import numpy as np
+    import ert_plot_style as eps
+    os.environ.setdefault("SOURCE_DATE_EPOCH", "1792281600")      # fixed EPS creation date: reproducible files
+    eps.corel_mode(True)
+    out = OUT_COREL
+    for d in ("SVG", "EPS", "PDF", "preview"):
+        os.makedirs(os.path.join(out, d), exist_ok=True)
+    import matplotlib.pyplot as plt
+    import paper_figures as pf
+    pf.DATA_DIR = os.path.join(OUT, "data")                  # v1.8 stored arrays (FigS01 lens bases), read only
+    byname = {n.split("_")[0]: (n, fn, old) for n, fn, old in pf.FIGURES}
+    only = set(a.only.split(",")) if a.only else None
+    t_all = time.time(); res = {}; s03 = None
+    snap0 = wrr_snapshot()
+    inputs = [l.split("  ", 1)[1] for l in open(os.path.join(OUT, "inputs_sha256_before.txt"), encoding="utf-8").read().splitlines() if l]
+    inp0 = {p: sha(os.path.join(ROOT, p)) for p in inputs}
+    prot0 = {rel(p): sha(p) for p in wrr_protected()}
+    wrr0 = {rel(p): sha(p) for p in sorted(glob.glob(os.path.join(OUT_WRR, "**", "*"), recursive=True)) if os.path.isfile(p)}
+    for label, short in WRR_NAMES:
+        if only and label not in only:
+            continue
+        name, fn, old = byname[short]; t0 = time.time()
+
+        def build(corel):
+            eps.corel_mode(corel)
+            if name == "FigS03_BiasRule":
+                return pf.figS03(*s03[:3])[0]
+            if name == "Fig09_ERT2025AtSoundings":
+                return pf.fig09(img_col=a.fig9_color)[0]
+            return fn()[0]
+        if name == "FigS03_BiasRule" and s03 is None:
+            eps.corel_mode(True); s03 = pf.figS03_data(OUT)
+        fig = build(True)
+        r = dict(v18=name, v191_csv=f"results/figs_wrr/data/{label}.csv")
+        rows, _ = figure_rows(fig)
+        ref = _read_csv_rows(os.path.join(OUT_WRR, "data", f"{label}.csv"))
+        cells_c = [np.ma.copy(c.get_array()) for ax in all_axes(fig) if not _is_cbar(ax) for c in ax.collections
+                   if c.get_array() is not None and c.norm is not None and type(c).__name__ in ("PolyCollection", "QuadMesh")]
+        r["fonts"] = text_inventory(fig)
+        r["overlaps"] = eps.overlap_checks(fig)
+        r["text_overlaps"] = text_overlaps(fig)
+        r["smallest_pt"], r["clipped"] = eps.layout_checks(fig)
+        r["rasterized_switched_off"] = vectorize(fig)
+        r["translucent_hatches_split"] = split_translucent_hatches(fig)
+        kept, removed = unclip(fig)
+        r["clip_kept"], r["clip_removed"] = kept, removed
+        assign_gids(fig)
+        w, h = fig.get_size_inches() * 25.4
+        r["size_mm"] = [round(w, 2), round(h, 2)]
+        paths = {}
+        for ext, kw in (("svg", dict(format="svg", dpi=IMG_DPI, metadata={"Date": None})),
+                        ("pdf", dict(format="pdf", dpi=IMG_DPI, metadata={"CreationDate": None, "ModDate": None})),
+                        ("png", dict(format="png", dpi=300))):
+            p = os.path.join(out, "preview" if ext == "png" else ext.upper(), f"{label}.{ext}")
+            fig.savefig(p, bbox_inches=None, **kw); paths[ext] = p
+            if ext == "svg":
+                r["svg_font_rewrites"] = svg_explicit_fonts(p)
+                r["svg_mathtext_runs"] = svg_mathtext_runs(p)
+        cells = [c for ax in all_axes(fig) if not _is_cbar(ax) for c in ax.collections
+                 if c.get_array() is not None and type(c).__name__ in ("PolyCollection", "QuadMesh")]
+        r["n_vector_cells"] = int(sum(len(c.get_paths()) for c in cells))
+        # fallback for figures that are too heavy for CorelDRAW: > 30 MB SVG, or > 20,000 vector cells (CorelDRAW 2023 did
+        # not finish importing Figure S9's 52,000 cells within 40 min)
+        if os.path.getsize(paths["svg"]) > 30e6 or r["n_vector_cells"] > 20000:
+            for c in cells:
+                c.set_rasterized(True)
+            for ext in ("svg", "pdf"):
+                p = os.path.join(out, ext.upper(), f"{label}_cells600dpi.{ext}")
+                fig.savefig(p, format=ext, dpi=IMG_DPI, bbox_inches=None,
+                            metadata={"Date": None} if ext == "svg" else {"CreationDate": None, "ModDate": None})
+                paths[f"{ext}_fallback"] = p
+                if ext == "svg":
+                    svg_explicit_fonts(p); svg_mathtext_runs(p)
+            for c in cells:
+                c.set_rasterized(False)
+            r["fallback_cells600dpi"] = True
+        r["eps_opaque_artists"] = opaque_for_eps(fig)
+        p = os.path.join(out, "EPS", f"{label}.eps")
+        fig.savefig(p, format="eps", dpi=IMG_DPI, bbox_inches=None, metadata={"Creator": None, "CreationDate": None}); paths["eps"] = p
+        plt.close(fig)
+        r["files"] = {k: dict(file=rel(v), mb=round(os.path.getsize(v) / 1e6, 2)) for k, v in paths.items()}
+        # ---- comparisons that rebuild figures (after saving: a rebuild resets the rcParams)
+        r["data_identical_to_v191"] = rows == ref
+        n_clabel = sum(len(getattr(c, "labelTexts", []) or []) for ax in all_axes(fig) for c in ax.collections)
+        if not r["data_identical_to_v191"] and n_clabel:
+            # inline contour labels cut gaps whose width follows the label font: compare with clabel off in both builds
+            import matplotlib.axes
+            keep = matplotlib.axes.Axes.clabel; matplotlib.axes.Axes.clabel = lambda self, *q, **k: []
+            try:
+                fa = build(True); ra, _ = figure_rows(fa); plt.close(fa)
+                fb = build(False); rb, _ = figure_rows(fb); plt.close(fb)
+            finally:
+                matplotlib.axes.Axes.clabel = keep; eps.corel_mode(True)
+            r["data_identical_to_v191"] = ra == rb
+            r["contour_labels_off_for_comparison"] = True
+            r["data_identical_outside_contours"] = [x for x in rows if "Contour" not in x[1]] == [x for x in ref if "Contour" not in x[1]]
+        if not r["data_identical_to_v191"]:
+            r["data_first_diff"] = next(([x, y] for x, y in zip(ref, rows) if x != y), None); r["data_rows"] = (len(ref), len(rows))
+        # cell arrays: compare with the submission build (rasterised, v1.9.1 fonts)
+        if short in ("Fig02", "Fig06", "FigS01", "Fig03", "FigS08"):
+            f2 = build(False)
+            cells_s = [np.ma.copy(c.get_array()) for ax in all_axes(f2) if not _is_cbar(ax) for c in ax.collections
+                       if c.get_array() is not None and c.norm is not None and type(c).__name__ in ("PolyCollection", "QuadMesh")]
+            plt.close(f2); eps.corel_mode(True)
+            r["cells"] = dict(n_layers=len(cells_c), n_cells=int(sum(x.size for x in cells_c)),
+                              identical=len(cells_c) == len(cells_s) and all(
+                                  np.array_equal(np.ma.getdata(x), np.ma.getdata(y), equal_nan=True)
+                                  and np.array_equal(np.ma.getmaskarray(x), np.ma.getmaskarray(y)) for x, y in zip(cells_c, cells_s)))
+        eps.corel_mode(True)
+        res[label] = r
+        fams = sorted({f for e in r["fonts"] for f in e["fonts"]})
+        print(f"[corel] {label}: data same {r['data_identical_to_v191']}, cells {r.get('cells', {}).get('identical')}, fonts {fams}, "
+              f"overlaps {len(r['overlaps']['legend_overlaps'])}+{len(r['overlaps']['letter_overlaps'])}, text overlaps {len(r['text_overlaps'])}, "
+              f"smallest {r['smallest_pt']:.2f}, clipped {len(r['clipped'])}, clips kept {kept} removed {removed}, "
+              f"svg {r['files']['svg']['mb']} MB, {time.time() - t0:.0f} s", flush=True)
+        for x in r["text_overlaps"][:6]:
+            print("   text overlap:", x, flush=True)
+    if only:
+        json.dump(res, open(os.path.join(out, "_partial_checks.json"), "w", encoding="utf-8"), indent=1, ensure_ascii=False, default=str)
+        return
+    chk = dict(figures=res, seconds=round(time.time() - t_all))
+    chk["inputs_identical"] = all(sha(os.path.join(ROOT, p)) == h for p, h in inp0.items())
+    chk["protected_identical"] = {rel(p): sha(p) for p in wrr_protected()} == prot0
+    chk["figs_wrr_unchanged"] = {rel(p): sha(p) for p in sorted(glob.glob(os.path.join(OUT_WRR, "**", "*"), recursive=True)) if os.path.isfile(p)} == wrr0
+    snap1 = wrr_snapshot()
+    chk["side_effects"] = dict(created=sorted(set(snap1) - set(snap0)), removed=sorted(set(snap0) - set(snap1)),
+                               changed=sorted(k for k in snap0 if k in snap1 and snap0[k] != snap1[k]))
+    json.dump(chk, open(os.path.join(out, "checks_corel.json"), "w", encoding="utf-8"), indent=1, ensure_ascii=False, default=str)
+    print("[corel] done", chk["inputs_identical"], chk["protected_identical"], chk["figs_wrr_unchanged"], {k: len(v) for k, v in chk["side_effects"].items()})
+
+
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--only", default=None, help="comma-separated figure names")
@@ -802,7 +1524,10 @@ def main():
     ap.add_argument("--fig9-color", default="#4D4D4D", help="image column of Fig. 9 (tomato was too close to the 3 Ω·m band)")
     ap.add_argument("--wrr", action="store_true", help="v1.9 WRR export to results/figs_wrr/ (--only takes WRR labels)")
     ap.add_argument("--no-compare", action="store_true", help="--wrr: skip the redraw with the v1.8 code")
+    ap.add_argument("--corel", action="store_true", help="v1.10 CorelDRAW versions to 'Coral Draw/' (--only takes WRR labels)")
     a = ap.parse_args()
+    if a.corel:
+        return corel_main(a)
     if a.wrr:
         return wrr_main(a)
     full = not a.only and not a.draft_only and os.path.abspath(a.out) == os.path.abspath(OUT)

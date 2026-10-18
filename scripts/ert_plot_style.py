@@ -54,7 +54,31 @@ _SPEC = dict(title=26, panel=22, axis=24, tick=22, cbar_label=24, cbar_tick=22, 
              marker_edge=0.8, cbar_outline=2.4, legend_frame=2.4, stats_frame=2.2, section_outline=2.5,
              elec_marker=60.0, elec_edge=0.9)
 FULL_WIDTH_MM = 190.0
-_STATE = dict(scale=FULL_WIDTH_MM / SPEC_WIDTH_MM, dense=False, width=FULL_WIDTH_MM)
+_STATE = dict(scale=FULL_WIDTH_MM / SPEC_WIDTH_MM, dense=False, width=FULL_WIDTH_MM, corel=False)
+
+# v1.10 — CorelDRAW versions (Coral Draw/): one font (Times New Roman, also in mathtext), one size per text role in all
+# figures, every data layer as vectors. Switched on by corel_mode(True); the submission files (results/figs_wrr) do not
+# use it.
+COREL_SIZES = dict(panel=8.0, axis=8.0, cbar_label=8.0, tick=7.5, cbar_tick=7.5, legend=7.5, stats=7.5, title=8.0)
+COREL_CELL_LW = 0.1           # pt, edge = face colour of vector mesh cells (no seams)
+
+
+def corel_mode(on=True):
+    _STATE["corel"] = bool(on)
+
+
+def is_corel():
+    return _STATE["corel"]
+
+
+def cell_edges():
+    """Mesh (pcolormesh) cells as vectors in CorelDRAW mode: edge = face colour, hairline, so that no white seams appear."""
+    return dict(edgecolors="face", linewidth=COREL_CELL_LW) if _STATE["corel"] else {}
+
+
+def raster():
+    """rasterized= flag of the data layers: True for the submission files, False (all vectors) for CorelDRAW."""
+    return not _STATE["corel"]
 
 
 def font_file(weight="bold"):
@@ -63,7 +87,10 @@ def font_file(weight="bold"):
 
 
 def size(key):
-    """A spec size converted to print points (dense-grid mode: −4 spec points for text); text is floored at MIN_FONT_PT."""
+    """A spec size converted to print points (dense-grid mode: −4 spec points for text); text is floored at MIN_FONT_PT.
+    In CorelDRAW mode every text role has one size in all figures (COREL_SIZES)."""
+    if _STATE["corel"] and key in COREL_SIZES:
+        return COREL_SIZES[key]
     v = _SPEC[key]
     text = key in ("title", "panel", "axis", "tick", "cbar_label", "cbar_tick", "legend", "stats")
     if text and _STATE["dense"]:
@@ -100,6 +127,18 @@ def apply(print_width_mm=190.0, dense=False):
         "savefig.dpi": DPI, "pdf.fonttype": 42, "ps.fonttype": 42, "image.cmap": RES_CMAP,
         "axes.unicode_minus": True, "hatch.linewidth": 0.5,
     })
+    if _STATE["corel"]:
+        # one font family: no DejaVu fallback for plain text, and mathtext (sub- and superscripts) in Times New Roman too
+        # (v1.9.1 used STIX for mathtext); text written as text (SVG <text>, TrueType in PDF / EPS)
+        matplotlib.rcParams.update({
+            "font.serif": ["Times New Roman"],
+            "mathtext.fontset": "custom", "mathtext.default": "regular", "mathtext.fallback": None,
+            "mathtext.rm": "Times New Roman:bold", "mathtext.bf": "Times New Roman:bold",
+            "mathtext.it": "Times New Roman:italic:bold", "mathtext.sf": "Times New Roman:bold",
+            "mathtext.cal": "Times New Roman:italic:bold", "mathtext.tt": "Times New Roman:bold",
+            "svg.fonttype": "none", "svg.hashsalt": "westhoek-v1.10", "pdf.fonttype": 42, "ps.fonttype": 42,
+            "ps.useafm": False, "image.composite_image": False, "path.simplify": False,
+        })
 
 
 def figsize(width_mm, height_mm):
@@ -130,7 +169,8 @@ def panel_label(ax, letter, text=None, wrap=False, **_old):
     if text:
         s = (s + ("\n" if wrap else " ") + text) if s else text
     tr = offset_copy(ax.transAxes, fig=ax.figure, x=0.0, y=PANEL_GAP_PT, units="points")
-    t = ax.text(0.0, 1.0, s, transform=tr, ha="left", va="baseline", fontsize=PANEL_PT, fontweight="bold", zorder=50,
+    t = ax.text(0.0, 1.0, s, transform=tr, ha="left", va="baseline", fontsize=COREL_SIZES["panel"] if _STATE["corel"] else PANEL_PT,
+                fontweight="bold", zorder=50,
                 clip_on=False, linespacing=1.15)
     t.set_gid("panel_label")
     return t
@@ -242,7 +282,18 @@ def overlap_checks(fig, shrink_px=0.5):
     from matplotlib.patches import Patch as _P
     from matplotlib.text import Text
     from matplotlib.transforms import Bbox
-    fig.canvas.draw(); r = fig.canvas.get_renderer()
+    seen = set(); _orig = Text.draw                 # record the texts that are actually drawn (v1.10)
+
+    def _rec(self, renderer):
+        if self.get_visible() and self.get_text().strip():
+            seen.add(id(self))
+        return _orig(self, renderer)
+    Text.draw = _rec
+    try:
+        fig.canvas.draw()
+    finally:
+        Text.draw = _orig
+    r = fig.canvas.get_renderer()
     axes = _all_axes(fig); legs = _legends(fig)
     letters = [t for t in fig.findobj(Text) if t.get_gid() in ("panel_label", "panel_ident") and t.get_visible()]
     lbb = {id(t): t.get_window_extent(r) for t in letters}
@@ -286,8 +337,7 @@ def overlap_checks(fig, shrink_px=0.5):
             if bb.overlaps(lbb[id(t)]):
                 leg_hits.append(f"legend '{name}' over panel letter '{t.get_text()[:12]}'")
     # panel letters
-    others = [t for t in fig.findobj(Text) if t.get_visible() and t.get_text().strip() and t.get_gid() not in ("panel_label", "panel_ident")
-              and not (t.axes is not None and not t.axes.get_visible())]
+    others = [t for t in fig.findobj(Text) if id(t) in seen and t.get_gid() not in ("panel_label", "panel_ident")]
     tick_all, tick_ok = set(), set()
     for ax in axes:                            # only tick labels that are drawn (inside the axis view interval)
         for axis in (ax.xaxis, ax.yaxis):

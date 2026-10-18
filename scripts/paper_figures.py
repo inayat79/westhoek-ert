@@ -100,7 +100,7 @@ def cells(ax, polys, values, cmap, norm, mask=None):
     if mask is not None:
         v = np.ma.masked_where(mask, v)
     cm = (matplotlib.colormaps[cmap] if isinstance(cmap, str) else cmap).with_extremes(bad=(1, 1, 1, 0))
-    pc = PolyCollection(polys, array=v, cmap=cm, norm=norm, edgecolors="face", linewidths=0.3, antialiased=True, rasterized=True)
+    pc = PolyCollection(polys, array=v, cmap=cm, norm=norm, edgecolors="face", linewidths=eps.COREL_CELL_LW if eps.is_corel() else 0.3, antialiased=True, rasterized=eps.raster())
     ax.add_collection(pc)
     return pc
 
@@ -594,8 +594,8 @@ def fig06():
         ax = fig.add_subplot(gs[0, i])
         pm = b13.PriorModel2(th)
         V = pm.log10rho(X.ravel(), Z.ravel()).reshape(X.shape); V[Z > np.interp(X, ex, ez)] = np.nan
-        pc = ax.pcolormesh(xg, zg, 10 ** V, cmap=eps.RES_CMAP, norm=eps.res_norm(), shading="auto", rasterized=True,
-                           edgecolors="face", antialiased=True)
+        pc = ax.pcolormesh(xg, zg, 10 ** V, cmap=eps.RES_CMAP, norm=eps.res_norm(), shading="auto", rasterized=eps.raster(),
+                           edgecolors="face", antialiased=True, **({"linewidth": eps.COREL_CELL_LW} if eps.is_corel() else {}))
         ax.plot(TX, pm.target(), "k-", lw=0.9, path_effects=halo())        # v1.9.1: halo on dark cells
         ax.plot(ex, ez, "k-", lw=0.6)
         ax.set_xlim(0, 505); ax.set_ylim(-45, 9); ax.set_aspect("auto")
@@ -1114,8 +1114,8 @@ def figS02():
     fig = new_fig(88)
     axes = fig.subplots(1, 2)
     ax = axes[0]; pe_ = P["published_electrodes"]
-    ax.loglog(Rb[~pe_], dd[~pe_], "x", ms=2.0, mew=0.4, color=C["prior"], label="Pairs (dune electrodes involved)", rasterized=True)
-    ax.loglog(Rb[pe_], dd[pe_], ".", ms=2.5, color="steelblue", label="Pairs on published electrodes", rasterized=True)
+    ax.loglog(Rb[~pe_], dd[~pe_], "x", ms=2.0, mew=0.4, color=C["prior"], label="Pairs (dune electrodes involved)", rasterized=eps.raster())
+    ax.loglog(Rb[pe_], dd[pe_], ".", ms=2.5, color="steelblue", label="Pairs on published electrodes", rasterized=eps.raster())
     rr = np.logspace(np.log10(Rb.min()), np.log10(Rb.max()), 100)
     for k, col, ls in (("A", "#d35400", "-"), ("B", "#6a3d9a", "--")):
         p = fa[k]["params"]
@@ -1127,11 +1127,12 @@ def figS02():
     legend_below(fig, *ax.get_legend_handles_labels(), ncol=3)       # v1.9: legend of (a) below the figure, off the data
     ax = axes[1]
     re = np.abs(P["Rn"] - P["Rr"]) / ((np.abs(P["Rn"] + P["Rr"])) / 2)
-    ax.loglog(100 * P["stack"], 100 * re, ".", ms=2.0, color="steelblue", rasterized=True)
+    ax.loglog(100 * P["stack"], 100 * re, ".", ms=2.0, color="steelblue", rasterized=eps.raster())
     lim = [1e-3, 1e3]; ax.plot(lim, lim, "--", color="red", lw=eps.size("line") * 1.2)
     ax.axhline(3, color="k", ls=":", lw=1); ax.axvline(1, color="0.5", ls="--", lw=0.8)
     ax.set_xlim(1e-3, 1e2); ax.set_ylim(1e-3, 1e3)
     ax.set_xlabel("Stacking error (%)"); ax.set_ylabel("Reciprocal error (%)")
+    ax.tick_params(axis="x", which="major", pad=5.5)                       # v1.10: corner labels 10⁻³ / 10⁻³ no longer touch
     finish(ax); eps.panel_label(ax, "b")
     return fig, {}
 
@@ -1217,8 +1218,8 @@ def figS08():
             col = Mm[:, j]; ok = np.where(np.isfinite(col))[0]
             if ok.size:
                 col[:ok[0]] = col[ok[0]]; col[ok[-1] + 1:] = col[ok[-1]]
-        pc = ax.pcolormesh(XG, ZG, np.ma.masked_invalid(Mm), cmap=cmap, norm=mcolors.Normalize(0, 1), shading="auto", rasterized=True,
-                           edgecolors="face", antialiased=True)
+        pc = ax.pcolormesh(XG, ZG, np.ma.masked_invalid(Mm), cmap=cmap, norm=mcolors.Normalize(0, 1), shading="auto", rasterized=eps.raster(),
+                           edgecolors="face", antialiased=True, **({"linewidth": eps.COREL_CELL_LW} if eps.is_corel() else {}))
         top = np.minimum(np.interp(XG, ex, ez), np.median(z["par_z_wt"]))
         clip_poly = Polygon(np.column_stack([np.r_[XG, XG[::-1]], np.r_[top, np.full_like(XG, np.median(z["par_z_deep"]))]]),
                             closed=True, facecolor="none", edgecolor="none", transform=ax.transData)
