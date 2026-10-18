@@ -22,9 +22,14 @@ import tempfile
 
 import matplotlib
 from matplotlib import font_manager
+import cmcrameri.cm  # noqa: F401  registers the Crameri maps as "cmc.<name>" (cmcrameri 1.10)
 
 SHOW_TITLES = False                      # journal version: panel labels only, no titles / suptitles (rule g)
-RES_CMAP = "rainbow"                     # resistivity colour map (spec §2)
+# Resistivity colour map: Crameri "batlow" (perceptually uniform, colour-vision-deficiency friendly; v1.9 for AGU / WRR,
+# replacing the spec's "rainbow"). Source: Crameri, F. (2018), Scientific colour maps, Zenodo, doi:10.5281/zenodo.1243862;
+# Crameri, Shephard & Heron (2020), Nat. Commun. 11, 5444. Low values (conductive) are dark.
+RES_CMAP = "cmc.batlow"
+BANNED_CMAPS = ("jet", "rainbow", "turbo", "hsv", "nipy_spectral", "gist_")    # rainbow-like (AGU graphics guidance)
 MISFIT_CMAP = "RdBu_r"                   # misfit / differences, symmetric about zero (spec §2)
 SPEC_WIDTH_MM = 508.0                    # the spec's reference figure width (20 in)
 MIN_FONT_PT = 7.0                        # floor for any text at print size
@@ -106,16 +111,32 @@ def title(ax, text):
         ax.set_title(text, fontsize=size("panel"), fontweight="bold")
 
 
-def panel_label(ax, letter, loc="upper left", text=None, inside=True):
-    """Bold panel label '(a)' (optionally followed by a short identifier, e.g. 'DP1, x = 454 m')."""
-    s = f"({letter})" + (f" {text}" if text else "")
-    xy, ha, va = {"upper left": ((0.02, 0.98), "left", "top"), "upper right": ((0.98, 0.98), "right", "top"),
-                  "lower left": ((0.02, 0.02), "left", "bottom"), "lower right": ((0.98, 0.02), "right", "bottom"),
-                  "center right": ((0.98, 0.5), "right", "center")}[loc]
-    if not inside:
-        xy = (0.0, 1.02); ha, va = "left", "bottom"
-    return ax.text(*xy, s, transform=ax.transAxes, ha=ha, va=va, fontsize=size("panel"), fontweight="bold", zorder=50,
-                   bbox=dict(boxstyle="square,pad=0.15", fc="white", ec="none", alpha=0.85) if inside else None)
+# Panel letters (v1.9, WRR): one size in every figure (the spec panel size at 190 mm, not reduced in dense mode), at the
+# upper left of the panel just outside the frame: left edge on the left spine, baseline PANEL_GAP_PT above the top spine.
+PANEL_PT = round(_SPEC["panel"] * FULL_WIDTH_MM / SPEC_WIDTH_MM, 2)     # 8.23 pt
+PANEL_GAP_PT = 3.0
+
+
+def panel_label(ax, letter, text=None, wrap=False, **_old):
+    """Bold panel letter '(a)' above the upper-left corner of the axes, outside the frame. A short identifier follows on
+    the same line, or on a second line (wrap=True) where the panel is too narrow; use the same choice for all panels of a
+    figure. (The v1.8 arguments loc/inside are accepted and ignored: every letter is now placed the same way.)"""
+    from matplotlib.transforms import offset_copy
+    s = f"({letter})" if letter else ""
+    if text:
+        s = (s + ("\n" if wrap else " ") + text) if s else text
+    tr = offset_copy(ax.transAxes, fig=ax.figure, x=0.0, y=PANEL_GAP_PT, units="points")
+    t = ax.text(0.0, 1.0, s, transform=tr, ha="left", va="baseline", fontsize=PANEL_PT, fontweight="bold", zorder=50,
+                clip_on=False, linespacing=1.15)
+    t.set_gid("panel_label")
+    return t
+
+
+def panel_ident(ax, text):
+    """Identifier of a sub-panel without its own letter (e.g. 'Sample 2'), at the panel-letter position."""
+    t = panel_label(ax, None, text=text)
+    t.set_gid("panel_ident")
+    return t
 
 
 def styled_legend(ax_or_fig, *args, **kw):
@@ -190,6 +211,117 @@ def finish_axes(ax, grid=True):
         ax.grid(True, which="major", ls="--", alpha=0.18, lw=size("grid_lw"))
 
 
+def _all_axes(f):
+    out = list(f.axes)
+    for sf in getattr(f, "subfigs", []):
+        out += _all_axes(sf)
+    return out
+
+
+def _legends(f):
+    out = [ax.get_legend() for ax in _all_axes(f) if ax.get_legend() is not None] + list(f.legends)
+    for sf in getattr(f, "subfigs", []):
+        out += list(sf.legends)
+    return out
+
+
+def _is_cbar(ax):
+    return getattr(ax, "_colorbar", None) is not None or ax.get_label() == "<colorbar>"
+
+
+def overlap_checks(fig, shrink_px=0.5):
+    """After drawing. (1) Legends over data: a legend box overlapping a plotted line (vertices or segments), a marker, a
+    data patch (bars, filled areas, cells) or a panel letter, inside the visible part of the axes. (2) Panel letters
+    overlapping a legend, a colour bar, another axes, a tick label or any other text."""
+    from matplotlib.collections import PathCollection, Collection
+    from matplotlib.lines import Line2D
+    from matplotlib.patches import Patch as _P
+    from matplotlib.text import Text
+    from matplotlib.transforms import Bbox
+    fig.canvas.draw(); r = fig.canvas.get_renderer()
+    axes = _all_axes(fig); legs = _legends(fig)
+    letters = [t for t in fig.findobj(Text) if t.get_gid() in ("panel_label", "panel_ident") and t.get_visible()]
+    lbb = {id(t): t.get_window_extent(r) for t in letters}
+    leg_hits, let_hits = [], []
+
+    def shrink(b, d=shrink_px):
+        return Bbox.from_extents(b.x0 + d, b.y0 + d, b.x1 - d, b.y1 - d)
+    for lg in legs:
+        bb = shrink(lg.get_window_extent(r))
+        name = "/".join(t.get_text()[:25] for t in lg.get_texts()[:2])
+        for ax in axes:
+            if _is_cbar(ax) or not ax.get_visible():
+                continue
+            vis = Bbox.intersection(bb, ax.bbox)
+            if vis is None or vis.width <= 0 or vis.height <= 0:
+                continue
+            for a in list(ax.lines) + list(ax.collections) + list(ax.patches):
+                if not a.get_visible() or a in (ax.patch,):
+                    continue
+                box = vis if a.get_clip_on() else bb
+                try:
+                    if isinstance(a, Line2D):
+                        p = a.get_transform().transform_path(a.get_path())
+                        hit = (len(p.vertices) > 1 and p.intersects_bbox(box, filled=False)) or \
+                              (a.get_marker() not in (None, "None", "", " ") and box.count_contains(p.vertices) > 0)
+                    elif isinstance(a, PathCollection):
+                        off = a.get_offset_transform().transform(a.get_offsets())
+                        hit = len(off) > 0 and box.count_contains(off) > 0
+                    elif isinstance(a, Collection):
+                        tr = a.get_transform()
+                        hit = any(tr.transform_path(p).intersects_bbox(box, filled=True) for p in a.get_paths())
+                    elif isinstance(a, _P):
+                        hit = a.get_transform().transform_path(a.get_path()).intersects_bbox(box, filled=True)
+                    else:
+                        hit = False
+                except Exception:
+                    hit = False
+                if hit:
+                    leg_hits.append(f"legend '{name}' over {type(a).__name__} '{(a.get_label() or '')[:30]}'")
+        for t in letters:
+            if bb.overlaps(lbb[id(t)]):
+                leg_hits.append(f"legend '{name}' over panel letter '{t.get_text()[:12]}'")
+    # panel letters
+    others = [t for t in fig.findobj(Text) if t.get_visible() and t.get_text().strip() and t.get_gid() not in ("panel_label", "panel_ident")
+              and not (t.axes is not None and not t.axes.get_visible())]
+    tick_all, tick_ok = set(), set()
+    for ax in axes:                            # only tick labels that are drawn (inside the axis view interval)
+        for axis in (ax.xaxis, ax.yaxis):
+            for tk in axis.get_major_ticks() + axis.get_minor_ticks():
+                tick_all.update((id(tk.label1), id(tk.label2)))
+            for tk in axis._update_ticks():
+                for lab in (tk.label1, tk.label2):
+                    if lab.get_visible() and lab.get_text():
+                        tick_ok.add(id(lab))
+    for t in letters:
+        b = shrink(lbb[id(t)]); nm = t.get_text().split("\n")[0][:20]
+        for lg in legs:
+            if b.overlaps(lg.get_window_extent(r)):
+                let_hits.append(f"'{nm}' over a legend")
+        for ax in axes:
+            if ax is t.axes:
+                continue
+            tb = ax.get_window_extent(r) if not _is_cbar(ax) else ax.get_tightbbox(r)
+            if tb is not None and b.overlaps(tb):
+                let_hits.append(f"'{nm}' over {'colour bar' if _is_cbar(ax) else 'axes'} {ax.get_label() or ''}")
+        for o in others:
+            if id(o) in tick_all and id(o) not in tick_ok:
+                continue                       # an undrawn tick label
+            try:
+                ob = o.get_window_extent(r)
+            except Exception:
+                continue
+            if ob.width > 0 and b.overlaps(ob) and o is not t:
+                if lg_child(o, legs):
+                    continue                   # legend texts are covered by the legend test above
+                let_hits.append(f"'{nm}' over text '{o.get_text()[:25]}'")
+    return dict(legend_overlaps=leg_hits, letter_overlaps=let_hits, n_legends=len(legs), n_letters=len(letters))
+
+
+def lg_child(o, legs):
+    return any(o in lg.get_texts() or o is lg.get_title() for lg in legs)
+
+
 def layout_checks(fig, tol_px=1.0):
     """After drawing: (smallest visible text size in pt, list of clipped artists). An artist is clipped when its window
     extent leaves the figure by more than tol_px (constrained layout is required to keep everything inside)."""
@@ -224,7 +356,22 @@ def layout_checks(fig, tol_px=1.0):
     return (min(sizes) if sizes else None), clipped
 
 
-def savefig(fig, name, outdir, print_width_mm, dpi=1000, draft_dpi=300):
+def colormaps_in(fig):
+    """Names of all colour maps used by the figure's mappables (collections, images, quad meshes)."""
+    names = set()
+    for obj in fig.findobj(lambda a: hasattr(a, "get_cmap") and hasattr(a, "get_array") and a.get_array() is not None):
+        if getattr(obj.get_array(), "ndim", 0) == 3:      # RGB(A) image: no colour map applied
+            continue
+        if getattr(obj, "colors", None) is not None and type(obj).__name__.endswith("ContourSet"):
+            continue                                        # contour lines in explicit colours (internal ListedColormap)
+        try:
+            names.add(obj.get_cmap().name)
+        except Exception:
+            pass
+    return sorted(names)
+
+
+def savefig(fig, name, outdir, print_width_mm, dpi=1000, draft_dpi=300, formats=("png", "tif", "pdf")):
     """Save at the exact print size (no bbox cropping): PNG and RGB TIFF (LZW) at `dpi` with the resolution in the file
     metadata, PDF (vector text and lines, TrueType fonts), and a `draft_dpi` PNG copy in <outdir>/draft/. Every file is
     written to a temporary name in its target folder and then renamed (atomic). Returns (paths, smallest_font_pt, clipped)."""
@@ -245,11 +392,20 @@ def savefig(fig, name, outdir, print_width_mm, dpi=1000, draft_dpi=300):
                 os.remove(tmp)
         out.append(final)
 
-    png = os.path.join(outdir, f"{name}.png")
-    atomic(png, lambda t: fig.savefig(t, format="png", dpi=dpi, metadata={"Software": None}))
-    im = Image.open(png); im.load()
-    atomic(os.path.join(outdir, f"{name}.tif"),
-           lambda t: im.convert("RGB").save(t, format="TIFF", compression="tiff_lzw", dpi=(dpi, dpi)))
+    if "png" in formats:
+        png = os.path.join(outdir, f"{name}.png")
+        atomic(png, lambda t: fig.savefig(t, format="png", dpi=dpi, metadata={"Software": None}))
+        im = Image.open(png); im.load()
+    else:                                    # TIFF only: render to a temporary PNG that is removed again
+        fd, tmp_png = tempfile.mkstemp(suffix=".png", dir=outdir); os.close(fd)
+        try:
+            fig.savefig(tmp_png, format="png", dpi=dpi, metadata={"Software": None})
+            im = Image.open(tmp_png); im.load()
+        finally:
+            os.remove(tmp_png)
+    if "tif" in formats:
+        atomic(os.path.join(outdir, f"{name}.tif"),
+               lambda t: im.convert("RGB").save(t, format="TIFF", compression="tiff_lzw", dpi=(dpi, dpi)))
     atomic(os.path.join(outdir, f"{name}.pdf"),
            lambda t: fig.savefig(t, format="pdf", dpi=dpi, metadata={"CreationDate": None, "ModDate": None, "Producer": None, "Creator": None}))
     atomic(os.path.join(dd, f"{name}.png"), lambda t: fig.savefig(t, format="png", dpi=draft_dpi, metadata={"Software": None}))

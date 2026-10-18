@@ -68,6 +68,20 @@ def new_fig(h_mm, dense=False, w_mm=190.0, constrained=True):
     return plt.figure(figsize=eps.figsize(w_mm, h_mm), layout="constrained" if constrained else None)
 
 
+def trim_height(fig, pad_mm=1.0, tol_mm=0.3):
+    """v1.9: remove the empty band that constrained layout leaves above and below an aspect-locked section: shrink the
+    figure height to the drawn content (+ pad) and let the layout re-run (the axes width, hence the scale, is unchanged)."""
+    for _ in range(4):
+        fig.canvas.draw()
+        bb = fig.get_tightbbox(fig.canvas.get_renderer())
+        w, h = fig.get_size_inches()
+        slack = h - bb.height - 2 * pad_mm / 25.4
+        if slack < tol_mm / 25.4:
+            break
+        fig.set_size_inches(w, h - slack)
+    return fig.get_size_inches()[1] * 25.4
+
+
 def cells(ax, polys, values, cmap, norm, mask=None):
     """Exact mesh cells; only this layer is rasterised; edge colour = face colour (no seams in PDF viewers)."""
     from matplotlib.collections import PolyCollection
@@ -180,7 +194,8 @@ def fig01():
     COL = m.COL
     bx0, bx1, by0, by1 = m.EXT_B; wb = 122.0; hb = wb * (by1 - by0) / (bx1 - bx0)
     axb = fig.add_axes(R(63, 93, wb, hb))
-    cm = m.topo_cmap(); nrm = TwoSlopeNorm(vmin=-40, vcenter=0, vmax=40)
+    import cmcrameri.cm as cmc
+    cm = cmc.oleron; nrm = TwoSlopeNorm(vmin=-40, vcenter=0, vmax=40)          # v1.9: Crameri oleron (sea | land at 0 m)
     ls = LightSource(azdeg=315, altdeg=40)
     zc = np.where(sea, np.clip(z, -40, -0.01), np.clip(z, 0.01, 40))
     rgb = ls.shade(zc, cmap=cm, norm=nrm, blend_mode="soft", vert_exag=8, dx=m.GRID_B, dy=m.GRID_B)
@@ -206,8 +221,8 @@ def fig01():
     gb = m.Grat(31370)
     gb.draw(axb, m.EXT_B, 5 / 60, 2.5 / 60, lambda v: m.dm(v, "E"), lambda v: m.dm(v, "N", 1), fs=fs)
     m.north_arrow(axb, (0.045, 0.60), T72, fs=fs); m.scale_bar(axb, 5000, "5 km", xy=(0.80, 0.07), fs=fs)
-    m.panel_letter(axb, "(b)", fs=eps.size("panel"))
-    cax = fig.add_axes(R(63, 93 + hb + 3.6, 58, 2.0))
+    eps.panel_label(axb, "b")
+    cax = fig.add_axes(R(80, 93 + hb + 3.6, 58, 2.0))                 # v1.9: starts right of panel letter (b)
     cb = fig.colorbar(plt.cm.ScalarMappable(norm=nrm, cmap=cm), cax=cax, orientation="horizontal", ticks=[-40, -20, -10, 0, 10, 20, 40])
     cb.ax.tick_params(labelsize=fs, length=2, width=0.5, pad=1, direction="in"); cb.outline.set_linewidth(eps.size("cbar_outline"))
     cb.ax.xaxis.set_ticks_position("top"); cb.ax.xaxis.set_label_position("top")
@@ -237,7 +252,7 @@ def fig01():
     ga = m.Grat(3035)
     ga.draw(axa, EXT_A, 2.0, 2.0, lambda v: m.dm(v, "E"), lambda v: m.dm(v, "N"), fs=fs)
     m.north_arrow(axa, (0.88, 0.80), T35, fs=fs); m.scale_bar(axa, 200000, "200 km", xy=(0.06, 0.06), fs=fs)
-    m.panel_letter(axa, "(a)", fs=eps.size("panel"))
+    eps.panel_label(axa, "a")
     axc = fig.add_axes(R(12, 12, 70.0, 70.0))
     img = np.array(Image.open(os.path.join(m.BASE, f"ortho_{m.ORTHO_LAYER}_{m.ORTHO_RES:g}m.png")))
     axc.imshow(img, extent=m.EXT_C, origin="upper", interpolation="lanczos", zorder=1)
@@ -262,8 +277,8 @@ def fig01():
     gc.draw(axc, m.EXT_C, 0.2 / 60, 0.1 / 60, lambda v: m.dm(v, "E", 1), lambda v: m.dm(v, "N", 1), lines=False, fs=fs)
     m.north_arrow(axc, (0.06, 0.16), T72, fs=fs); m.scale_bar(axc, 200, "200 m", xy=(0.06, 0.05), fs=fs)
     eps.styled_legend(axc, loc="upper right", bbox_to_anchor=(1.0, 1.0), fontsize=fs, handlelength=2.6, borderpad=0.4, labelspacing=0.3)
-    m.panel_letter(axc, "(c)", fs=eps.size("panel"))
-    for (xa_, ya_), (xc_, yc_) in (((cx0, cy0), (0, 1)), ((cx1, cy0), (1, 1))):
+    eps.panel_label(axc, "c")
+    for (xa_, ya_), (xc_, yc_) in (((cx0, cy0), (0.09, 1)), ((cx1, cy0), (1, 1))):     # v1.9: left line ends right of letter (c)
         fig.add_artist(ConnectionPatch(xyA=(xa_, ya_), coordsA=axb.transData, xyB=(xc_, yc_), coordsB=axc.transAxes, color="k", lw=0.6, zorder=0))
     for ax in (axa, axb, axc):
         for s_ in ax.spines.values():
@@ -288,7 +303,7 @@ def fig01():
     finish(axd, grid=False)
     axd.tick_params(labelsize=fs)
     eps.styled_legend(axd, loc="upper right", bbox_to_anchor=(0.99, 0.86), fontsize=fs, handlelength=2.0)
-    m.panel_letter(axd, "(d)", fs=eps.size("panel"))
+    eps.panel_label(axd, "d")
     return fig, dict(dense=True)
 
 
@@ -298,7 +313,7 @@ def fig01():
 def fig02():
     import matplotlib.tri as mtri
     s18 = mod("s18"); ctx = quiet(s18.ref_ctx); ref = ctx["ref"]
-    fig = new_fig(88)
+    fig = new_fig(72)
     ax = fig.add_subplot()
     pc = cells(ax, ctx["polys"], ref["model"], eps.RES_CMAP, eps.res_norm())
     cx, cz, rr = ref["cell_x"], ref["cell_z"], ref["res_radius"]
@@ -309,11 +324,13 @@ def fig02():
     ax.clabel(cs, fmt={10: "r = 10 m", 15: "r = 15 m"}, fontsize=eps.size("tick"), inline=True)
     section(ax, z_floor=-45)
     dune_hatch(ax); electrodes(ax)
-    res_colorbar(fig, ax, pc)
+    cax = ax.inset_axes([1.012, 0.0, 0.016, 1.0])                 # v1.9: colour bar exactly as tall as the section
+    eps.add_colorbar(fig, None, pc, f"{RHO} (Ω·m)", ticks=[1, 3, 10, 30, 100, 300], cax=cax)
     finish(ax, grid=False)
     h = [Line2D([], [], color="k", lw=1.1), Line2D([], [], color="0.25", lw=0.9, ls="--"),
          Line2D([], [], marker="v", ls="", color="k", mec="w", ms=4)]
-    legend_below(ax, h, ["r = 10 m", "r = 15 m", "Electrodes"], ncol=3, bbox_to_anchor=(0.5, -0.24))
+    legend_below(ax, h, ["r = 10 m", "r = 15 m", "Electrodes"], ncol=3, bbox_to_anchor=(0.5, -0.22))
+    trim_height(fig)                                             # v1.9: no empty band above the section
     return fig, dict(chi2=float(ref["chi2"]), lam=float(ref["lam"]))
 
 
@@ -335,10 +352,10 @@ def fig03():
     legend_below(ax, ncol=2, bbox_to_anchor=(0.5, -0.28))
     ax = axes[1]
     x = v4["x"]; meta = {}
-    for key, col, lab in (("pooled_thr3", C["thr3"], "3 Ω·m contour"), ("pooled_logmid", C["logmid"], "Log-midpoint")):
+    for key, col, lab, ls_ in (("pooled_thr3", C["thr3"], "3 Ω·m contour", "-"), ("pooled_logmid", C["logmid"], "Log-midpoint", "--")):
         b = v4[key]; ok = (b[0] >= 0.5) & (x >= 130) & (x <= 450)
         ax.fill_between(x, np.where(ok, b[2], np.nan), np.where(ok, b[3], np.nan), color=col, alpha=0.22, lw=0)
-        ax.plot(x, np.where(ok, b[1], np.nan), color=col, lw=1.4, label=f"{lab}: median, 90 % (λ-pooled)")
+        ax.plot(x, np.where(ok, b[1], np.nan), color=col, lw=1.4, ls=ls_, label=f"{lab}: median, 90 % (λ-pooled)")
         meta[key] = {xx: [float(v) for v in b[:, int(np.argmin(np.abs(x - xx)))]] for xx in (150, 200, 250, 300, 350)}
     ex, ez = wc.land_surface()
     ax.plot(ex, ez, "k-", lw=0.8, label="Land surface")
@@ -365,25 +382,26 @@ def fig04():
     for k, dname in enumerate(c11.DEFS):
         for gi, grp in enumerate(("≤10", "10–15")):
             s_ = summ[(grp, dname)]
-            ax.bar(gi + (k - 1) * w, 100 * s_["cov"], w * 0.9, color=cols[dname], edgecolor="k", lw=0.4, label=names[dname] if gi == 0 else None)
+            ax.bar(gi + (k - 1) * w, 100 * s_["cov"], w * 0.9, color=cols[dname], edgecolor="k", lw=0.4, hatch=HATCH[dname],
+                   label=names[dname] if gi == 0 else None)
             ax.plot(gi + (k - 1) * w, 100 * s_["cov_pooled"], "k_", ms=9, mew=1.6, label="λ-pooled" if (gi == 0 and k == 0) else None)
     ax.axhline(90, color="k", ls="--", lw=0.8)
     ax.set_xticks([0, 1]); ax.set_xticklabels(["r ≤ 10 m", "10 < r ≤ 15 m"]); ax.set_ylim(0, 105)
     ax.set_ylabel("Coverage of 90 % bands (%)")
     finish(ax, minor=False); ax.xaxis.set_minor_locator(matplotlib.ticker.NullLocator())
-    eps.panel_label(ax, "a", loc="lower right")
+    eps.panel_label(ax, "a")
     legend_below(ax, ncol=2, bbox_to_anchor=(0.5, -0.14))
     ax = axes[0, 1]
     for k, dname in enumerate(c11.DEFS):
         for gi, grp in enumerate(("≤10", "10–15")):
             bs = [np.nanmedian([x["bias"] for x in rows if x["truth"] == t and x["d"] == dname and x["lam"] == "50" and x["grp"] == grp])
                   for t in c11.A2_TRUTHS]
-            ax.bar(gi + (k - 1) * w, np.mean(bs), w * 0.9, color=cols[dname], edgecolor="k", lw=0.4)
+            ax.bar(gi + (k - 1) * w, np.mean(bs), w * 0.9, color=cols[dname], edgecolor="k", lw=0.4, hatch=HATCH[dname])
             ax.plot(np.full(len(bs), gi + (k - 1) * w), bs, "k.", ms=3)
     ax.axhline(0, color="k", lw=0.8)
     ax.set_xticks([0, 1]); ax.set_xticklabels(["r ≤ 10 m", "10 < r ≤ 15 m"])
     ax.set_ylabel("Median bias m̂ − true (m)\n(− = too deep)")
-    finish(ax); ax.xaxis.set_minor_locator(matplotlib.ticker.NullLocator()); eps.panel_label(ax, "b", loc="lower right")
+    finish(ax); ax.xaxis.set_minor_locator(matplotlib.ticker.NullLocator()); eps.panel_label(ax, "b")
     lams = [5, 10, 20, 50, 100]
     for col_i, (key, ylab) in enumerate((("cov", "Coverage (%)"), ("bias", "Median bias (m)"))):
         ax = axes[1, col_i]
@@ -391,7 +409,7 @@ def fig04():
             for grp, ls in (("≤10", "-"), ("10–15", "--")):
                 sel = lambda l: [x for x in rows if x["d"] == dname and x["lam"] == str(l) and x["grp"] == grp and x["r"] < 5]
                 v = [100 * np.mean([x["cov"] for x in sel(l)]) if key == "cov" else np.nanmedian([x["bias"] for x in sel(l)]) for l in lams]
-                ax.plot(lams, v, ls, marker="o", ms=3, color=cols[dname],
+                ax.plot(lams, v, ls, marker=MARK[dname], ms=3.5, color=cols[dname], mec="k", mew=0.3,
                         label=f"{names[dname]}, " + {"≤10": "r ≤ 10 m", "10–15": "10 < r ≤ 15 m"}[grp])
         ax.axhline(90 if key == "cov" else 0, color="k", ls=":", lw=0.8)
         ax.set_xscale("log"); ax.set_xticks(lams); ax.set_xticklabels([str(l) for l in lams]); ax.minorticks_off()
@@ -399,7 +417,7 @@ def fig04():
         finish(ax); ax.xaxis.set_minor_locator(matplotlib.ticker.NullLocator())
         if key == "cov":
             ax.set_ylim(0, 105); eps.styled_legend(ax, loc="lower left")
-        eps.panel_label(ax, "cd"[col_i], loc="upper right" if key == "cov" else "upper left")
+        eps.panel_label(ax, "cd"[col_i])
     for col_i, grp in enumerate(("≤10", "10–15")):
         ax = axes[2, col_i]
         ax.plot([0, 1], [0, 1], "--", color="red", lw=eps.size("line") * 1.2, label="Perfect reliability")
@@ -408,8 +426,9 @@ def fig04():
             ax.plot(mp, ob, ls, marker="o", ms=3, color=col, label="λ = 50" if mode == "single" else "λ-pooled")
         ax.set_xlim(0, 1); ax.set_ylim(0, 1); ax.set_aspect("equal")
         ax.set_xlabel("Predicted P(ρ < 3 Ω·m)"); ax.set_ylabel("Observed frequency")
-        finish(ax); eps.styled_legend(ax, loc="lower right")
+        finish(ax)
         eps.panel_label(ax, "ef"[col_i], text=("r ≤ 10 m", "10 < r ≤ 15 m")[col_i])
+    legend_below(fig, *axes[2, 0].get_legend_handles_labels(), ncol=3)       # v1.9: shared, below (e, f), off the curves
     return fig, {}
 
 
@@ -440,16 +459,17 @@ def fig05():
                 continue
             qq = r["q"] if x.startswith("thr") else g.q_of(3.0, g.params(r["truth"]))
             mk = "o" if r["tau"] == 0 else "^"
-            ax.scatter(qq, 100 * r["coverage"], c=cmap[r["k"]], marker=mk, s=12, edgecolor="k" if r["rho_lens"] == 0.8 else "none", lw=0.5, zorder=3)
+            ax.scatter(qq, 100 * r["coverage"], c=cmap[r["k"]], marker=mk, s=KSIZE[r["k"]], edgecolor="k" if r["rho_lens"] == 0.8 else "none",
+                       lw=0.5, zorder=3)
         ax.axhline(90, color="0.3", lw=0.8, ls="--")
         ax.axvspan(1.0, 3.0, color="0.9", zorder=0); ax.axvline(0.5, color="0.6", lw=0.6, ls=":")
         ax.axvline(wq, color=C["thr3"], lw=1.0); ax.set_xlim(0, 2.8); ax.set_ylim(-3, 103)
         ax.set_xlabel("q of this contour" if x.startswith("thr") else "q of the 3 Ω·m contour")
         finish(ax)
         lab = g.DEF_LAB[x].replace("max. gradient", "max. gradient").replace("oracle √(ρ_lens·ρ_below)", "oracle")
-        eps.panel_label(ax, "abcdefgh"[i], text=lab, loc="center right")
+        eps.panel_label(ax, "abcdefgh"[i], text=lab, wrap=True)
     axes[0, 0].set_ylabel("Coverage of the\n90 % band (%)"); axes[1, 0].set_ylabel("Coverage of the\n90 % band (%)")
-    h = [Line2D([], [], marker="o", ls="", color=cmap[k], label=f"k = {k}") for k in g.KS] + \
+    h = [Line2D([], [], marker="o", ls="", color=cmap[k], ms=np.sqrt(KSIZE[k]), label=f"k = {k}") for k in g.KS] + \
         [Line2D([], [], marker="^", ls="", color="0.5", label="τ = 5 m"),
          Line2D([], [], marker="o", ls="", mfc="0.5", mec="k", label="ρ$_\\mathbf{lens}$ = 0.8 Ω·m"),
          Line2D([], [], color="0.3", ls="--", label="Nominal 90 %"), Line2D([], [], color=C["thr3"], label=f"Westhoek, 3 Ω·m (q = {wq:.2f})"),
@@ -502,11 +522,11 @@ def figS03_data(outdir):
 def figS03(fit, fit_lam, fit_grad):
     g = g25_rows()["g"]
     cmap = {2: "#9ecae1", 4: "#4292c6", 8: "#08519c", 16: "#08306b"}
-    fig = new_fig(92)
+    fig = new_fig(108)
     axes = fig.subplots(1, 2)
     ax = axes[0]
     for p in fit["pts"]:
-        ax.scatter(p["x"] * fit["a"], p["y"], c=cmap[p["k"]], s=14, marker={"thr2": "s", "thr3": "o", "thr5": "D"}[p["d"]], zorder=3)
+        ax.scatter(p["x"] * fit["a"], p["y"], c=cmap[p["k"]], s=KSIZE[p["k"]] * 1.2, marker={"thr2": "s", "thr3": "o", "thr5": "D"}[p["d"]], zorder=3)
     for p in fit_grad["pts"]:
         ax.scatter(p["x"] * fit["a"], p["y"], facecolor="none", edgecolor="#d35400", s=18, marker="^", zorder=3)
     lim = max(1, np.nanmax(np.abs([p["y"] for p in fit["pts"]] + [p["x"] * fit["a"] for p in fit["pts"]]))) * 1.1
@@ -515,20 +535,24 @@ def figS03(fit, fit_lam, fit_grad):
     finish(ax)
     hh = [Line2D([], [], marker=m_, ls="", color="0.4", label=l) for m_, l in (("s", "2 Ω·m"), ("o", "3 Ω·m"), ("D", "5 Ω·m"))]
     hh += [Line2D([], [], marker="^", ls="", mfc="none", mec="#d35400", label="τ = 5 m (not fitted)")]
-    hh += [Line2D([], [], marker="o", ls="", color=cmap[k], label=f"k = {k}") for k in g.KS]
-    eps.styled_legend(ax, handles=hh, loc="lower right", ncol=2)
+    hh += [Line2D([], [], marker="o", ls="", color=cmap[k], ms=np.sqrt(KSIZE[k] * 1.2), label=f"k = {k}") for k in g.KS]
     eps.panel_label(ax, "a")
     eps.stats_box(ax, f"λ = 50\na = {fit['a']:.3f} [{fit['a90'][0]:.3f}, {fit['a90'][1]:.3f}]\nR² = {fit['r2']:.2f}", loc="upper right")
     ax = axes[1]
     lc = {5: "#fdae6b", 10: "#fd8d3c", 20: "#e6550d", 50: "#a63603", 100: "#7f2704"}
     for l, fl in fit_lam.items():
         if fl:
-            ax.scatter([p["x"] * fl["a"] for p in fl["pts"]], [p["y"] for p in fl["pts"]], c=lc[l], s=10,
+            ax.scatter([p["x"] * fl["a"] for p in fl["pts"]], [p["y"] for p in fl["pts"]], c=lc[l], s=12, marker=LAM_MARK[l],
+                       edgecolors="k", linewidths=0.2,
                        label=f"λ = {l}: a = {fl['a']:.3f}, R² = {fl['r2']:.2f}")
     lim2 = ax.get_xlim(); m_ = max(abs(lim2[0]), abs(lim2[1]), 1)
     ax.plot([-m_, m_], [-m_, m_], "--", color="red", lw=eps.size("line") * 1.2)
     ax.set_xlabel("Predicted bias −a$_\\mathbf{λ}$·r̄·Φ⁻¹(q) (m)"); ax.set_ylabel("Observed median bias (m)")
-    finish(ax); eps.styled_legend(ax, loc="lower right"); eps.panel_label(ax, "b")
+    finish(ax); eps.panel_label(ax, "b")
+    hb, lb = ax.get_legend_handles_labels()                                  # v1.9: one legend below both panels, off the data
+    blank = Line2D([], [], ls="", marker="")
+    H = hh[:4] + [blank] + hh[4:] + [blank] + hb                              # columns: definitions | k | λ of (b)
+    legend_below(fig, H, [x.get_label() for x in hh[:4]] + [""] + [x.get_label() for x in hh[4:]] + [""] + [f"(b) {x}" for x in lb], ncol=3)
     return fig, {}
 
 
@@ -560,8 +584,7 @@ def fig06():
         if i == 0:
             ax.set_ylabel("Elevation (mTAW)"); eps.panel_label(ax, "a", text=txt)
         else:
-            ax.text(0.02, 0.98, txt, transform=ax.transAxes, ha="left", va="top", fontsize=eps.size("panel"), zorder=50,
-                    bbox=dict(boxstyle="square,pad=0.15", fc="white", ec="none", alpha=0.85))
+            eps.panel_ident(ax, txt)
     cax = fig.add_subplot(gs[1, :])
     eps.add_colorbar(fig, None, pc, f"{RHO} (Ω·m)", ticks=[1, 3, 10, 30, 100, 300], cax=cax, orientation="horizontal")
     for k, (key, fkey, lab, ttl) in enumerate((("t2_train", "t2_field", "Hotelling T² (data PCA)", "T²"),
@@ -575,23 +598,25 @@ def fig06():
         ax.axvline(np.percentile(v, 99), color="red", lw=0.9, ls="--", label="Training P99")
         ax.set_xlabel(lab)
         finish(ax)
+        ttl = f"{ttl}, field at {100*np.mean(v < fv):.0f}th pct."      # v1.9: was in the legend, which covered the data
         if k == 0:
             ax.set_ylabel("Training samples"); eps.panel_label(ax, "b", text=ttl)
         else:
-            ax.text(0.02, 0.98, ttl, transform=ax.transAxes, ha="left", va="top", fontsize=eps.size("panel"), zorder=50,
-                    bbox=dict(boxstyle="square,pad=0.15", fc="white", ec="none", alpha=0.85))
-        eps.styled_legend(ax, loc="upper right")
+            eps.panel_ident(ax, ttl)
+        h_b = ax.get_legend_handles_labels()
     ax = fig.add_subplot(gs[3, 0:2])
     rk = B["ho_rank"].ravel()
     ax.hist(rk, bins=20, range=(0, 1), color="steelblue", edgecolor="black", lw=eps.size("marker_edge") * 0.6)
-    ax.axhline(rk.size / 20, color="k", ls="--", lw=0.9, label="Uniform")
+    ax.axhline(rk.size / 20, color="k", ls="-.", lw=0.9, label="Uniform")
     ax.set_xlabel("Rank of the true lens base among 2000 posterior samples"); ax.set_ylabel("Count")
-    finish(ax); eps.styled_legend(ax, loc="lower center"); eps.panel_label(ax, "c")
+    finish(ax); eps.panel_label(ax, "c")
+    h_c = ax.get_legend_handles_labels()
+    legend_below(fig, h_b[0] + h_c[0], ["Field value (b)", "Training P99 (b)", "Uniform (c)"], ncol=3)   # v1.9: one legend, off the data
     ax = fig.add_subplot(gs[3, 2])
     ax.plot(TX, 100 * B["ho_cov"].mean(0), "-o", ms=2.5, color="steelblue", mec="k", mew=0.3)
     ax.axhspan(85, 95, color="green", alpha=0.12); ax.axhline(90, color="k", lw=0.7, ls=":")
     ax.set_ylim(60, 100); ax.set_xlabel("Distance (m)"); ax.set_ylabel("Coverage (%)")
-    finish(ax); eps.panel_label(ax, "d", loc="lower left")
+    finish(ax); eps.panel_label(ax, "d")
     return fig, dict(ho_cov=float(100 * B["ho_cov"].mean()))
 
 
@@ -609,7 +634,7 @@ def fig07():
     ax = axes[0]
     x4 = v4["x"]; b = v4["pooled_logmid"]; ok = b[0] >= 0.5
     ax.fill_between(x4, np.where(ok, clip(x4, b[2]), np.nan), np.where(ok, clip(x4, b[3]), np.nan), color=C["logmid"], alpha=0.2, lw=0)
-    ax.plot(x4, np.where(ok, clip(x4, b[1]), np.nan), color=C["logmid"], lw=1.2, label="Linearised log-midpoint, λ-pooled: median, 90 %")
+    ax.plot(x4, np.where(ok, clip(x4, b[1]), np.nan), color=C["logmid"], lw=1.2, ls="--", label="Linearised log-midpoint, λ-pooled: median, 90 %")
     lo, md, hi = np.percentile(B["Pf"], [5, 50, 95], 0)
     ax.fill_between(TX[h], clip(TX[h], lo[h]), clip(TX[h], hi[h]), color=C["bel"], alpha=0.25, lw=0)
     ax.plot(TX[h], clip(TX[h], md[h]), color=C["bel"], lw=1.7, label="BEL (prior v3): median, 90 %")
@@ -652,7 +677,7 @@ def fig08():
     ok = (b4[0] >= 0.5) & (r4 <= 10.0)
     ax.axvspan(*k1.DIS_ZONE, color="#e6c229", alpha=0.16, lw=0, zorder=0)
     ax.fill_between(x4, np.where(ok, b4[2], np.nan), np.where(ok, b4[3], np.nan), color=C["logmid"], alpha=0.18, lw=0)
-    h_lm, = ax.plot(x4, np.where(ok, b4[1], np.nan), color=C["logmid"], lw=1.1)
+    h_lm, = ax.plot(x4, np.where(ok, b4[1], np.nan), color=C["logmid"], lw=1.1, ls="--")
     lo, md, hi = np.percentile(Pf, [5, 50, 95], 0); hh = TX >= 130
     ax.fill_between(TX[hh], lo[hh], hi[hh], color=C["bel"], alpha=0.22, lw=0); h_bel, = ax.plot(TX[hh], md[hh], color=C["bel"], lw=1.7)
     v = lb["saline_base_mTAW"]; m = np.isfinite(v)
@@ -683,6 +708,7 @@ def fig08():
     for t in leg.get_texts():
         if t.get_text() in (ls_[0], ls_[5], ls_[7]):
             t.set_fontstyle("italic")
+    trim_height(fig)                                             # v1.9: no empty band above the section
     return fig, {}
 
 
@@ -690,6 +716,12 @@ def fig08():
 # Fig. 9 / Fig. S5 — per-sounding panels
 # ─────────────────────────────────────────────────────────────────────────────
 IMG_COL = "tomato"
+# v1.9 second cues (no distinction by colour alone; AGU graphics guidance)
+HATCH = dict(thr3="////", maxgrad="....", logmid="")
+MARK = dict(thr3="o", logmid="s", maxgrad="D")
+KSIZE = {2: 7, 4: 13, 8: 22, 16: 34}                      # marker area (pt²) grows with the contrast k
+LAM_MARK = {5: "v", 10: "s", 20: "D", 50: "o", 100: "^"}
+T_MARK = {"T1": "o", "T2": "s", "T3": "D"}
 
 
 def _dp_label(ax, letter, nm, extra=None):
@@ -744,7 +776,7 @@ def figS05():
         lp = o["logmid_pooled"]
         if lp[0] >= 0.5:
             ax.axhspan(lp[2], lp[3], facecolor="none", edgecolor=C["logmid"], hatch="////", lw=0, alpha=0.8)
-            ax.axhline(lp[1], color=C["logmid"], lw=0.9, ls="--")
+            ax.axhline(lp[1], color=C["logmid"], lw=0.9, ls="-.")
         ax.axhline(o["sal1980"], color="#b2182b", lw=1.0, ls=":")
         ax.plot(lg["r"], z1, color="0.78", lw=0.4); ax.plot(10 ** np.array(o["v_grid"]), o["z_grid"], color=C["observed"], lw=1.0)
         rc = np.array([np.nan if v is None else v for v in o["ref_col"]["v"]], float)
@@ -762,7 +794,7 @@ def figS05():
         I = np.array([np.nan if v is None else v for v in R["dps"][nm]["isbt"]], float); ze = np.array(R["dps"][nm]["cpt_elev"])
         colr = np.where(I < g27.ISBT_SAND, "#f6e7b4", np.where(I <= g27.ISBT_FINE, "#d9c48f", "#7a6a55"))
         for zi, ci in zip(ze, colr):
-            sx.axhspan(zi - 0.1, zi + 0.1, color=ci, lw=0)
+            sx.axhspan(zi - 0.1, zi + 0.1, facecolor=ci, lw=0, hatch="xxx" if ci == "#7a6a55" else None, edgecolor="0.9")
         sx.set_xticks([]); plt.setp(sx.get_yticklabels(), visible=False)
         for s_ in sx.spines.values():
             s_.set_linewidth(eps.size("spine"))
@@ -774,7 +806,7 @@ def figS05():
          Patch(facecolor=C["bel"], alpha=0.3, label="2018 BEL lens base: median, 90 %"),
          Patch(facecolor="none", edgecolor=C["logmid"], hatch="////", label="2018 log-midpoint, λ-pooled"),
          Line2D([], [], color="#b2182b", ls=":", label="1980 saline base"), Line2D([], [], marker=">", ls="", color="k", label="Sounding base (log-midpoint)"),
-         Patch(facecolor="#f6e7b4", label="CPT clean sand"), Patch(facecolor="#d9c48f", label="Sand mixtures"), Patch(facecolor="#7a6a55", label="Fine-grained")]
+         Patch(facecolor="#f6e7b4", label="CPT clean sand"), Patch(facecolor="#d9c48f", label="Sand mixtures"), Patch(facecolor="#7a6a55", hatch="xxx", edgecolor="0.9", label="Fine-grained")]
     legend_below(fig, h, [x.get_label() for x in h], ncol=4)
     return fig, {}
 
@@ -789,6 +821,19 @@ MLAB = {"BEL3-18": "BEL (prior v3), 2018", "BEL4-18": "BEL (prior v4), 2018", "B
         "LIN-MG-18": "Maximum gradient, 2018", "LIN-LM-24": "Log-midpoint, 2025 ERT line", "LIN-3-24": "3 Ω·m contour, 2025 ERT line",
         "LIN-MG-24": "Maximum gradient, 2025 ERT line", "PRIOR3": "Prior v3", "PRIOR4": "Prior v4", "PRIOR4-s": "Prior v4, beach stretch",
         "PRIOR4-L24": "Prior v4, 2025 layout"}
+
+
+def mmark(m):
+    """Marker by method family (second cue to the colour)."""
+    if m.startswith("BEL"):
+        return "o"
+    if m.startswith("PRIOR"):
+        return "v"
+    if "-LM-" in m or "logmid" in m:
+        return "s"
+    if "-3-" in m or "thr3" in m:
+        return "^"
+    return "D"
 
 
 def mcol(m):
@@ -813,17 +858,17 @@ def fig10():
     for i_, (ax, k) in enumerate(((axes[0], "IS"), (axes[1], "CRPS"))):
         for yv, m in zip(ys, FIELD_METHODS):
             o = FS[m][k]
-            ax.errorbar(o["mean"], yv, xerr=[[o["mean"] - o["lo"]], [o["hi"] - o["mean"]]], fmt="o", color=mcol(m), ms=3.5, lw=1,
+            ax.errorbar(o["mean"], yv, xerr=[[o["mean"] - o["lo"]], [o["hi"] - o["mean"]]], fmt=mmark(m), color=mcol(m), ms=3.5, lw=1,
                         capsize=2, mec="k", mew=0.3)
         ax.set_xlabel("Mean 90 % interval score (m)" if k == "IS" else "Mean CRPS (m)")
         finish(ax); ax.yaxis.set_minor_locator(matplotlib.ticker.NullLocator())
-        eps.panel_label(ax, "ab"[i_], loc="upper right")
+        eps.panel_label(ax, "ab"[i_])
     axes[0].set_yticks(ys)
     axes[0].set_yticklabels([f"{i + 1}  {MLAB[m]}" + (" ‡" if FS[m]["approx"] else "") for i, m in enumerate(FIELD_METHODS)])
     plt.setp(axes[1].get_yticklabels(), visible=False)
     ax = axes[2]
     for i, m in enumerate(FIELD_METHODS):
-        o = FS[m]; ax.plot(o["width"], o["cov"] / o["n"], "o", color=mcol(m), ms=5, mec="k", mew=0.3, zorder=4)
+        o = FS[m]; ax.plot(o["width"], o["cov"] / o["n"], mmark(m), color=mcol(m), ms=5, mec="k", mew=0.3, zorder=4)
     pts = sorted([(FS[m]["cov"] / FS[m]["n"], np.log10(FS[m]["width"]), i + 1) for i, m in enumerate(FIELD_METHODS)])
     groups = []
     for c_, lw_, k_ in pts:                      # numbers of overlapping points (same coverage, width within 10 %) share one label
@@ -837,14 +882,14 @@ def fig10():
                     va="top" if c_ > 0.97 else "bottom",
                     fontsize=eps.size("tick"), zorder=5, bbox=dict(boxstyle="square,pad=0.1", fc="white", ec="none", alpha=0.7))
     for g in SG:
-        ax.plot(g["width"], g["cov"], "s", mfc="none", color=mcol(g["method"]), ms=4, alpha=0.8)
-        ax.plot(g["prior_width"], g["prior_cov"], "s", mfc="none", color=C["prior"], ms=3, alpha=0.6)
+        ax.plot(g["width"], g["cov"], mmark(g["method"]), mfc="none", color=mcol(g["method"]), ms=4, alpha=0.9)
+        ax.plot(g["prior_width"], g["prior_cov"], mmark("PRIOR"), mfc="none", color=C["prior"], ms=3, alpha=0.7)
     ax.axhline(0.9, color="0.5", lw=0.6, ls=":"); ax.set_xscale("log")
     ax.set_xlabel("Sharpness: median 90 % width (m)"); ax.set_ylabel("Share inside the 90 % interval")
-    finish(ax); eps.panel_label(ax, "c", loc="center right")
-    h = [Line2D([], [], marker="o", ls="", color="0.4", mec="k", label="Field (1–14: rows of a, b)"),
-         Line2D([], [], marker="s", ls="", mfc="none", color="0.4", label="Synthetic sets"),
-         Line2D([], [], marker="s", ls="", mfc="none", color=C["prior"], label="Their priors")]
+    finish(ax); eps.panel_label(ax, "c")
+    h = [Line2D([], [], marker="o", ls="", color="0.4", mec="k", label="Field (1–14)"),
+         Line2D([], [], marker="o", ls="", mfc="none", color="0.4", label="Synthetic"),
+         Line2D([], [], marker=mmark("PRIOR"), ls="", mfc="none", color=C["prior"], label="Their priors")]
     eps.styled_legend(ax, handles=h, loc="lower right")
     meta = {m: FS[m] for m in FIELD_METHODS}
     return fig, meta
@@ -884,7 +929,7 @@ def figS10():
     axes[0].set_xlabel("Mean interval score (m); grey tick: prior"); axes[1].set_xlabel("Interval-score skill against the prior")
     axes[1].axvline(0, color="k", lw=0.6); axes[1].axvline(0.3, color="0.5", lw=0.5, ls=":")
     for i, ax in enumerate(axes):
-        finish(ax); ax.yaxis.set_minor_locator(matplotlib.ticker.NullLocator()); eps.panel_label(ax, "ab"[i], loc="lower left")
+        finish(ax); ax.yaxis.set_minor_locator(matplotlib.ticker.NullLocator()); eps.panel_label(ax, "ab"[i])
     plt.setp(axes[1].get_yticklabels(), visible=False)
     return fig, {}
 
@@ -913,20 +958,22 @@ def fig11():
     axes = fig.subplots(1, 2, gridspec_kw=dict(width_ratios=[1, 1.6]))
     ax = axes[0]; bins = np.logspace(np.log10(1.5), np.log10(120), 40)
     ax.hist(pT18, bins, density=True, alpha=0.40, color="#1f4e9c", label="Synthetic from soundings, 2018 layout")
-    ax.hist(pT24, bins, density=True, alpha=0.40, color="#7fa6e0", label="Synthetic from soundings, 2025 layout")
+    ax.hist(pT24, bins, density=True, facecolor=matplotlib.colors.to_rgba("#7fa6e0", 0.45), edgecolor="#1f4e9c", hatch="////", lw=0,
+            label="Synthetic from soundings, 2025 layout")
     ax.hist(pT1s, bins, density=True, histtype="step", lw=1.2, ls="-.", color="#1f4e9c", label="Synthetic from soundings, 2018 beach stretch")
     ax.hist(r_full, bins, density=True, histtype="step", lw=1.2, color="#d35400", label="2018 data, full line")
     ax.hist(r_sub, bins, density=True, histtype="step", lw=1.2, ls="--", color="#d35400", label="2018 data, beach stretch")
-    ax.hist(r_ert, bins, density=True, histtype="step", lw=1.3, color="k", label="2025 ERT line")
+    ax.hist(r_ert, bins, density=True, histtype="step", lw=1.6, ls=":", color="k", label="2025 ERT line")
     for v in (10.89, 13.57, 14.80):
         ax.axvline(v, color="#1f4e9c", ls=":", lw=0.7)
     ax.axvline(8.0, color="0.5", ls="-", lw=0.5)
     ax.set_xscale("log"); ax.set_xlabel(f"{RHO_BELOW} (Ω·m)"); ax.set_ylabel("Density")
     finish(ax); eps.panel_label(ax, "a")
     ax = axes[1]
-    for P, TX, c, lab, a in ((F["Pf"], F["TX"], "#d35400", "2018 data, full line", 0.15), (Z["sub_Pf"], Z["TX"], "steelblue", "2018 data, beach stretch", 0.25)):
+    for P, TX, c, lab, a, ls_ in ((F["Pf"], F["TX"], "#d35400", "2018 data, full line", 0.15, "-"),
+                                  (Z["sub_Pf"], Z["TX"], "steelblue", "2018 data, beach stretch", 0.25, "-.")):
         lo, md, hi = np.percentile(P, [5, 50, 95], 0)
-        ax.fill_between(TX, lo, hi, color=c, alpha=a, lw=0); ax.plot(TX, md, color=c, lw=1.3, label=lab)
+        ax.fill_between(TX, lo, hi, color=c, alpha=a, lw=0); ax.plot(TX, md, color=c, lw=1.3, ls=ls_, label=lab)
     ax.plot(L["TX"], np.median(L["Pf"], 0), color="k", lw=1.0, ls="--", label="2025 ERT line, median")
     ax.axvline(x0, color="0.5", lw=0.6, ls=":"); ax.text(x0 + 2, 3.5, "2025 ERT line start", fontsize=eps.size("tick"), color="0.3")
     ax.plot([Dg[n]["x"] for n in names], [Dg[n]["base"] for n in names], "kD", ms=4, label="Sounding base (2024)")
@@ -948,7 +995,8 @@ def figS07():
     labs = {"T1": "BEL (prior v4), synthetic from soundings (T1)", "T3": "BEL (prior v4), brackish below (T3)"}
     for t, col in (("T1", "#1f4e9c"), ("T3", "#d35400")):
         pooled = np.concatenate([10 ** S[f"{k[:-3]}_P2"][:, 3] for k in S.files if k.startswith(t) and k.endswith("_P2")])
-        ax.hist(pooled, bins, density=True, alpha=0.45, color=col, label=labs[t] + ", 2018 layout")
+        ax.hist(pooled, bins, density=True, facecolor=matplotlib.colors.to_rgba(col, 0.45), label=labs[t] + ", 2018 layout",
+                hatch="\\\\\\\\" if t == "T3" else None, edgecolor="#8a3a00" if t == "T3" else "none", lw=0)
     ax.hist(10 ** L["P2"][:, 3], bins, density=True, histtype="step", lw=1.3, color="k", label="BEL (prior v4), 2025 ERT line")
     for v in (10.89, 13.57, 14.80):
         ax.axvline(v, color="#1f4e9c", ls=":", lw=0.7)
@@ -1010,7 +1058,7 @@ def figS01():
     ax = fig.add_subplot(gs[0])
     fl = np.isin(en, flagged)
     ax.bar(exx[~fl], 100 * rate[~fl], width=4, color="0.55", label="Electrodes")
-    ax.bar(exx[fl], 100 * rate[fl], width=4, color="#c0392b", label="Flagged electrodes (dropped in G2)")
+    ax.bar(exx[fl], 100 * rate[fl], width=4, color="#c0392b", hatch="////", edgecolor="k", lw=0.3, label="Flagged electrodes (dropped in G2)")
     ax.axvline(x_hw, color="steelblue", ls="--", lw=1.0, label=f"High-water line (x = {x_hw:.0f} m)")
     ax.axvspan(x_hw, x_lw, color="steelblue", alpha=0.18, lw=0, label="Intertidal zone")
     ax.axhline(100 * is_out.mean(), color="k", lw=0.7, ls=":", label=f"All data ({100*is_out.mean():.1f} %)")
@@ -1041,7 +1089,7 @@ def figS02():
     fig = new_fig(88)
     axes = fig.subplots(1, 2)
     ax = axes[0]; pe_ = P["published_electrodes"]
-    ax.loglog(Rb[~pe_], dd[~pe_], ".", ms=2.0, color="0.65", label="Pairs (dune electrodes involved)", rasterized=True)
+    ax.loglog(Rb[~pe_], dd[~pe_], "x", ms=2.0, mew=0.4, color="0.6", label="Pairs (dune electrodes involved)", rasterized=True)
     ax.loglog(Rb[pe_], dd[pe_], ".", ms=2.5, color="steelblue", label="Pairs on published electrodes", rasterized=True)
     rr = np.logspace(np.log10(Rb.min()), np.log10(Rb.max()), 100)
     for k, col, ls in (("A", "#d35400", "-"), ("B", "#6a3d9a", "--")):
@@ -1050,7 +1098,8 @@ def figS02():
         ax.loglog(rr, s, ls, color=col, lw=1.2, label=f"Model {k}" + (" (best AIC)" if fa["best"] == k else ""))
     ax.loglog(rr, np.sqrt((0.03 * rr) ** 2 + 1e-4 ** 2), "k:", lw=1.3, label="Error model used: 3 % + 10$^{-4}$ Ω")
     ax.set_xlabel("|R| (Ω)"); ax.set_ylabel("|R$_\\mathbf{n}$ − R$_\\mathbf{r}$| / √2 (Ω)")
-    finish(ax); eps.styled_legend(ax, loc="upper left"); eps.panel_label(ax, "a", loc="lower right")
+    finish(ax); eps.panel_label(ax, "a")
+    legend_below(fig, *ax.get_legend_handles_labels(), ncol=3)       # v1.9: legend of (a) below the figure, off the data
     ax = axes[1]
     re = np.abs(P["Rn"] - P["Rr"]) / ((np.abs(P["Rn"] + P["Rr"])) / 2)
     ax.loglog(100 * P["stack"], 100 * re, ".", ms=2.0, color="steelblue", rasterized=True)
@@ -1058,7 +1107,7 @@ def figS02():
     ax.axhline(3, color="k", ls=":", lw=1); ax.axvline(1, color="0.5", ls="--", lw=0.8)
     ax.set_xlim(1e-3, 1e2); ax.set_ylim(1e-3, 1e3)
     ax.set_xlabel("Stacking error (%)"); ax.set_ylabel("Reciprocal error (%)")
-    finish(ax); eps.panel_label(ax, "b", loc="lower right")
+    finish(ax); eps.panel_label(ax, "b")
     return fig, {}
 
 
@@ -1080,7 +1129,7 @@ def figS04():
         axes[1, j].plot(c["Rf"], z, color="#8c6d31", lw=0.8); axes[1, j].set_xlim(0, 6)
         ax = axes[2, j]
         ax.axvspan(0, g27.ISBT_SAND, color="#f6e7b4", lw=0); ax.axvspan(g27.ISBT_SAND, g27.ISBT_FINE, color="#e0cfa0", lw=0)
-        ax.axvspan(g27.ISBT_FINE, 4.5, color="#b7a58a", lw=0)
+        ax.axvspan(g27.ISBT_FINE, 4.5, facecolor="#b7a58a", hatch="xx", edgecolor="0.85", lw=0)
         ax.plot(I, z, color="k", lw=0.8); ax.set_xlim(1, 4.0)
         for r in c["fine_layers"]:
             ax.axhspan(r["bottom"], r["top"], xmin=0.92, xmax=1.0, color=DARK, lw=0)
@@ -1089,7 +1138,7 @@ def figS04():
         axes[0, j].set_xlabel("q$_\\mathbf{c}$ (MPa)"); axes[1, j].set_xlabel("R$_\\mathbf{f}$ (%)"); ax.set_xlabel("I$_\\mathbf{SBT}$")
         if j == 0:
             for i in range(3):
-                eps.panel_label(axes[i, j], "abc"[i], loc="lower left")
+                eps.panel_label(axes[i, j], "abc"[i])
         else:
             for i in range(3):
                 plt.setp(axes[i, j].get_yticklabels(), visible=False)
@@ -1110,11 +1159,14 @@ def figS06():
     tl = {"T1": "Logs (T1)", "T2": "Three units (T2)", "T3": "Brackish below (T3)"}
     for k, t in enumerate(g28.TRUTHS):
         dx = (k - 1) * 5
-        ax.plot(xs + dx, [M[f"{t}|L24|{n}"]["thr3"] for n in names], "o", color=cols[t], ms=4, mec="k", mew=0.3, label=f"{tl[t]}: 3 Ω·m contour, λ = 50")
-        ax.plot(xs + dx, [M[f"{t}|L24|{n}"]["logmid_pooled"] for n in names], "^", color=cols[t], ms=4, mfc="none", label=f"{tl[t]}: log-midpoint, λ-pooled")
+        ax.plot(xs + dx, [M[f"{t}|L24|{n}"]["thr3"] for n in names], T_MARK[t], color=cols[t], ms=4.5, mec="k", mew=0.3,
+                label=f"{tl[t]}: 3 Ω·m contour, λ = 50")
+        ax.plot(xs + dx, [M[f"{t}|L24|{n}"]["logmid_pooled"] for n in names], T_MARK[t], color=cols[t], ms=4.5, mfc="none", mew=0.9,
+                label=f"{tl[t]}: log-midpoint, λ-pooled")
     fb = np.array([d["base"] for d in D])
-    ax.plot(xs + 9, fb + np.array([Fv[n]["L24"]["thr3_off"] for n in names]), "s", color="0.3", ms=4, label="2025 ERT line: 3 Ω·m contour")
-    ax.plot(xs + 9, fb + np.array([Fv[n]["L24"]["logmid_off"] for n in names]), "s", color="0.3", ms=4, mfc="none", label="2025 ERT line: log-midpoint")
+    ax.plot(xs + 9, fb + np.array([Fv[n]["L24"]["thr3_off"] for n in names]), "h", color="0.3", ms=5, label="2025 ERT line: 3 Ω·m contour")
+    ax.plot(xs + 9, fb + np.array([Fv[n]["L24"]["logmid_off"] for n in names]), "h", color="0.3", ms=5, mfc="none", mew=0.9,
+            label="2025 ERT line: log-midpoint")
     for n, x in zip(names, xs):
         ax.text(x, -24, n, ha="center", fontsize=eps.size("tick"))
     ax.set_xlabel("Distance (m)"); ax.set_ylabel("Elevation (mTAW)"); ax.set_ylim(-25, 0)
@@ -1175,7 +1227,7 @@ def figS08():
     ax2.tick_params(axis="y", length=0); ax2.yaxis.set_minor_locator(matplotlib.ticker.NullLocator())
     for s_ in ax2.spines.values():
         s_.set_linewidth(eps.size("spine"))
-    eps.panel_label(ax, "c", loc="lower left")
+    eps.panel_label(ax, "c")
     return fig, dict(rsw=sm["rsw"])
 
 
@@ -1189,14 +1241,14 @@ def figS09():
     ok = (b4[0] >= 0.5) & (r4 <= 10.0)
     ax.axvspan(*k1.DIS_ZONE, color="#e6c229", alpha=0.16, lw=0, zorder=0)
     ax.fill_between(x4, np.where(ok, b4[2], np.nan), np.where(ok, b4[3], np.nan), color=C["logmid"], alpha=0.18, lw=0)
-    h_lm, = ax.plot(x4, np.where(ok, b4[1], np.nan), color=C["logmid"], lw=1.1)
+    h_lm, = ax.plot(x4, np.where(ok, b4[1], np.nan), color=C["logmid"], lw=1.1, ls="--")
     lo, md, hi = np.percentile(Pf, [5, 50, 95], 0); h = TX >= 130
     ax.fill_between(TX[h], lo[h], hi[h], color=C["bel"], alpha=0.22, lw=0); h_bel, = ax.plot(TX[h], md[h], color=C["bel"], lw=1.7)
     hl = {}
     for key, mk, col in (("saline_base_mTAW", "o", "#b2182b"), ("fresh_top_mTAW", "s", "#2166ac"), ("lower_brackish_top_mTAW", "^", "#8c6d31")):
         v = lb[key]; m = np.isfinite(v)
         hl[key] = ax.errorbar(lb["x_ours_m"][m], v[m], xerr=k1.X_ERR, yerr=k1.Z_ERR, fmt=mk, color=col, ms=4, lw=0.8, capsize=1.5)
-    h_clay, = ax.plot(lb["x_ours_m"], lb["clay_top_mTAW"], "--", color="0.35", lw=1.0)
+    h_clay, = ax.plot(lb["x_ours_m"], lb["clay_top_mTAW"], "-.", color="0.35", lw=1.0)
     h_surf, = ax.plot(ex, ez, "k-", lw=0.9)
     ax.axvline(161, color="steelblue", lw=0.8, ls=":"); ax.text(163, 4.8, "high-water line", fontsize=eps.size("tick"), color="steelblue")
     ax.set_xlim(0, 505); ax.set_ylim(-32, 8); dune_hatch(ax)
@@ -1209,6 +1261,7 @@ def figS09():
               "Discharge zone (this study)", "Land surface (2018 electrodes)", "Lebbe (1981), K1, logs of June–August 1980",
               "Saline base (< 2.5 Ω·m)", "Fresh top (> 20 Ω·m)", "Lower brackish top", "Clay top"]
     legend_below(ax, handles, labels, ncol=2, bbox_to_anchor=(0.5, -0.26))
+    trim_height(fig)                                             # v1.9: no empty band above the section
     return fig, {}
 
 
