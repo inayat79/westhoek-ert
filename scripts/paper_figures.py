@@ -68,6 +68,17 @@ def new_fig(h_mm, dense=False, w_mm=190.0, constrained=True):
     return plt.figure(figsize=eps.figsize(w_mm, h_mm), layout="constrained" if constrained else None)
 
 
+def band(ax, x, lo, hi, col, alpha, ls="-", lw=0.6, **kw):
+    """v1.9.1: a 90 % band whose edges are drawn as thin lines in the line style of its median, with a light fill, so that
+    overlapping bands can be told apart without colour (same polygon as before; only its edge is now stroked)."""
+    return ax.fill_between(x, lo, hi, facecolor=matplotlib.colors.to_rgba(col, alpha), edgecolor=col, linewidth=lw, linestyle=ls, **kw)
+
+
+def halo(lw=None):
+    import matplotlib.patheffects as pe
+    return [pe.withStroke(linewidth=lw or eps.HALO, foreground="white")]
+
+
 def trim_height(fig, pad_mm=1.0, tol_mm=0.3):
     """v1.9: remove the empty band that constrained layout leaves above and below an aspect-locked section: shrink the
     figure height to the drawn content (+ pad) and let the layout re-run (the axes width, hence the scale, is unchanged)."""
@@ -219,7 +230,10 @@ def fig01():
     axb.add_patch(Rectangle((cx0, cy0), cx1 - cx0, cy1 - cy0, fill=False, ec=COL["box_c"], lw=0.9, zorder=8))
     axb.set_xlim(bx0, bx1); axb.set_ylim(by0, by1); axb.set_xticks([]); axb.set_yticks([]); axb.set_aspect("equal")
     gb = m.Grat(31370)
+    n_before = len(axb.lines)
     gb.draw(axb, m.EXT_B, 5 / 60, 2.5 / 60, lambda v: m.dm(v, "E"), lambda v: m.dm(v, "N", 1), fs=fs)
+    for ln in axb.lines[n_before:]:
+        ln.set_gid("a11y:map graticule")
     m.north_arrow(axb, (0.045, 0.60), T72, fs=fs); m.scale_bar(axb, 5000, "5 km", xy=(0.80, 0.07), fs=fs)
     eps.panel_label(axb, "b")
     cax = fig.add_axes(R(80, 93 + hb + 3.6, 58, 2.0))                 # v1.9: starts right of panel letter (b)
@@ -234,7 +248,7 @@ def fig01():
     ycen = 0.5 * (min(ya) + max(ya)); yh = max(ya) - min(ya); xw = yh * 44 / hb; xcen = 0.5 * (min(xa) + max(xa))
     EXT_A = (xcen - xw / 2, xcen + xw / 2, ycen - yh / 2, ycen + yh / 2)
     axa.set_extent(EXT_A, crs=pa)
-    axa.add_feature(cfeature.ShapelyFeature(shapereader.Reader(os.path.join(m.NE_DIR, "ne_10m_land.shp")).geometries(), ccrs.PlateCarree(),
+    axa.add_feature(cfeature.ShapelyFeature(shapereader.Reader(os.path.join(m.NE_DIR, "ne_10m_land.shp")).geometries(), ccrs.PlateCarree(), gid="a11y:map base (land)",
                                             facecolor="#e9e4d6", edgecolor="none"), zorder=1)
     axa.set_facecolor("#cfe3f0")
     axa.add_feature(cfeature.ShapelyFeature(shapereader.Reader(os.path.join(m.NE_DIR, "ne_10m_coastline.shp")).geometries(), ccrs.PlateCarree(),
@@ -250,7 +264,10 @@ def fig01():
                               ("Belgium", (5.0, 50.45), {}), ("NL", (5.6, 52.3), {})):
         xx, yy = T35[0].transform(lo, la); axa.text(xx, yy, txt, fontsize=fs, ha="center", va="center", transform=pa, zorder=6, **kw)
     ga = m.Grat(3035)
+    n_before = len(axa.lines)
     ga.draw(axa, EXT_A, 2.0, 2.0, lambda v: m.dm(v, "E"), lambda v: m.dm(v, "N"), fs=fs)
+    for ln in axa.lines[n_before:]:
+        ln.set_gid("a11y:map graticule")
     m.north_arrow(axa, (0.88, 0.80), T35, fs=fs); m.scale_bar(axa, 200000, "200 km", xy=(0.06, 0.06), fs=fs)
     eps.panel_label(axa, "a")
     axc = fig.add_axes(R(12, 12, 70.0, 70.0))
@@ -261,7 +278,8 @@ def fig01():
     axc.plot(*E.T, "-", color=COL["land"], lw=2.0, zorder=4, path_effects=stroke(3.0), label="2018 land ERT (K1)")
     axc.plot([M1[0], M2[0]], [M1[1], M2[1]], color=COL["marine"], lw=1.2, ls=(0, (5, 2.5)), zorder=4, path_effects=stroke(2.2),
              label="2018 marine ERT (high tide)")
-    axc.plot(*E24[[0, -1]].T, "-", color=COL["e24"], lw=0.8, zorder=5, path_effects=stroke(1.5), label="2025 ERT")
+    axc.plot(*E24[[0, -1]].T, ls=(0, (1.0, 1.0)), color=COL["e24"], lw=1.3, zorder=5, path_effects=stroke(2.3), label="2025 ERT",
+             gid="a11y:outlined (black casing)", dash_capstyle="round")              # v1.9.1: dotted, cased (was solid, colour only)
     pin = m.pin_marker()
     axc.plot(*cp.T, ls="none", marker=pin, ms=9, mfc=COL["cpt"], mec="k", mew=0.6, zorder=7, label="CPT / CPT-EC (2024)†")
     for i, s in enumerate(G["cpt_names"]):
@@ -292,7 +310,8 @@ def fig01():
         axd.annotate(f"DP{int(s[1:]) - 1}", (G["cpt_x"][i], G["cpt_z"][i]), xytext=(0, 11), textcoords="offset points", fontsize=fs, ha="center")
     yb = -1.6
     axd.plot([148.75, 503.75], [yb, yb], "-", color="k", lw=2.4, solid_capstyle="butt", zorder=4)
-    axd.plot([148.75, 503.75], [yb, yb], "-", color=COL["e24"], lw=1.4, solid_capstyle="butt", zorder=5)
+    axd.plot([148.75, 503.75], [yb, yb], ls=(0, (1.0, 1.0)), color=COL["e24"], lw=1.4, dash_capstyle="butt", zorder=5,
+             gid="a11y:outlined (black casing)")                                  # v1.9.1: dotted as in (c)
     axd.text(326, yb + 0.45, "2025 ERT (x = 148.75–503.75 m)", fontsize=fs, ha="center", va="bottom")
     for xv, lab in ((90, "dune\nfoot"), (G["x_hw"], f"HW 2018\n(x = {G['x_hw']:.0f} m)"), (G["x_lw"], "LW")):
         axd.axvline(xv, color="0.25", lw=0.6, ls=(0, (3, 2)), zorder=1)
@@ -321,7 +340,9 @@ def fig02():
     xm, zm = cx[tri.triangles].mean(1), cz[tri.triangles].mean(1)
     tri.set_mask((zm > np.interp(xm, ex, ez)) | (np.ptp(cx[tri.triangles], 1) > 25))
     cs = ax.tricontour(tri, rr, levels=[10, 15], colors=["k", "0.25"], linewidths=[1.1, 0.9], linestyles=["-", "--"], zorder=7)
-    ax.clabel(cs, fmt={10: "r = 10 m", 15: "r = 15 m"}, fontsize=eps.size("tick"), inline=True)
+    cs.set_path_effects(halo())                                            # v1.9.1: white halo on the dark (conductive) cells
+    for t in ax.clabel(cs, fmt={10: "r = 10 m", 15: "r = 15 m"}, fontsize=eps.size("tick"), inline=True):
+        t.set_path_effects(halo())
     section(ax, z_floor=-45)
     dune_hatch(ax); electrodes(ax)
     cax = ax.inset_axes([1.012, 0.0, 0.016, 1.0])                 # v1.9: colour bar exactly as tall as the section
@@ -354,7 +375,7 @@ def fig03():
     x = v4["x"]; meta = {}
     for key, col, lab, ls_ in (("pooled_thr3", C["thr3"], "3 Ω·m contour", "-"), ("pooled_logmid", C["logmid"], "Log-midpoint", "--")):
         b = v4[key]; ok = (b[0] >= 0.5) & (x >= 130) & (x <= 450)
-        ax.fill_between(x, np.where(ok, b[2], np.nan), np.where(ok, b[3], np.nan), color=col, alpha=0.22, lw=0)
+        band(ax, x, np.where(ok, b[2], np.nan), np.where(ok, b[3], np.nan), col, 0.22, ls_)
         ax.plot(x, np.where(ok, b[1], np.nan), color=col, lw=1.4, ls=ls_, label=f"{lab}: median, 90 % (λ-pooled)")
         meta[key] = {xx: [float(v) for v in b[:, int(np.argmin(np.abs(x - xx)))]] for xx in (150, 200, 250, 300, 350)}
     ex, ez = wc.land_surface()
@@ -459,19 +480,19 @@ def fig05():
                 continue
             qq = r["q"] if x.startswith("thr") else g.q_of(3.0, g.params(r["truth"]))
             mk = "o" if r["tau"] == 0 else "^"
-            ax.scatter(qq, 100 * r["coverage"], c=cmap[r["k"]], marker=mk, s=KSIZE[r["k"]], edgecolor="k" if r["rho_lens"] == 0.8 else "none",
-                       lw=0.5, zorder=3)
+            ax.scatter(qq, 100 * r["coverage"], c=cmap[r["k"]], marker=mk, s=KSIZE[r["k"]], zorder=3,       # v1.9.1: thin dark edge
+                       edgecolor="k" if r["rho_lens"] == 0.8 else eps.EDGE_DARK, lw=1.0 if r["rho_lens"] == 0.8 else 0.4)
         ax.axhline(90, color="0.3", lw=0.8, ls="--")
-        ax.axvspan(1.0, 3.0, color="0.9", zorder=0); ax.axvline(0.5, color="0.6", lw=0.6, ls=":")
+        ax.axvspan(1.0, 3.0, color="0.9", zorder=0); ax.axvline(0.5, color="0.45", lw=0.6, ls=":")
         ax.axvline(wq, color=C["thr3"], lw=1.0); ax.set_xlim(0, 2.8); ax.set_ylim(-3, 103)
         ax.set_xlabel("q of this contour" if x.startswith("thr") else "q of the 3 Ω·m contour")
         finish(ax)
         lab = g.DEF_LAB[x].replace("max. gradient", "max. gradient").replace("oracle √(ρ_lens·ρ_below)", "oracle")
         eps.panel_label(ax, "abcdefgh"[i], text=lab, wrap=True)
     axes[0, 0].set_ylabel("Coverage of the\n90 % band (%)"); axes[1, 0].set_ylabel("Coverage of the\n90 % band (%)")
-    h = [Line2D([], [], marker="o", ls="", color=cmap[k], ms=np.sqrt(KSIZE[k]), label=f"k = {k}") for k in g.KS] + \
-        [Line2D([], [], marker="^", ls="", color="0.5", label="τ = 5 m"),
-         Line2D([], [], marker="o", ls="", mfc="0.5", mec="k", label="ρ$_\\mathbf{lens}$ = 0.8 Ω·m"),
+    h = [Line2D([], [], marker="o", ls="", color=cmap[k], mec=eps.EDGE_DARK, mew=0.4, ms=np.sqrt(KSIZE[k]), label=f"k = {k}") for k in g.KS] + \
+        [Line2D([], [], marker="^", ls="", color="0.5", mec=eps.EDGE_DARK, mew=0.4, label="τ = 5 m"),
+         Line2D([], [], marker="o", ls="", mfc="0.5", mec="k", mew=1.0, label="ρ$_\\mathbf{lens}$ = 0.8 Ω·m"),
          Line2D([], [], color="0.3", ls="--", label="Nominal 90 %"), Line2D([], [], color=C["thr3"], label=f"Westhoek, 3 Ω·m (q = {wq:.2f})"),
          Patch(facecolor="0.9", label="q > 1: threshold outside the lens–below contrast")]
     legend_below(fig, h, [x.get_label() for x in h], ncol=5)
@@ -526,7 +547,8 @@ def figS03(fit, fit_lam, fit_grad):
     axes = fig.subplots(1, 2)
     ax = axes[0]
     for p in fit["pts"]:
-        ax.scatter(p["x"] * fit["a"], p["y"], c=cmap[p["k"]], s=KSIZE[p["k"]] * 1.2, marker={"thr2": "s", "thr3": "o", "thr5": "D"}[p["d"]], zorder=3)
+        ax.scatter(p["x"] * fit["a"], p["y"], c=cmap[p["k"]], s=KSIZE[p["k"]] * 1.2, marker={"thr2": "s", "thr3": "o", "thr5": "D"}[p["d"]], zorder=3,
+                   edgecolors=eps.EDGE_DARK, linewidths=0.4)                     # v1.9.1: thin dark edge
     for p in fit_grad["pts"]:
         ax.scatter(p["x"] * fit["a"], p["y"], facecolor="none", edgecolor="#d35400", s=18, marker="^", zorder=3)
     lim = max(1, np.nanmax(np.abs([p["y"] for p in fit["pts"]] + [p["x"] * fit["a"] for p in fit["pts"]]))) * 1.1
@@ -535,7 +557,7 @@ def figS03(fit, fit_lam, fit_grad):
     finish(ax)
     hh = [Line2D([], [], marker=m_, ls="", color="0.4", label=l) for m_, l in (("s", "2 Ω·m"), ("o", "3 Ω·m"), ("D", "5 Ω·m"))]
     hh += [Line2D([], [], marker="^", ls="", mfc="none", mec="#d35400", label="τ = 5 m (not fitted)")]
-    hh += [Line2D([], [], marker="o", ls="", color=cmap[k], ms=np.sqrt(KSIZE[k] * 1.2), label=f"k = {k}") for k in g.KS]
+    hh += [Line2D([], [], marker="o", ls="", color=cmap[k], mec=eps.EDGE_DARK, mew=0.4, ms=np.sqrt(KSIZE[k] * 1.2), label=f"k = {k}") for k in g.KS]
     eps.panel_label(ax, "a")
     eps.stats_box(ax, f"λ = 50\na = {fit['a']:.3f} [{fit['a90'][0]:.3f}, {fit['a90'][1]:.3f}]\nR² = {fit['r2']:.2f}", loc="upper right")
     ax = axes[1]
@@ -543,7 +565,7 @@ def figS03(fit, fit_lam, fit_grad):
     for l, fl in fit_lam.items():
         if fl:
             ax.scatter([p["x"] * fl["a"] for p in fl["pts"]], [p["y"] for p in fl["pts"]], c=lc[l], s=12, marker=LAM_MARK[l],
-                       edgecolors="k", linewidths=0.2,
+                       edgecolors=eps.EDGE_DARK, linewidths=0.4,
                        label=f"λ = {l}: a = {fl['a']:.3f}, R² = {fl['r2']:.2f}")
     lim2 = ax.get_xlim(); m_ = max(abs(lim2[0]), abs(lim2[1]), 1)
     ax.plot([-m_, m_], [-m_, m_], "--", color="red", lw=eps.size("line") * 1.2)
@@ -574,7 +596,7 @@ def fig06():
         V = pm.log10rho(X.ravel(), Z.ravel()).reshape(X.shape); V[Z > np.interp(X, ex, ez)] = np.nan
         pc = ax.pcolormesh(xg, zg, 10 ** V, cmap=eps.RES_CMAP, norm=eps.res_norm(), shading="auto", rasterized=True,
                            edgecolors="face", antialiased=True)
-        ax.plot(TX, pm.target(), "k-", lw=0.9)
+        ax.plot(TX, pm.target(), "k-", lw=0.9, path_effects=halo())        # v1.9.1: halo on dark cells
         ax.plot(ex, ez, "k-", lw=0.6)
         ax.set_xlim(0, 505); ax.set_ylim(-45, 9); ax.set_aspect("auto")
         dune_hatch(ax, text=False); electrodes(ax)
@@ -633,10 +655,10 @@ def fig07():
     h = TX >= 130
     ax = axes[0]
     x4 = v4["x"]; b = v4["pooled_logmid"]; ok = b[0] >= 0.5
-    ax.fill_between(x4, np.where(ok, clip(x4, b[2]), np.nan), np.where(ok, clip(x4, b[3]), np.nan), color=C["logmid"], alpha=0.2, lw=0)
+    band(ax, x4, np.where(ok, clip(x4, b[2]), np.nan), np.where(ok, clip(x4, b[3]), np.nan), C["logmid"], 0.2, "--")
     ax.plot(x4, np.where(ok, clip(x4, b[1]), np.nan), color=C["logmid"], lw=1.2, ls="--", label="Linearised log-midpoint, λ-pooled: median, 90 %")
     lo, md, hi = np.percentile(B["Pf"], [5, 50, 95], 0)
-    ax.fill_between(TX[h], clip(TX[h], lo[h]), clip(TX[h], hi[h]), color=C["bel"], alpha=0.25, lw=0)
+    band(ax, TX[h], clip(TX[h], lo[h]), clip(TX[h], hi[h]), C["bel"], 0.25, "-")
     ax.plot(TX[h], clip(TX[h], md[h]), color=C["bel"], lw=1.7, label="BEL (prior v3): median, 90 %")
     xs = np.array([100.0, 110.0, 120.0]); ps = [pres[str(int(x))]["p"] for x in xs]
     ax.plot(xs, surf(xs) + 1.5, "v", color=C["bel"], ms=4.5, mec="k", mew=0.4, label=f"P(lens present), x = 100–120 m: {min(ps):.2f}")
@@ -649,7 +671,7 @@ def fig07():
     styles = [("#b2182b", "-"), ("#2166ac", "--"), ("#8c6d31", "-.")]
     for k, ((lo_, hi_), (col, ls)) in enumerate(zip(B["bins"], styles)):
         l, mm, hh = np.percentile(B["Pbins"][k], [5, 50, 95], 0)
-        ax.fill_between(TX[h], clip(TX[h], l[h]), clip(TX[h], hh[h]), color=col, alpha=0.14, lw=0)
+        band(ax, TX[h], clip(TX[h], l[h]), clip(TX[h], hh[h]), col, 0.14, ls)
         ax.plot(TX[h], clip(TX[h], mm[h]), color=col, ls=ls, lw=1.5,
                 label=f"{RHO_BELOW} {lo_}–{hi_} Ω·m (held-out coverage {100*B['bins_cov'][k]:.0f} %)")
     ax.plot(TX[h], clip(TX[h], md[h]), color=C["bel"], ls=":", lw=1.6, label=f"All {RHO_BELOW} (panel a)")
@@ -676,10 +698,10 @@ def fig08():
     ax = fig.add_subplot()
     ok = (b4[0] >= 0.5) & (r4 <= 10.0)
     ax.axvspan(*k1.DIS_ZONE, color="#e6c229", alpha=0.16, lw=0, zorder=0)
-    ax.fill_between(x4, np.where(ok, b4[2], np.nan), np.where(ok, b4[3], np.nan), color=C["logmid"], alpha=0.18, lw=0)
+    band(ax, x4, np.where(ok, b4[2], np.nan), np.where(ok, b4[3], np.nan), C["logmid"], 0.18, "--")
     h_lm, = ax.plot(x4, np.where(ok, b4[1], np.nan), color=C["logmid"], lw=1.1, ls="--")
     lo, md, hi = np.percentile(Pf, [5, 50, 95], 0); hh = TX >= 130
-    ax.fill_between(TX[hh], lo[hh], hi[hh], color=C["bel"], alpha=0.22, lw=0); h_bel, = ax.plot(TX[hh], md[hh], color=C["bel"], lw=1.7)
+    band(ax, TX[hh], lo[hh], hi[hh], C["bel"], 0.22, "-"); h_bel, = ax.plot(TX[hh], md[hh], color=C["bel"], lw=1.7)
     v = lb["saline_base_mTAW"]; m = np.isfinite(v)
     h80 = ax.errorbar(lb["x_ours_m"][m], v[m], xerr=k1.X_ERR, yerr=k1.Z_ERR, fmt="o", color="#b2182b", ms=4, lw=0.8, capsize=1.5)
     for nm in names:
@@ -715,13 +737,15 @@ def fig08():
 # ─────────────────────────────────────────────────────────────────────────────
 # Fig. 9 / Fig. S5 — per-sounding panels
 # ─────────────────────────────────────────────────────────────────────────────
-IMG_COL = "tomato"
+IMG_COL = C["predicted"]          # v1.9.1: #DC3D38 (tomato #FF6347 was 2.95:1 against white)
 # v1.9 second cues (no distinction by colour alone; AGU graphics guidance)
 HATCH = dict(thr3="////", maxgrad="....", logmid="")
 MARK = dict(thr3="o", logmid="s", maxgrad="D")
 KSIZE = {2: 7, 4: 13, 8: 22, 16: 34}                      # marker area (pt²) grows with the contrast k
 LAM_MARK = {5: "v", 10: "s", 20: "D", 50: "o", 100: "^"}
 T_MARK = {"T1": "o", "T2": "s", "T3": "D"}
+# v1.9.1: CPT class strips of Fig. S10 at ≥ 3:1 against white, light → dark kept (were #f6e7b4, #d9c48f: 1.2–1.7:1)
+SAND = ("#B58C45", "#907237", "#7a6a55")
 
 
 def _dp_label(ax, letter, nm, extra=None):
@@ -738,7 +762,7 @@ def fig09(img_col=None):
         o = R["dps"][nm]["per"]["primary|A"]; s_ = o["sd"]; lg = logs[min(logs, key=lambda k: abs(k - R["dps"][nm]["local_x"]))]
         bl = s_["band_logmid_pooled"]; bt = s_["band_thr3"]
         if bl[0] >= 0.5:
-            ax.axhspan(bl[2], bl[3], facecolor="none", edgecolor=C["logmid"], hatch="////", lw=0, alpha=0.8)
+            ax.axhspan(bl[2], bl[3], facecolor="none", edgecolor=C["logmid"], hatch="////", lw=0)
         if bt[0] >= 0.5:
             ax.axhspan(bt[2], bt[3], color=C["thr3"], alpha=0.25, lw=0)
         ax.plot(lg["r"], o["surface"] - lg["depth"], color="0.78", lw=0.4)
@@ -775,7 +799,7 @@ def figS05():
         ax.axhspan(o["bel"][1], o["bel"][2], color=C["bel"], alpha=0.18, lw=0); ax.axhline(o["bel"][0], color=C["bel"], lw=1.1)
         lp = o["logmid_pooled"]
         if lp[0] >= 0.5:
-            ax.axhspan(lp[2], lp[3], facecolor="none", edgecolor=C["logmid"], hatch="////", lw=0, alpha=0.8)
+            ax.axhspan(lp[2], lp[3], facecolor="none", edgecolor=C["logmid"], hatch="////", lw=0)
             ax.axhline(lp[1], color=C["logmid"], lw=0.9, ls="-.")
         ax.axhline(o["sal1980"], color="#b2182b", lw=1.0, ls=":")
         ax.plot(lg["r"], z1, color="0.78", lw=0.4); ax.plot(10 ** np.array(o["v_grid"]), o["z_grid"], color=C["observed"], lw=1.0)
@@ -792,9 +816,10 @@ def figS05():
             plt.setp(ax.get_yticklabels(), visible=False)
         sx = fig.add_subplot(gs[0, 2 * j + 1], sharey=ax0)
         I = np.array([np.nan if v is None else v for v in R["dps"][nm]["isbt"]], float); ze = np.array(R["dps"][nm]["cpt_elev"])
-        colr = np.where(I < g27.ISBT_SAND, "#f6e7b4", np.where(I <= g27.ISBT_FINE, "#d9c48f", "#7a6a55"))
+        colr = np.where(I < g27.ISBT_SAND, SAND[0], np.where(I <= g27.ISBT_FINE, SAND[1], SAND[2]))
         for zi, ci in zip(ze, colr):
-            sx.axhspan(zi - 0.1, zi + 0.1, facecolor=ci, lw=0, hatch="xxx" if ci == "#7a6a55" else None, edgecolor="0.9")
+            sx.axhspan(zi - 0.1, zi + 0.1, facecolor=ci, lw=0, hatch="xxx" if ci == SAND[2] else None, edgecolor="0.9",
+                       gid="a11y-series:CPT class strip")
         sx.set_xticks([]); plt.setp(sx.get_yticklabels(), visible=False)
         for s_ in sx.spines.values():
             s_.set_linewidth(eps.size("spine"))
@@ -806,7 +831,7 @@ def figS05():
          Patch(facecolor=C["bel"], alpha=0.3, label="2018 BEL lens base: median, 90 %"),
          Patch(facecolor="none", edgecolor=C["logmid"], hatch="////", label="2018 log-midpoint, λ-pooled"),
          Line2D([], [], color="#b2182b", ls=":", label="1980 saline base"), Line2D([], [], marker=">", ls="", color="k", label="Sounding base (log-midpoint)"),
-         Patch(facecolor="#f6e7b4", label="CPT clean sand"), Patch(facecolor="#d9c48f", label="Sand mixtures"), Patch(facecolor="#7a6a55", hatch="xxx", edgecolor="0.9", label="Fine-grained")]
+         Patch(facecolor=SAND[0], label="CPT clean sand"), Patch(facecolor=SAND[1], label="Sand mixtures"), Patch(facecolor=SAND[2], hatch="xxx", edgecolor="0.9", label="Fine-grained")]
     legend_below(fig, h, [x.get_label() for x in h], ncol=4)
     return fig, {}
 
@@ -882,8 +907,8 @@ def fig10():
                     va="top" if c_ > 0.97 else "bottom",
                     fontsize=eps.size("tick"), zorder=5, bbox=dict(boxstyle="square,pad=0.1", fc="white", ec="none", alpha=0.7))
     for g in SG:
-        ax.plot(g["width"], g["cov"], mmark(g["method"]), mfc="none", color=mcol(g["method"]), ms=4, alpha=0.9)
-        ax.plot(g["prior_width"], g["prior_cov"], mmark("PRIOR"), mfc="none", color=C["prior"], ms=3, alpha=0.7)
+        ax.plot(g["width"], g["cov"], mmark(g["method"]), mfc="none", color=mcol(g["method"]), ms=4, mew=0.9)
+        ax.plot(g["prior_width"], g["prior_cov"], mmark("PRIOR"), mfc="none", color=C["prior"], ms=3, mew=0.9)
     ax.axhline(0.9, color="0.5", lw=0.6, ls=":"); ax.set_xscale("log")
     ax.set_xlabel("Sharpness: median 90 % width (m)"); ax.set_ylabel("Share inside the 90 % interval")
     finish(ax); eps.panel_label(ax, "c")
@@ -973,7 +998,7 @@ def fig11():
     for P, TX, c, lab, a, ls_ in ((F["Pf"], F["TX"], "#d35400", "2018 data, full line", 0.15, "-"),
                                   (Z["sub_Pf"], Z["TX"], "steelblue", "2018 data, beach stretch", 0.25, "-.")):
         lo, md, hi = np.percentile(P, [5, 50, 95], 0)
-        ax.fill_between(TX, lo, hi, color=c, alpha=a, lw=0); ax.plot(TX, md, color=c, lw=1.3, ls=ls_, label=lab)
+        band(ax, TX, lo, hi, c, a, ls_); ax.plot(TX, md, color=c, lw=1.3, ls=ls_, label=lab)
     ax.plot(L["TX"], np.median(L["Pf"], 0), color="k", lw=1.0, ls="--", label="2025 ERT line, median")
     ax.axvline(x0, color="0.5", lw=0.6, ls=":"); ax.text(x0 + 2, 3.5, "2025 ERT line start", fontsize=eps.size("tick"), color="0.3")
     ax.plot([Dg[n]["x"] for n in names], [Dg[n]["base"] for n in names], "kD", ms=4, label="Sounding base (2024)")
@@ -1004,7 +1029,7 @@ def figS07():
     finish(ax); eps.panel_label(ax, "a")
     ax = axes[1]
     lo, md, hi = np.percentile(L["Pf"], [5, 50, 95], 0)
-    ax.fill_between(TXL, lo, hi, color=C["bel"], alpha=0.25, lw=0); ax.plot(TXL, md, color=C["bel"], lw=1.4, label="BEL (prior v4), 2025 ERT line")
+    band(ax, TXL, lo, hi, C["bel"], 0.25, "-"); ax.plot(TXL, md, color=C["bel"], lw=1.4, label="BEL (prior v4), 2025 ERT line")
     base_rows = []
     for n in names:
         o = R["dps"][n]["per"]["primary|A"]; s_ = o["sd"]
@@ -1089,7 +1114,7 @@ def figS02():
     fig = new_fig(88)
     axes = fig.subplots(1, 2)
     ax = axes[0]; pe_ = P["published_electrodes"]
-    ax.loglog(Rb[~pe_], dd[~pe_], "x", ms=2.0, mew=0.4, color="0.6", label="Pairs (dune electrodes involved)", rasterized=True)
+    ax.loglog(Rb[~pe_], dd[~pe_], "x", ms=2.0, mew=0.4, color=C["prior"], label="Pairs (dune electrodes involved)", rasterized=True)
     ax.loglog(Rb[pe_], dd[pe_], ".", ms=2.5, color="steelblue", label="Pairs on published electrodes", rasterized=True)
     rr = np.logspace(np.log10(Rb.min()), np.log10(Rb.max()), 100)
     for k, col, ls in (("A", "#d35400", "-"), ("B", "#6a3d9a", "--")):
@@ -1240,10 +1265,10 @@ def figS09():
     ax = fig.add_subplot()
     ok = (b4[0] >= 0.5) & (r4 <= 10.0)
     ax.axvspan(*k1.DIS_ZONE, color="#e6c229", alpha=0.16, lw=0, zorder=0)
-    ax.fill_between(x4, np.where(ok, b4[2], np.nan), np.where(ok, b4[3], np.nan), color=C["logmid"], alpha=0.18, lw=0)
+    band(ax, x4, np.where(ok, b4[2], np.nan), np.where(ok, b4[3], np.nan), C["logmid"], 0.18, "--")
     h_lm, = ax.plot(x4, np.where(ok, b4[1], np.nan), color=C["logmid"], lw=1.1, ls="--")
     lo, md, hi = np.percentile(Pf, [5, 50, 95], 0); h = TX >= 130
-    ax.fill_between(TX[h], lo[h], hi[h], color=C["bel"], alpha=0.22, lw=0); h_bel, = ax.plot(TX[h], md[h], color=C["bel"], lw=1.7)
+    band(ax, TX[h], lo[h], hi[h], C["bel"], 0.22, "-"); h_bel, = ax.plot(TX[h], md[h], color=C["bel"], lw=1.7)
     hl = {}
     for key, mk, col in (("saline_base_mTAW", "o", "#b2182b"), ("fresh_top_mTAW", "s", "#2166ac"), ("lower_brackish_top_mTAW", "^", "#8c6d31")):
         v = lb[key]; m = np.isfinite(v)

@@ -428,6 +428,210 @@ def wrr_protected():
     return [p for p in protected_files() if not rel(p).startswith("results/figs_wrr/")] +         [p for p in sorted(glob.glob(os.path.join(OUT, "data", "*.csv")))]
 
 
+# ----------------------------------------------------------------------------------------------------------------------
+# v1.9.1: accessibility audit — WCAG contrast of every series colour against white, CIELAB ΔE of colour pairs per panel
+# under normal vision and simulated deuteranopia / protanopia / tritanopia, and the non-colour cue of close pairs
+# ----------------------------------------------------------------------------------------------------------------------
+# Background traces, exempt from the 3:1 rule (they carry no information on their own; listed in SUMMARY_v1.9.1.md)
+A11Y_BACKGROUND = {"CPT-EC log, 1 cm": "background trace; the 0.5 m median carries the information"}
+CVD_TYPES = (("deut", "deuteranomaly"), ("prot", "protanomaly"), ("trit", "tritanomaly"))
+
+
+def _rel_lum(rgb):
+    import numpy as np
+    c = np.asarray(rgb, float)
+    c = np.where(c <= 0.04045, c / 12.92, ((c + 0.055) / 1.055) ** 2.4)
+    return float(0.2126 * c[0] + 0.7152 * c[1] + 0.0722 * c[2])
+
+
+def wcag_contrast(rgb, bg=(1.0, 1.0, 1.0)):
+    a, b = _rel_lum(rgb), _rel_lum(bg)
+    return (max(a, b) + 0.05) / (min(a, b) + 0.05)
+
+
+def _over_white(rgba):
+    r, g, b, a = rgba
+    return (a * r + 1 - a, a * g + 1 - a, a * b + 1 - a)
+
+
+def _hex(rgb):
+    return "#%02X%02X%02X" % tuple(int(round(255 * min(max(v, 0), 1))) for v in rgb)
+
+
+def lab_delta_e(c1, c2):
+    """CIELAB ΔE (CIE76, D65) between two sRGB colours: normal, and under the three simulations (severity 100)."""
+    import numpy as np
+    from colorspacious import cspace_convert
+    rgb = np.array([c1, c2], float); out = {}
+    for key, cvd in (("normal", None),) + CVD_TYPES:
+        sim = rgb if cvd is None else np.clip(cspace_convert(rgb, {"name": "sRGB1+CVD", "cvd_type": cvd, "severity": 100}, "sRGB1"), 0, 1)
+        L = cspace_convert(sim, "sRGB1", "CIELab")
+        out[key] = round(float(np.linalg.norm(L[0] - L[1])), 1)
+    return out
+
+
+def _gid_exempt(a):
+    g = a.get_gid() or ""
+    return g[5:] if g.startswith("a11y:") else ""
+
+
+def _casing(ln):
+    """Dark casing drawn by a path effect (Stroke / withStroke with a dark foreground): the line's boundary is then the
+    casing, whose contrast counts."""
+    for p in ln.get_path_effects() or []:
+        fg = getattr(p, "_gc", {}).get("foreground")
+        if fg is not None:
+            from matplotlib.colors import to_rgba
+            if wcag_contrast(_over_white(to_rgba(fg))) >= 3:
+                return True
+    return False
+
+
+def a11y_entries(fig):
+    """Every series colour drawn in the figure: one entry per (panel, artist, role) with the colour composited over white,
+    its WCAG contrast, a style signature (line style, marker, hatch, fill) and whether it is exempt (colour-mapped cells,
+    background spans, light band fills with drawn edges, listed background traces)."""
+    import numpy as np
+    from matplotlib.collections import PathCollection, PolyCollection, Collection, LineCollection
+    from matplotlib.colors import to_rgba
+    from matplotlib.lines import Line2D
+    from matplotlib.patches import Rectangle, Polygon, Patch as _P
+    out = []
+    axes = [a for a in all_axes(fig) if not _is_cbar(a) and a.get_visible()]
+    for ia, ax in enumerate(axes):
+        pl = next((t.get_text().split(")")[0] + ")" for t in ax.texts if re.match(r"^\([a-z]\)", t.get_text())), None)
+        panel = pl if pl else f"ax{ia}"
+        blended = lambda tr: tr != ax.transData and tr in (ax.get_yaxis_transform(), ax.get_xaxis_transform())
+
+        def add(label, role, rgba, style, exempt="", against=None):
+            if rgba is None:
+                return
+            rgba = to_rgba(rgba)
+            if rgba[3] == 0:
+                return
+            rgb = _over_white(rgba)
+            if min(rgb) > 0.985:                   # white (halo, frame fill): not a series colour
+                return
+            bg = (1.0, 1.0, 1.0) if against is None else _over_white(to_rgba(against))
+            out.append(dict(panel=panel, label=label, role=role, hex=_hex(rgb), opaque_hex=_hex(rgba[:3]), alpha=round(rgba[3], 2),
+                            contrast=round(wcag_contrast(rgb, bg), 2), against="white" if against is None else _hex(bg),
+                            style=style, exempt=exempt))
+        for i, ln in enumerate(ax.lines):
+            if not ln.get_visible():
+                continue
+            lab = ln.get_label() or ""; lab = lab if not lab.startswith("_") else f"line{i}"
+            ex = A11Y_BACKGROUND.get(lab, "") or _gid_exempt(ln)
+            if ex == "" and to_rgba(ln.get_color())[:3] == to_rgba("0.78")[:3] and len(ln.get_xdata()) > 200:
+                ex = "background trace (1 cm log)"
+            if ex == "" and _casing(ln):
+                ex = "outlined (dark casing)"
+            a = ln.get_alpha(); a = 1.0 if a is None else a
+            ls = ln.get_linestyle(); mk = ln.get_marker()
+            sty = f"line {ls}" if ls not in ("None", "", " ", "none") and ln.get_linewidth() > 0 else ""
+            if mk not in (None, "None", "", " ", "none"):
+                filled = ln.get_markerfacecolor() not in ("none", "None") and to_rgba(ln.get_markerfacecolor())[3] > 0
+                sty += f" marker {mk}{'' if filled else ' open'}"
+            sty = sty.strip()
+            if "line" in sty:
+                add(lab, "line", to_rgba(ln.get_color(), a), sty, ex)
+            if "marker" in sty:
+                mfc, mec = ln.get_markerfacecolor(), ln.get_markeredgecolor()
+                if mfc not in ("none", "None"):
+                    edge_ok = ln.get_markeredgewidth() > 0 and wcag_contrast(_over_white(to_rgba(mec, a))) >= 3
+                    add(lab, "marker face", to_rgba(mfc, a), sty, ex or ("outlined (edge ≥ 3:1)" if edge_ok else ""))
+                if ln.get_markeredgewidth() > 0:
+                    add(lab, "marker edge", to_rgba(mec, a), sty, ex)
+        for i, c in enumerate(ax.collections):
+            if not c.get_visible():
+                continue
+            lab = c.get_label() or ""; lab = lab if not lab.startswith("_") else f"{type(c).__name__}{i}"
+            if c.get_array() is not None and c.norm is not None and not (isinstance(c, PathCollection) and False):
+                if not isinstance(c, PathCollection):
+                    continue                       # colour-mapped cells / meshes: colour map, not a series colour
+            try:
+                tr_bl = blended(c.get_transform())
+            except Exception:
+                tr_bl = False
+            h = c.get_hatch()
+            if isinstance(c, PathCollection):
+                p0 = c.get_paths()[0].vertices if len(c.get_paths()) else np.zeros((0, 2))
+                mk = f"path{len(p0)}"
+                fc = c.get_facecolors(); ec = c.get_edgecolors(); lw = c.get_linewidths()
+                filled = len(fc) > 0 and fc[:, 3].max() > 0
+                sty = f"marker {mk}{'' if filled else ' open'} size {','.join(sorted({f'{s:g}' for s in np.round(c.get_sizes(), 0)}))}"
+                edge_ok = len(lw) and max(lw) > 0 and len(ec) and min(wcag_contrast(_over_white(e)) for e in ec) >= 3
+                for f in {tuple(np.round(x, 4)) for x in fc}:
+                    add(lab, "marker face", f, sty, _gid_exempt(c) or ("outlined (edge ≥ 3:1)" if edge_ok else ""))
+                if len(lw) and max(lw) > 0:
+                    for e in {tuple(np.round(x, 4)) for x in ec}:
+                        add(lab, "marker edge", e, sty)
+                continue
+            if isinstance(c, LineCollection):
+                ls = c.get_linestyle()[0] if c.get_linestyle() else "-"
+                for e in {tuple(np.round(x, 4)) for x in c.get_colors()}:
+                    add(lab, "line", e, f"segments {ls}")
+                continue
+            fc = c.get_facecolors(); ec = c.get_edgecolors(); lw = c.get_linewidths()
+            has_edge = len(ec) and len(lw) and max(lw) > 0 and ec[:, 3].max() > 0
+            els = c.get_linestyle()[0] if has_edge and c.get_linestyle() else None
+            sty = f"area{' hatch ' + h if h else ''}{' edge ' + str(els) if has_edge else ''}"
+            for f in {tuple(np.round(x, 4)) for x in fc}:
+                ex = _gid_exempt(c) or ("background span" if tr_bl else ("light band fill (edges drawn)" if f[3] < 1 and has_edge else
+                                                                        ("light band fill" if f[3] < 1 else "")))
+                add(lab, "area fill", f, sty, ex)
+            if has_edge:
+                for e in {tuple(np.round(x, 4)) for x in ec}:
+                    add(lab, "area edge", e, sty, "background span" if tr_bl else "")
+        for i, p in enumerate(ax.patches):
+            if not p.get_visible():
+                continue
+            lab = p.get_label() or ""; lab = lab if not lab.startswith("_") else f"patch{i}"
+            bl = blended(p.get_data_transform())
+            h = p.get_hatch(); fc = p.get_facecolor(); ec = p.get_edgecolor(); lw = p.get_linewidth()
+            kind = "bar" if isinstance(p, Rectangle) and not bl else ("span" if bl else "patch")
+            sty = f"{kind}{' hatch ' + h if h else ''}"
+            edge_dark = lw > 0 and ec[3] > 0 and wcag_contrast(_over_white(ec)) >= 3
+            forced = (p.get_gid() or "").startswith("a11y-series:")       # data drawn as a span (CPT class strips)
+            bl = bl and not forced
+            ex = "background span" if bl else ("light fill" if fc[3] < 1 and not edge_dark else "")
+            if fc[3] > 0:
+                add(lab, f"{kind} fill", fc, sty, ex or ("outlined (edge ≥ 3:1)" if edge_dark and wcag_contrast(_over_white(fc)) < 3 else ""))
+            if (lw > 0 and ec[3] > 0) or h:
+                opaque = fc[3] >= 0.99
+                add(lab, f"{kind} {'hatch' if h else 'edge'}", ec, sty, "background span" if bl else "",
+                    against=fc if (h and opaque) else None)
+    return out
+
+
+def a11y_pairs(entries):
+    """Per panel: every pair of distinct series colours (exempt entries left out), CIELAB ΔE normal / deut / prot / trit,
+    and the non-colour cue between the series that use them (style signatures differ)."""
+    import itertools
+    from matplotlib.colors import to_rgb
+    by_panel = {}
+    for e in entries:
+        if e["exempt"]:
+            continue
+        by_panel.setdefault(e["panel"], {}).setdefault(e["hex"], set()).add((e["label"], e["style"]))
+    res = []
+    cache = {}
+    for panel, cols in by_panel.items():
+        for c1, c2 in itertools.combinations(sorted(cols), 2):
+            key = (c1, c2)
+            if key not in cache:
+                cache[key] = lab_delta_e(to_rgb(c1), to_rgb(c2))
+            d = cache[key]
+            if {l for l, _ in cols[c1]} & {l for l, _ in cols[c2]}:
+                continue                           # two colours of one series (e.g. a bar and its edge)
+            s1 = {s for _, s in cols[c1]}; s2 = {s for _, s in cols[c2]}
+            cue = "" if (s1 - s2) or (s2 - s1) else "NONE"
+            if not cue:
+                cue = "; ".join(sorted(s1 - s2))[:60] + "  vs  " + "; ".join(sorted(s2 - s1))[:60]
+            res.append(dict(panel=panel, c1=c1, c2=c2, dE=d, min_dE=min(d.values()),
+                            series1=sorted({l for l, _ in cols[c1]})[:3], series2=sorted({l for l, _ in cols[c2]})[:3], cue=cue))
+    return res
+
+
 def wrr_main(a):
     import numpy as np
     out = OUT_WRR
@@ -449,7 +653,7 @@ def wrr_main(a):
     old_mod = None if a.no_compare else load_v18_module(pf)
     byname = {n.split("_")[0]: (n, fn, old) for n, fn, old in pf.FIGURES}
     only = set(a.only.split(",")) if a.only else None
-    res, meta, data_info, cmaps, compare = {}, {}, {}, {}, {}
+    res, meta, data_info, cmaps, compare, a11y = {}, {}, {}, {}, {}, {}
     s03 = None
     for label, short in WRR_NAMES:
         if only and label not in only:
@@ -469,6 +673,10 @@ def wrr_main(a):
             m = dict(fit_check=s03[3])
         cmaps[label] = eps.colormaps_in(fig)
         ov = eps.overlap_checks(fig)
+        ae = a11y_entries(fig); ap = a11y_pairs(ae)
+        a11y[label] = dict(entries=ae, pairs=ap)
+        low = sorted({(e["hex"], e["contrast"], e["label"][:30]) for e in ae if not e["exempt"] and e["contrast"] < 3})
+        close = [(p["panel"], p["c1"], p["c2"], p["min_dE"], p["cue"]) for p in ap if p["min_dE"] < 10]
         info, rows_new = write_figure_csv(fig, label, short, os.path.join(out, "data"))
         data_info[label] = info
         res_cells = None
@@ -522,11 +730,20 @@ def wrr_main(a):
               f"{time.time() - t0:.0f} s", flush=True)
         for x in ov["legend_overlaps"] + ov["letter_overlaps"]:
             print("   overlap:", x, flush=True)
+        for x in low:
+            print("   contrast < 3:", x, flush=True)
+        for x in close:
+            print("   ΔE < 10:", x, flush=True)
         if label in compare and not compare[label]["rows_equal"]:
             print("   first diff:", compare[label].get("n_diff"), compare[label].get("first_diff"), flush=True)
     if only:
         return
     checks = dict(figures=res, seconds=round(time.time() - t_all), colormaps=cmaps, data=data_info, compare_v18=compare)
+    json.dump(a11y, open(os.path.join(out, "a11y.json"), "w", encoding="utf-8"), indent=0, ensure_ascii=False)
+    checks["a11y_low_contrast"] = sorted({(l, e["hex"], e["contrast"], e["label"]) for l, v in a11y.items() for e in v["entries"]
+                                          if not e["exempt"] and e["contrast"] < 3})
+    checks["a11y_pairs_without_cue"] = [(l, p["panel"], p["c1"], p["c2"], p["min_dE"]) for l, v in a11y.items() for p in v["pairs"]
+                                        if p["min_dE"] < 10 and p["cue"] == "NONE"]
     checks["banned_colormaps_found"] = sorted({c for v in cmaps.values() for c in v if any(c.lower().startswith(b) for b in eps.BANNED_CMAPS)
                                                or c.lower().replace("cmc.", "") in ("jet", "rainbow", "turbo", "hsv", "nipy_spectral")})
     after = [(sha(os.path.join(ROOT, p)), p) for p in inputs]
@@ -568,7 +785,8 @@ def wrr_main(a):
           and all(c["rows_equal"] and c.get("res_cells", {"identical": True})["identical"] for c in compare.values())
           and all(r["ok"] for k, v in checks["spot"].items() if isinstance(v, list) for r in v if isinstance(r, dict))
           and all(r["smallest_pt"] >= 7.0 - 1e-9 and not r["clipped"] for r in res.values())
-          and all(not r["overlaps"]["legend_overlaps"] and not r["overlaps"]["letter_overlaps"] for r in res.values()))
+          and all(not r["overlaps"]["legend_overlaps"] and not r["overlaps"]["letter_overlaps"] for r in res.values())
+          and not checks["a11y_low_contrast"] and not checks["a11y_pairs_without_cue"])
     checks["n_legend_overlaps"] = sum(len(r["overlaps"]["legend_overlaps"]) for r in res.values())
     checks["n_letter_overlaps"] = sum(len(r["overlaps"]["letter_overlaps"]) for r in res.values())
     json.dump(checks, open(os.path.join(out, "checks.json"), "w", encoding="utf-8"), indent=1, ensure_ascii=False, default=str)

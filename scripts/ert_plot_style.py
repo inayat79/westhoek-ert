@@ -41,8 +41,12 @@ RES_LIM = (0.5, 500.0)
 RES_TICKS = (1, 3, 10, 30, 100)
 
 # method / series colours (rule f)
-COLORS = dict(bel="#6A3D9A", logmid="#1A9E77", thr3="#D9601A", prior="0.55", maxgrad="0.35",
-              observed="steelblue", predicted="tomato")
+# v1.9.1: prior grey #767676 (4.5:1 against white; was 0.55 drawn with alpha, 2.2–2.9:1) and predicted / model-column red
+# #DC3D38 (4.4:1; tomato was 2.95:1), so that every series reaches the WCAG 3:1 contrast for graphical objects.
+COLORS = dict(bel="#6A3D9A", logmid="#1A9E77", thr3="#D9601A", prior="#767676", maxgrad="0.35",
+              observed="steelblue", predicted="#DC3D38")
+EDGE_DARK = "#333333"          # thin dark edge on light markers (v1.9.1)
+HALO = 2.5                     # white halo (pt) of lines and labels on dark cells (v1.9.1)
 
 # spec sizes in spec points (§1, §4, §5, §6)
 _SPEC = dict(title=26, panel=22, axis=24, tick=22, cbar_label=24, cbar_tick=22, legend=22, stats=18,
