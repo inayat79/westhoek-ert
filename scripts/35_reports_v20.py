@@ -1,0 +1,247 @@
+#!/usr/bin/env python3
+"""v2.0 reports (decision log v2.0-0): one Markdown report per task in results/v2_0/, generated from the JSON / npz
+outputs of 33_review_v20.py in data/processed/v2_0/ (copies of the JSON go to results/v2_0/json/).
+
+    python 35_reports_v20.py a2 a5 a6 a7 a9 ...
+"""
+import json
+import os
+import shutil
+import sys
+
+import numpy as np
+
+ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+DP = os.path.join(ROOT, "data", "processed", "v2_0")
+RS = os.path.join(ROOT, "results", "v2_0")
+HDR = ("*Post hoc analysis requested by the internal review of WRR v4; pre-registered in `docs/decision_log.md` v2.0-0 "
+       "before any computation. No earlier result is changed.*")
+DPS6 = ["DP2", "DP3", "DP4", "DP5", "DP6", "DP7"]
+
+
+def J(name):
+    return json.load(open(os.path.join(DP, name), encoding="utf-8"))
+
+
+def keep_json(name):
+    os.makedirs(os.path.join(RS, "json"), exist_ok=True)
+    shutil.copy2(os.path.join(DP, name), os.path.join(RS, "json", name))
+
+
+def write(name, L):
+    os.makedirs(RS, exist_ok=True)
+    open(os.path.join(RS, name), "w", encoding="utf-8").write("\n".join(L) + "\n")
+    print("wrote", name)
+
+
+f2 = lambda v: "—" if v is None or (isinstance(v, float) and not np.isfinite(v)) else f"{v:.2f}"
+f3 = lambda v: "—" if v is None or (isinstance(v, float) and not np.isfinite(v)) else f"{v:.3f}"
+iv = lambda q: f"{q[0]:.2f} [{q[1]:.2f}, {q[2]:.2f}]"          # (P50, P5, P95)
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+def rep_a2():
+    d = J("a2.json"); keep_json("a2.json")
+    L = ["# A2 — BEL posterior support: truncation above the ground surface", "", HDR, "",
+         "**Rule (v2.0-0).** At each column, posterior samples whose lens base lies above the ground surface of that column are removed; "
+         "the surface is the one each prior was drawn on (2018 electrode surface for the L18 BELs, CPT topography for L24). "
+         "Priors are truncated by the same rule. Scores are recomputed exactly as `31_scores.py` (same subsample seeds).", "",
+         f"*Checks.* The untruncated rows reproduce `data/processed/v1_6/cases.csv` (max |ΔIS| + |ΔCRPS| = "
+         f"{d['orig_reproduces_cases_csv_maxdiff']:.1e} over {d['orig_n_compared']} rows). Refitting each BEL from its stored training set "
+         f"reproduces the stored field posterior bit for bit ({', '.join(k + ': ' + ('yes' if v else 'no') for k, v in d['regen'].items())}); "
+         "this needs the default BLAS threading — with `OMP_NUM_THREADS=2` the refit differs in the last digits (summation order), "
+         "so the BEL fits of v2.0 run with default threading. "
+         f"Prior samples above the ground: {', '.join(f'{k} {v}' for k, v in d['prior_samples_above_ground'].items())} "
+         "(base depth is positive by construction), so the priors do not change.", "",
+         "## Where the truncation acts (Table 2 BEL rows; P50 [P5, P95], mTAW)", "",
+         "| BEL | DP | column x (m) | surface (mTAW) | samples removed (of 2000) | stored | truncated | DP base | inside, stored → truncated |",
+         "|---|---|---|---|---|---|---|---|---|"]
+    for m, t in d["dp_table"].items():
+        for dp, v in t.items():
+            if v["n_removed"] == 0:
+                continue
+            y = v["y"]; ins = lambda q: q[1] <= y <= q[2]
+            L.append(f"| {m} | {dp} | {v['col']:.0f} | {v['surface']:.2f} | {v['n_removed']} | {iv(v['orig'])} | {iv(v['trunc'])} | {y:.2f} | "
+                     f"{'yes' if ins(v['orig']) else 'no'} → {'yes' if ins(v['trunc']) else 'no'} |")
+    L += ["", "No sample is removed at any other DP column except one sample each at DP3 and DP4 for BEL4-18s (no change at two decimals).", "",
+          "## Field scores, DP2–DP7 (Table 3 / scores figure BEL rows)", "",
+          "| method | prior | inside (stored → trunc.) | median width (m) | mean IS stored → trunc. | IS skill stored → trunc. | mean CRPS stored → trunc. | CRPS skill stored → trunc. |",
+          "|---|---|---|---|---|---|---|---|"]
+    O, T = d["field_summary"]["orig"], d["field_summary"]["trunc"]
+    for m in O:
+        o, t = O[m], T[m]
+        sk = lambda s, k: (f"{s[k]['skill']:+.2f} [{s[k]['skill_lo']:+.2f}, {s[k]['skill_hi']:+.2f}]" if "skill" in s[k] else "—")
+        L.append(f"| {m} | {o['prior']} | {o['cov']}/{o['n']} → {t['cov']}/{t['n']} | {o['width']:.2f} → {t['width']:.2f} | "
+                 f"{o['IS']['mean']:.2f} → {t['IS']['mean']:.2f} | {sk(o, 'IS')} → {sk(t, 'IS')} | {o['CRPS']['mean']:.3f} → {t['CRPS']['mean']:.3f} | "
+                 f"{sk(o, 'CRPS')} → {sk(t, 'CRPS')} |")
+    chg = [m for m in O if any(O[m]["inside"][n] != T[m]["inside"][n] for n in O[m]["inside"])]
+    L += ["", f"Inside/outside verdicts changed by the truncation: **{', '.join(chg) if chg else 'none'}**.", "",
+          "## Canonical correlation, KDE bandwidth and the field's position in canonical space", "",
+          "Canonical variates have unit variance on the training set, so the Gaussian-KDE bandwidth (Scott's rule, `scipy.stats.gaussian_kde`, "
+          "2-D per pair) equals the Scott factor n^(−1/6) in both canonical coordinates. Field percentile = share of training samples with a "
+          "smaller data canonical score; Mahalanobis percentile = share of training samples closer to the training mean in the leading five "
+          "data canonical scores (small = central).", "",
+          "| BEL | n train | data / target PCs | r₁ … r₅ | KDE bandwidth (c_d, c_t) | field c_d,1 … c_d,5 | field percentiles | Mahalanobis² field (percentile) |",
+          "|---|---|---|---|---|---|---|---|"]
+    for m, c in d["canon"].items():
+        p = c["pairs"]
+        L.append(f"| {m} | {c['n_train']} | {c['kd']} / {c['kt']} | {', '.join(f'{x:.3f}' for x in c['r'])} | {p[0]['bw_cd']:.3f}, {p[0]['bw_ct']:.3f} | "
+                 f"{', '.join('%+.2f' % q['field_cd'] for q in p)} | {', '.join('%.2f' % q['field_pct'] for q in p)} | "
+                 f"{c['mahal2_field']:.2f} ({c['mahal2_pct']:.3f}) |")
+    exp_ok = (set(n for m in d["dp_table"] for n, v in d["dp_table"][m].items() if v["n_removed"] > 1) <= {"DP2"}) and not chg
+    L += ["", "## Expectation A2", "",
+          "*Logged:* the truncation changes a BEL interval at DP2 only, and no inside/outside verdict.", "",
+          f"*Outcome:* **{'holds' if exp_ok else 'does not hold as written'}** — no verdict changes, but the truncation also moves the BEL "
+          "intervals at DP1 (its base lies at −16.6 mTAW, outside every BEL interval before and after; DP1 is not part of the DP2–DP7 scores). "
+          "At DP2 the P95 drops from above the ground to below it, and the interval still contains the DP base.", ""]
+    write("A2_bel_support.md", L)
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+def rep_a5():
+    d = J("a5.json"); keep_json("a5.json")
+    L = ["# A5 — damping with matched windows (2025 line, λ = 50)", "", HDR, "",
+         "**Matched window.** Exactly the elevations of the sounding's ρ_below,DP samples: 1 cm samples from 2 m below the DP log-midpoint base "
+         "to the end of the log or −25 mTAW, clean sand only (nearest CPT sample I_SBT < 2.05). The image value is 10^(median of the λ = 50 "
+         "image log10 ρ interpolated at those elevations). **Old window (E20):** 4–10 m below the image's own λ = 50 log-midpoint base. "
+         "% seawater: the sounding's Archie draws (`default_rng([137200, DP index])`, 20 000), applied to each ρ. "
+         "Cumulative sensitivity: Σ_i (J_ij/ε_i)² of the λ = 50 inversion, normalised by its maximum (as `02_land_inversion.py`), log10, "
+         "median over the cells in the window and over the lens (surface to DP base).", ""]
+    if d.get("image_rerun_maxdiff_log10_at_dps") is not None:
+        L += [f"*Image check:* the λ = 50 rerun (A3) differs from the stored `lam50_col` by at most {d['image_rerun_maxdiff_log10_at_dps']:.2e} "
+              f"in log10 at the DP columns → {'accepted' if d['image_rerun_accepted'] else 'NOT accepted'} (rule: ≤ 0.01).", ""]
+    L += ["*Sounding check:* the recomputed ρ_below,DP equals the stored value at every DP; the recomputed old-window image values equal the stored E20 values.", "",
+          "| DP | DP base (mTAW) | window (mTAW) | clean sand (m) | ρ_below,DP (Ω·m) | image, matched | ratio | image, old window | ratio | "
+          "% seawater DP | % seawater image matched | % seawater image old | log10 cum. sens. window | lens |",
+          "|---|---|---|---|---|---|---|---|---|---|---|---|---|---|"]
+    sw = lambda q: "—" if not q else f"{q[0]:.1f} [{q[1]:.1f}, {q[2]:.1f}]"
+    for n, v in d["dps"].items():
+        if "window_top" not in v:
+            L.append(f"| {n} | — | — | — | — | — | — | — | — | — | — | — | — | — |"); continue
+        L.append(f"| {n} | {v['base']:.2f} | {v['window_top']:.2f} … {v['window_bottom']:.2f} | {v['clean_m']:.2f} | {f2(v['rho_below_dp'])} | "
+                 f"{f2(v.get('rho_img_matched'))} | {f2(v.get('ratio_matched'))} | {f2(v['rho_img_old'])} | {f2(v['ratio_old'])} | {sw(v['sw_dp'])} | "
+                 f"{sw(v.get('sw_img_matched'))} | {sw(v['sw_img_old'])} | {f2(v.get('log10_cumsens_window'))} | {f2(v.get('log10_cumsens_lens'))} |")
+    e = d["expectation"]
+    L += ["", "## Expectation A5", "", "*Logged:* with the matched window, the image is below half the sounding value at ≥ 4 of DP3–DP7.", "",
+          f"*Outcome:* **{'holds' if e['holds'] else 'does not hold'}** — {e['n_below_half']} of {e['n']} ({', '.join(e['below_half'])}).", ""]
+    write("A5_damping_matched.md", L)
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+def rep_a6():
+    d = J("a6.json"); keep_json("a6.json")
+    m = lambda x: (f"n = {x['n']}, RMSE {x['rmse']:.2f} m, centred R² {f2(x['r2_centred'])}, sign {100 * x['sign_all']:.0f} % "
+                   f"(with |q − 0.5| > 0.1: {100 * x['sign_margin']:.0f} % of {x['n_margin']})") if x else "—"
+    L = ["# A6 — the bias rule out of sample", "", HDR, "",
+         f"Rule (v1.3): bias = −a · r̄ · Φ⁻¹(q); full fit on the 33 sharp-truth cases (thr2, thr3, thr5; 0 < q < 1; λ = 50; r ≤ 10 m): "
+         f"a = {d['a_full']:.3f}, R² = {d['r2_full']:.2f}.", "",
+         "## Leave-one-truth-out (a refitted without each truth)", "", f"- {m(d['loto'])}", f"- in sample (for comparison): {m(d['in_sample'])}", "",
+         "| truth | contour | q | r̄ (m) | observed bias (m) | a without the truth | predicted (m) |", "|---|---|---|---|---|---|---|"]
+    for c in d["loto"]["cases"]:
+        L.append(f"| {c['truth']} | {c['d']} | {c['q']:.3f} | {c['rbar']:.2f} | {c['y']:+.2f} | {c['a_loto']:.3f} | {c['pred']:+.2f} |")
+    L += ["", "## Out of sample, full-fit a", "",
+          "Site-like truths: v1.0 T1, T1h, T2a, T3, 3 Ω·m main-lens base, λ = 50, all (realisation, column) pairs with r ≤ 10 m of the stored "
+          "A2 runs (median bias, mean r). Sounding-based truths: v1.5 T1–T3 on L18 and L24, 3 Ω·m, λ = 50, DP2–DP7 columns with median r ≤ 10 m "
+          "(r of the log-midpoint — the only r stored in the v1.5 runs). Recovered q: median log10 ρ of m̂ from 4 m above the true base to the "
+          "surface, and 4–10 m below it (v1.3-1).", "", "| set | q | metrics |", "|---|---|---|"]
+    for k, v in d["oos_metrics"].items():
+        s, q = k.split("|"); L.append(f"| {s} | {q} | {m(v)} |")
+    L += ["", "| site-like truth | n | r̄ (m) | observed (m) | q true | predicted (q true) | q recovered | predicted (q recovered) |", "|---|---|---|---|---|---|---|---|"]
+    for c in d["oos"]["v10_site_like"]:
+        L.append(f"| {c['truth']} | {c['n']} | {c['rbar']:.2f} | {c['y']:+.2f} | {c['q_true']:.3f} | {c['pred_true']:+.2f} | {c['q_rec']:.3f} | {f2(c['pred_rec'])} |")
+    L += ["", "| sounding truth | layout | DP | r̄ (m) | observed (m) | q true | predicted | q recovered | predicted |", "|---|---|---|---|---|---|---|---|---|"]
+    for c in d["oos"]["v15_sounding"]:
+        L.append(f"| {c['truth']} | {c['layout']} | {c['dp']} | {c['rbar']:.2f} | {c['y']:+.2f} | {c['q_true']:.3f} | {f2(c['pred_true'])} | {f3(c['q_rec'])} | {f2(c['pred_rec'])} |")
+    e9 = d["E9"]; nr = d["near_midpoint_sharp"]
+    L += ["", f"## E9: the {e9['n']} cases counted", "",
+          "Rows of the v1.3 factorial with contour ∈ {2, 3, 5} Ω·m, λ = 50, r ≤ 10 m group, ≥ 5 (realisation, column) pairs, 0 < q < 1 and |q − 0.5| > 0.1 "
+          f"(sharp and graded truths). {e9['n_ok']} of {e9['n']} have the predicted sign.", "",
+          "| truth | contour | q | n pairs | median bias (m) | predicted sign | ok |", "|---|---|---|---|---|---|---|"]
+    for c in e9["cases"]:
+        L.append(f"| {c['truth']} | {c['contour']} | {c['q']:.3f} | {c['n']} | {c['bias']:+.2f} | {'+' if c['pred_sign'] > 0 else '−'} | {'yes' if c['ok'] else 'no'} |")
+    L += ["", f"**Sharp near-midpoint cases (|q − 0.5| ≤ 0.1), excluded from E9:** {len(nr)}; too deep (bias < 0): "
+          f"{sum(c['too_deep'] for c in nr)} of {len(nr)}.", "", "| truth | contour | q | median bias (m) |", "|---|---|---|---|"]
+    for c in nr:
+        L.append(f"| {c['truth']} | {c['contour']} | {c['q']:.3f} | {c['bias']:+.2f} |")
+    lo = d["loto"]; ok = lo["sign_margin"] >= 0.9 and lo["r2_centred"] >= 0.5
+    L += ["", "## Expectation A6", "", "*Logged:* LOTO sign accuracy with the margin ≥ 90 % and centred R² ≥ 0.5.", "",
+          f"*Outcome:* **{'holds' if ok else 'does not hold'}** — {100 * lo['sign_margin']:.0f} % of {lo['n_margin']}, centred R² {lo['r2_centred']:.2f}.", ""]
+    write("A6_bias_rule_oos.md", L)
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+def rep_a7():
+    d = J("a7.json"); keep_json("a7.json")
+    meths = list(next(iter(d["counts"].values()))["DP2–DP7"])
+    L = ["# A7 — sounding-base definition", "", HDR, "",
+         f"Alternative bases: the 2.5 and 3 Ω·m crossings of each log (as stored); DP7 first step {d['dp7_first_step']:.2f} (stored log-midpoint) "
+         f"and main step {d['dp7_main_step']:.2f} mTAW (steep-increase log-midpoint restricted to −25 … −15 mTAW); DP1 deep step "
+         f"{d['dp1_deep_step']:.2f} (stored) and shallow saline layer {d['dp1_shallow']:.2f} mTAW (restricted to the top of the log … −8 mTAW; "
+         "the brief's \"about −2 mTAW\" is DP1's 2.5 Ω·m crossing, −1.96). Coverage = the stored field interval of each method contains the "
+         "alternative base (intervals unchanged).", ""]
+    for dset in ("DP2–DP7", "DP1–DP7"):
+        L += [f"## Inside the 90 % interval, {dset}", "", "| base | " + " | ".join(meths) + " |", "|---|" + "---|" * len(meths)]
+        for an, v in d["counts"].items():
+            L.append(f"| {an} | " + " | ".join(f"{v[dset][m]['k']}/{v[dset][m]['n']}" for m in meths) + " |")
+        L.append("")
+    L += ["## E15 (BEL v3, DPs at x = 100–450 m)", "", "| base | inside | holds (≥ 2/3) |", "|---|---|---|"]
+    for an, v in d["e15"].items():
+        L.append(f"| {an} | {v['n_ok']}/{v['n']} ({', '.join(sorted(set(v['dps']) - set(v['ok']))) or 'all'}{' outside' if set(v['dps']) - set(v['ok']) else ''}) | {'yes' if v['holds'] else 'no'} |")
+    L += ["", "## 2024 bases by the 2.5 Ω·m threshold vs the 1980 saline base", "", "| DP | 2024, 2.5 Ω·m (mTAW) | 1980 (mTAW) | 2024 − 1980 (m) |", "|---|---|---|---|"]
+    for n, v in d["thr2p5_vs_1980"].items():
+        L.append(f"| {n} | {v['thr2p5_2024']:.2f} | {v['sal1980']:.2f} | {v['diff']:+.2f} |")
+    L += ["", "At DP7 the 2.5 Ω·m rule takes the first crossing of a thin conductive layer just below the surface (−0.04 mTAW), so the DP7 "
+          "row does not describe the lens base.", ""]
+    mn = min(v["DP2–DP7"]["BEL3-18"]["k"] for v in d["counts"].values())
+    L += ["## Expectation A7", "", "*Logged:* BEL3-18 keeps ≥ 5 of 6 under every alternative base.", "",
+          f"*Outcome:* **{'holds' if mn >= 5 else 'does not hold'}** — minimum {mn}/6.", ""]
+    write("A7_sounding_base.md", L)
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+def rep_a9():
+    d = J("a9.json"); keep_json("a9.json")
+    p24 = os.path.join(DP, "a3_lin24.npz"); Z = np.load(p24, allow_pickle=True) if os.path.exists(p24) else None
+    stop_txt = {"chi2<=1": "χ² ≤ 1 (stopAtChi1)", "dPhi<2%": "ΔΦ < 2 %", "iteration cap": "iteration cap"}
+    L = ["# A9 — χ², objective and stopping for every λ; mesh", "", HDR, "",
+         "pyGIMLi 1.5.5 `Inversion.run` stops (i) when χ² ≤ 1 if `stopAtChi1` is true — the default, not changed by `02_land_inversion.py` — "
+         "(ii) when the relative decrease of Φ is below `minDPhi` = 2 % after iteration 2, or (iii) at `maxIter` (30). Φd = N·χ² (χ² = mean squared "
+         "normalised log residual), Φm = ‖C ln m‖² with C the weighted constraint matrix (zWeight 0.5) used in the normal matrix, Φ = Φd + λΦm. "
+         "Values are the final iterate, i.e. the stored model.", "",
+         "## 2018 G1 line (1974 data, final mesh 2627 cells)", "",
+         "| λ | run | iterations | stop | χ² | Φd | Φm | λΦm | Φ |", "|---|---|---|---|---|---|---|---|---|"]
+    for o in d["pool_2018"]:
+        L.append(f"| {o['lam']:g} | {o['tag']} | {o['n_iter']} | {stop_txt.get(o['stop'], o['stop'])} | {o['chi2']:.3f} | {o['phi_d']:.0f} | {o['phi_m']:.1f} | {o['lam_phi_m']:.0f} | {o['phi']:.0f} |")
+    if Z is not None:
+        L += ["", f"## 2025 line (ERT.dat, CPT topography, {int(Z['n_kept'])} kept data; A3 rerun with the stored seeds)", "",
+              "| λ | iterations | stop | χ² | Φd | Φm | λΦm | Φ |", "|---|---|---|---|---|---|---|---|"]
+        for lam in (5, 10, 20, 50, 100):
+            p = f"lam{lam}_"
+            L.append(f"| {lam} | {int(Z[p + 'n_iter'])} | {stop_txt.get(str(Z[p + 'stop']), str(Z[p + 'stop']))} | {float(Z[p + 'chi2']):.3f} | "
+                     f"{float(Z[p + 'phi_d']):.0f} | {float(Z[p + 'phi_m']):.1f} | {lam * float(Z[p + 'phi_m']):.0f} | {float(Z[p + 'phi']):.0f} |")
+    else:
+        L += ["", "## 2025 line", "", "*Pending: the A3 rerun of the five λ inversions.*"]
+    m = d.get("mesh", {})
+    L += ["", "## Why χ² = 0.770 at λ = 20 and 0.752 at λ = 50", "",
+          "Same mesh (2627 cells), same 1974 data, same error model. λ = 5–50 all stopped at the **first iterate with χ² ≤ 1** "
+          "(stopAtChi1). The final χ² is then where the Gauss–Newton step that first crosses 1 happens to land, not the minimum of Φ for "
+          "that λ; a larger λ can land lower. The stored models are therefore not the minimisers of their objectives; χ² < 1 by 0.23–0.25 "
+          "at λ = 10–50 means they fit the data more closely than the error model implies. λ = 100 stopped on ΔΦ < 2 % with χ² = 1.02.", "",
+          "**A⁻¹.** The linearised covariance A⁻¹ (A = JᵀWd²J + λCᵀC) of every λ was evaluated at these stopped models: J is the "
+          "Jacobian stored after the final iteration, and `wc.cholesky_A` builds A from it. No reference inversion was rerun to convergence "
+          "(as instructed).", ""]
+    if m:
+        L += ["## Mesh: vertical cell size at −10 … −20 mTAW (cells with centres there, x = 100–450 m)", "",
+              f"2018 mesh: {m.get('n_cells_window')} of {m.get('n_cells')} cells in the window (triangles); vertical extent median {m.get('dz_median', float('nan')):.2f} m "
+              f"(P5–P95 {m.get('dz_p5', float('nan')):.2f}–{m.get('dz_p95', float('nan')):.2f}, range {m.get('dz_min', float('nan')):.2f}–{m.get('dz_max', float('nan')):.2f}); "
+              f"horizontal extent median {m.get('dx_median', float('nan')):.2f} m."]
+        if Z is not None:
+            dz = Z["mesh_dz_window"]
+            L.append(f"2025 mesh: {len(dz)} cells; vertical extent median {np.median(dz):.2f} m (P5–P95 {np.percentile(dz, 5):.2f}–{np.percentile(dz, 95):.2f}).")
+        L.append("")
+    write("A9_chi2_stopping.md", L)
+
+
+if __name__ == "__main__":
+    for a in sys.argv[1:]:
+        globals()["rep_" + a]()

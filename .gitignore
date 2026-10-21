@@ -13,3 +13,6 @@ data/raw/Project12_LS210110079_2018-03-07_11-22-23/
 # v1.7 base-map rasters (large; re-download with 32_location_map.py fetch; sources in data/external/basemap/README_sources.md)
 data/external/basemap/*.tif
 data/external/basemap/*.png
+
+# v2.0 A8 archive (git bundle + source zip; not uploaded from here)
+release_v2.0/
