@@ -242,6 +242,165 @@ def rep_a9():
     write("A9_chi2_stopping.md", L)
 
 
+def rep_a3():
+    d = J("a3.json"); keep_json("a3.json")
+    S = d["summary"]; P = d["per_sounding"]; meths = list(S)
+    cp = lambda c: f"[{c[0]:.2f}, {c[1]:.2f}]"
+    L = ["# A3 — scores from samples, per-sounding table, exact paired tests", "", HDR, "",
+         "Truth: DP log-midpoint base, DP2–DP7. Predictive samples: BEL posteriors as stored; linearised bands from the regenerated "
+         "samples (2018: `11_stage4_closeout.cmd_a4` procedure, v2.0-1; 2025: the five λ inversions rerun, accepted — max band difference "
+         f"{max(v for k, v in d['lin24_check']['check'].items() if k.endswith('_m')):.3f} m, model columns ≤ "
+         f"{max(v for k, v in d['lin24_check']['check'].items() if 'col_maxdiff' in k):.1e} log10); priors = training targets. "
+         "IS from the sample P5/P95; CRPS in energy form, E|X − y| − ½E|X − X′|, on ≤ 2000 samples (subsample seeds [200300, method, DP]). "
+         "A band is scored only where the interface is defined in ≥ 50 % of the samples (as Table 3). Coverage intervals: Clopper–Pearson, 90 %.", "",
+         "## Summary (Table 3 with CRPS from samples)", "",
+         "| method | inside (90 % CP) | median width (m) | mean IS (m) | mean CRPS, samples (m) | mean CRPS, Table 3 (m) | CRPS skill | MAE (m) |",
+         "|---|---|---|---|---|---|---|---|"]
+    for m in meths:
+        o = S[m]; st = np.nanmean([P[m][n]["stored_crps"] for n in DPS6])
+        L.append(f"| {m} | {o['k']}/{o['n_dp']} {cp(o['cp90'])} | {o['width']:.2f} | {o['IS']:.2f} | {o['CRPS']:.3f} | {st:.3f}"
+                 f"{' (3 quantiles)' if any(P[m][n]['stored_approx'] for n in DPS6) else ''} | {f2(o.get('skill_CRPS'))} | {o['MAE']:.2f} |")
+    L += ["", "## Per sounding: IS / CRPS / |median − y| (m), inside", ""]
+    L += ["| method | " + " | ".join(DPS6) + " |", "|---|" + "---|" * 6]
+    for m in meths:
+        L.append(f"| {m} | " + " | ".join(
+            (f"{P[m][n]['is_']:.2f} / {P[m][n]['crps']:.2f} / {P[m][n]['ae']:.2f} {'✓' if P[m][n]['inside'] else '✗'}" if np.isfinite(P[m][n]["is_"]) else "undefined ✗")
+            for n in DPS6) + " |")
+    L += ["", "## Exact sign-flip tests (64 patterns; d = BEL − LIN per sounding; one-sided H1: BEL lower)", "",
+          "| comparison | IS: mean d (m) | BEL lower at | p one-sided | p two-sided | CRPS: mean d (m) | BEL lower at | p one-sided | p two-sided |",
+          "|---|---|---|---|---|---|---|---|---|"]
+    for k, v in d["sign_flip"].items():
+        a, b = v["IS"], v["CRPS"]
+        L.append(f"| {k} | {a['mean_diff']:+.2f} | {a['n_lower']}/{a['n']} | {a['p_one']:.3f} | {a['p_two']:.3f} | {b['mean_diff']:+.3f} | "
+                 f"{b['n_lower']}/{b['n']} | {b['p_one']:.3f} | {b['p_two']:.3f} |")
+    L += ["", "With six soundings the smallest attainable one-sided p is 1/64 = 0.016.", "",
+          "## Leave-one-sounding-out ranking (14 methods)", ""]
+    for k in ("IS", "CRPS"):
+        lo = d["loo"][k]
+        L.append(f"- **{k}**: full-data rank BEL3-18 {lo['full_rank']['BEL3-18']}, BEL4-24 {lo['full_rank']['BEL4-24']}; with DP2 … DP7 left out: "
+                 f"BEL3-18 {lo['ranks']['BEL3-18']}, BEL4-24 {lo['ranks']['BEL4-24']}. Still lower than the linearised method in all six leave-outs: "
+                 + ", ".join(f"{kk} {'yes' if vv else 'no (' + str(lo['beats_count'][kk]) + '/6)'}" for kk, vv in lo["beats_in_all_6"].items()) + ".")
+    L += ["", "## Representativeness error σ_rep added to every predictive distribution", "",
+          "| method | inside, 0 / 0.5 / 1.0 m | mean IS, 0 / 0.5 / 1.0 m | mean CRPS, 0 / 0.5 / 1.0 m |", "|---|---|---|---|"]
+    R5, R1 = d["sigma_rep"]["0.5"]["summary"], d["sigma_rep"]["1.0"]["summary"]
+    for m in meths:
+        L.append(f"| {m} | {S[m]['k']} / {R5[m]['k']} / {R1[m]['k']} | {S[m]['IS']:.2f} / {R5[m]['IS']:.2f} / {R1[m]['IS']:.2f} | "
+                 f"{S[m]['CRPS']:.3f} / {R5[m]['CRPS']:.3f} / {R1[m]['CRPS']:.3f} |")
+    sf = d["sign_flip_sigma_rep"]
+    L += ["", "Sign-flip p (one-sided, IS) with σ_rep 0.5 / 1.0 m: " + "; ".join(
+        f"{k} {sf['0.5'][k]['IS']['p_one']:.3f} / {sf['1.0'][k]['IS']['p_one']:.3f}" for k in sf["0.5"]) + ".", "",
+          "## Clopper–Pearson 90 % intervals for other coverage counts", "",
+          "Held-out sets: " + "; ".join(f"{k} {v['k']}/{v['n']} {cp(v['cp90'])}" for k, v in d["cp90_heldout"].items()) + ".", ""]
+    if "cp90_a7" in d:
+        L += ["A7 alternative bases, BEL3-18 and BEL4-24 (DP2–DP7 | DP1–DP7):", ""]
+        for an, v in d["cp90_a7"].items():
+            L.append(f"- {an}: " + "; ".join(f"{m} {v[ds][m]['k']}/{v[ds][m]['n']} {cp(v[ds][m]['cp90'])}" for m in ("BEL3-18", "BEL4-24") for ds in ("DP2–DP7", "DP1–DP7")))
+    e1 = d["sign_flip"]["BEL4-24 vs LIN-LM-24"]["IS"]; e2 = d["sign_flip"]["BEL3-18 vs LIN-3-18"]["IS"]
+    L += ["", "## Expectation A3", "", "*Logged:* BEL4-24 has lower IS than LIN-LM-24 at all 6 DPs (one-sided p = 1/64); the BEL3-18 vs LIN-3-18 differences are not significant (p > 0.1).", "",
+          f"*Outcome:* first part **{'holds' if e1['n_lower'] == 6 else 'does not hold'}** — BEL4-24 lower at {e1['n_lower']} of 6 (p = {e1['p_one']:.3f}; "
+          "LIN-LM-24 is lower at DP2, where its band is narrow and covers); second part **"
+          f"{'holds' if e2['p_two'] > 0.1 else 'does not hold'}** (two-sided p = {e2['p_two']:.2f}).", ""]
+    write("A3_scores_tests.md", L)
+
+
+def rep_a4():
+    d = J("a4.json"); keep_json("a4.json")
+    T = d["treatments"]
+    L = ["# A4 — outlier treatments and error model at the soundings (Table S7)", "", HDR, "",
+         "λ pools of 5 runs (λ = 5, 10, 20, 50, 100) per treatment on the same mesh; 1000 linearised samples per run (seeds [200400, treatment, λ]; "
+         "G1: the A3 regeneration); bands at the 2 m column nearest each DP. BEL v3 can be retrained only within the 1974 G1 quadrupoles, "
+         "because training responses exist only for them (posterior seeds [200500, treatment]).", "",
+         "## What the BEL retraining changes", "",
+         "| treatment | data for the inversions | BEL v3 |", "|---|---|---|",
+         "| G1 | 1974 (357 outliers dropped) | the paper's BEL (1718 training samples) |",
+         f"| G1b | {T['G1b']['runs']['50']['n_data'] if '50' in T['G1b']['runs'] else T['G1b']['runs'][50]['n_data']} | **identical to G1's BEL**: the 62 data G1b keeps beyond G1 have no training responses |"]
+    def b(n):
+        return T[n]["bel"]
+    g2, g3, rc = b("G2"), b("G3"), b("RECIP")
+    L.append(f"| G2 | 1456 (all data on the 11 flagged electrodes dropped) | {g2['n_dropped_cols']} of the 1974 G1 quadrupoles dropped (those on the 11 "
+             f"electrodes); training data built on all 1974 and restricted to the remaining {g2['n_cols']}; field vector restricted the same way; "
+             f"{g2['n_train']} training samples, {g2['kd']} data PCs |")
+    L.append(f"| G3 | 2331 (none dropped; 875 down-weighted ×2.07) | all 1974 columns; training noise σ_i × the G3 factor (2.07 on the {g3['n_scaled']} G1 data "
+             f"that use a flagged electrode, 1 elsewhere), linear space as pre-registered; {g3['n_train']} training samples, {g3['kd']} data PCs |")
+    L.append(f"| RECIP | 1974, reciprocal error model B | all 1974 columns; training noise σ_i × the reciprocal factor ({rc['scale_min']:.2f}–{rc['scale_max']:.1f}), "
+             f"applied in log space (decision log v2.0-2); {rc['n_train']} training samples, {rc['kd']} data PCs |")
+    L += ["", "## Inversion runs", "", "| treatment | λ | run | data | χ² | iterations | stop |", "|---|---|---|---|---|---|---|"]
+    for n, v in T.items():
+        if n == "G1":
+            continue
+        for lam, r in v["runs"].items():
+            L.append(f"| {n} | {lam} | {r['tag']} | {r['n_data']} | {r['chi2']:.3f} | {r['n_iter']} | {r['stop']} |")
+    names = list(T)
+    L += ["", "## Table S7 — lens base (median, mTAW) and inside the 90 % interval at DP1–DP7", "",
+          "| DP | DP base | " + " | ".join(f"{n}: 3 Ω·m λ50 / log-mid. pooled / BEL" for n in names) + " |", "|---|---|" + "---|" * len(names)]
+    dps = list(T["G1"]["rows"])
+    mk = lambda r: (f"{r['p50']:.2f}{'✓' if r['inside'] else '✗'}" if np.isfinite(r["p50"]) and r["share"] >= 0.5 else "—✗")
+    for n_ in dps:
+        y = T["G1"]["rows"][n_]["y"]
+        L.append(f"| {n_} | {y:.2f} | " + " | ".join(f"{mk(T[t]['rows'][n_]['thr3_lam50'])} / {mk(T[t]['rows'][n_]['logmid_pooled'])} / {mk(T[t]['rows'][n_]['bel'])}" for t in names) + " |")
+    L.append("| **inside, DP2–DP7** | | " + " | ".join(f"**{T[t]['counts']['thr3_lam50']} / {T[t]['counts']['logmid_pooled']} / {T[t]['counts']['bel']}**" for t in names) + " |")
+    e = d["expectation"]
+    L += ["", "## Expectation A4", "", "*Logged:* BEL v3 inside at ≥ 5 of 6 for every treatment; the linearised counts change by at most one DP across treatments.", "",
+          f"*Outcome:* **{'holds' if e['holds'] else 'does not hold'}** — BEL minimum {e['bel_min']}/6; linearised count ranges: 3 Ω·m {e['lin_range']['thr3_lam50']}, "
+          f"log-midpoint {e['lin_range']['logmid_pooled']}.", ""]
+    write("A4_treatments_TableS7.md", L)
+
+
+def rep_a10():
+    L = ["# A10 (optional) — blocky inversion and BEL v3 on factorial truths", "", HDR, ""]
+    if os.path.exists(os.path.join(DP, "a10a.json")):
+        a = J("a10a.json"); keep_json("a10a.json")
+        L += ["## (a) G1 data, λ = 50, L1 (IRLS) model roughness", "",
+              f"{a['n_data']} data; χ² = {a['chi2']:.3f} ({a['stop']}, {a['n_iter']} iterations); run time {a['t_inversion_s'] / 60:.1f} min (inversion), "
+              f"{a['t_total_s'] / 60:.1f} min in total. 1000 linearised samples, seed [200600, 0]. *Caveat:* {a['caveat']}", "",
+              "| DP | DP base | 3 Ω·m P50 [P5, P95] | inside | log-midpoint P50 [P5, P95] | inside |", "|---|---|---|---|---|---|"]
+        for n, r in a["rows"].items():
+            c = lambda k: (f"{r[k]['p50']:.2f} [{r[k]['p5']:.2f}, {r[k]['p95']:.2f}] | {'✓' if r[k]['inside_logmid'] else '✗'}" if "p50" in r[k] else "undefined | ✗")
+            L.append(f"| {n} | {r['y_logmid']:.2f} | {c('thr3')} | {c('logmid')} |")
+        cn = a["counts_dp2_dp7"]
+        L += ["", f"Inside at DP2–DP7 (truth: DP log-midpoint): 3 Ω·m {cn['thr3']['vs_logmid']}/6, log-midpoint {cn['logmid']['vs_logmid']}/6 "
+                  f"(against the DP 3 Ω·m crossing: {cn['thr3']['vs_thr3']}/6 and {cn['logmid']['vs_thr3']}/6).", ""]
+    if os.path.exists(os.path.join(DP, "a10b.json")):
+        b = J("a10b.json"); keep_json("a10b.json")
+        L += ["## (b) BEL v3 (paper fit) on the 8 sharp factorial truths with z_b = −12 m", "",
+              f"Realisations 0–4 of the stored v1.3 noisy data (G1 quadrupoles); posterior seeds [200700, truth, realisation]; columns x = 130–450 m; "
+              f"run time {b['t_total_s'] / 60:.1f} min.", "",
+              "| truth | ρ_lens | k (ρ_below) | coverage | mean IS (m) | prior IS (m) | IS skill | median bias (m) |", "|---|---|---|---|---|---|---|---|"]
+        for t, v in b["truths"].items():
+            L.append(f"| {t} | {v['rho_lens']:g} | {v['k']} ({v['rho_lens'] * v['k']:.2f} Ω·m) | {v['cov']:.2f} | {v['IS']:.2f} | {v['IS_prior']:.2f} | "
+                     f"{v['skill_IS']:+.2f} | {v['median_bias']:+.2f} |")
+        L += ["", "For k = 2 the water below the lens is 1.6 Ω·m (ρ_lens 0.8) or 2.84 Ω·m (ρ_lens 1.42); prior v3 draws ρ_below from 2–20 Ω·m and requires "
+                  "ρ_lens ≥ 0.69 Ω·m, so the 0.8 × 2 truth lies outside the prior and the 1.42 × 2 truth at its low edge. The low-contrast "
+                  "truths are where BEL misses (coverage 0.44, medians ≈ 5 m too deep); for k ≥ 4 it covers 97–100 % with IS skill ≈ +0.58.", ""]
+    write("A10_optional.md", L)
+
+
+def rep_a1():
+    d = J("a1.json"); keep_json("a1.json")
+    s = d["summary"]
+    L = ["# A1 — BEL with prior v3 (unchanged) on the 2025 line", "", HDR, "",
+         f"Ensemble: {d['n_have']} of the {d['n_expected']} prior-v3 draws forward-modelled on the L24 geometry; {d['n_dual']} dual (fine/medium) samples "
+         f"for the approximation error (median |mean| {d['approx']['mean_abs_median']:.4f}, median sd {d['approx']['sd_median']:.4f} log10). "
+         f"Training {d['n']['tr']['n_kept']} (of {d['n']['tr']['n_all']}), held-out {d['n']['ho']['n_kept']} (of {d['n']['ho']['n_all']}) after the "
+         f"site and physical filters; {d['kd']} data / {d['kt']} target PCs.", "",
+         f"*Checks.* Prior falsification of the 2025 data: share of training samples with a smaller statistic — T² {d['falsification']['t2']:.3f}, "
+         f"robust T² {d['falsification']['t2r']:.3f}, Q {d['falsification']['q']:.3f} (not outside). Held-out coverage {100 * d['heldout']['cov']:.1f} % "
+         f"({d['heldout']['cov_k']}/{d['heldout']['cov_n']} columns), median width {d['heldout']['width_median']:.2f} m; second BEL ρ_below held-out "
+         f"coverage {100 * d['heldout']['cov2_rho_below']:.1f} %. ρ_below (second BEL, v3 bounds): {d['rho_below'][0]:.2f} [{d['rho_below'][1]:.2f}, {d['rho_below'][2]:.2f}] Ω·m.", "",
+         "## Field read-out at DP2–DP7 (truth: DP log-midpoint base)", "",
+         "| DP | column | DP base | BEL P50 [P5, P95] | inside | IS | CRPS | prior P5–P95 | prior IS | prior CRPS |", "|---|---|---|---|---|---|---|---|---|---|"]
+    for r in d["rows"]:
+        bb, pp = r["bel"], r["prior"]
+        L.append(f"| {r['dp']} | {r['col']:.0f} | {r['y']:.2f} | {bb['m']:.2f} [{bb['l']:.2f}, {bb['u']:.2f}] | {'✓' if r['inside'] else '✗'} | {bb['is_']:.2f} | "
+                 f"{bb['crps']:.3f} | {pp['l']:.2f} – {pp['u']:.2f} | {pp['is_']:.2f} | {pp['crps']:.3f} |")
+    L += ["", f"**Coverage {s['k']}/6** (90 % CP [{s['cp90'][0]:.2f}, {s['cp90'][1]:.2f}]); median width {s['median_width']:.2f} m; mean IS {s['IS']:.2f} m "
+              f"(prior {s['prior_IS']:.2f}; skill {s['skill_IS']:+.2f}); mean CRPS {s['CRPS']:.3f} m (prior {s['prior_CRPS']:.3f}; skill {s['skill_CRPS']:+.2f}). "
+              "Prior CRPS subsample seeds [160000, prior set, 500 + column] (not fixed in v2.0-0).", "",
+          "## Expectation A1", "", "*Logged:* ≥ 5 of 6 inside and IS skill > 0.", "",
+          f"*Outcome:* **{'holds' if d['expectation']['holds'] else 'does not hold'}**.", ""]
+    write("A1_bel_v3_2025.md", L)
+
+
 if __name__ == "__main__":
     for a in sys.argv[1:]:
         globals()["rep_" + a]()

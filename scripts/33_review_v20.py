@@ -900,7 +900,11 @@ def bel_retrain(name, g1_keep, b13, s6):
             l = np.log10(z["R_medium"]) + mu
             e = dev.T @ np.random.default_rng([b13.APPROX_SEED, i]).standard_normal(dev.shape[0]) / np.sqrt(n1)
             R = 10 ** (l + e)
-            Rn = R + scale * np.sqrt((b13.ERR_REL * R) ** 2 + b13.ERR_ABS ** 2) * np.random.default_rng([b13.NOISE_SEED, i]).standard_normal(len(R))
+            sig = np.sqrt((b13.ERR_REL * R) ** 2 + b13.ERR_ABS ** 2); zz = np.random.default_rng([b13.NOISE_SEED, i]).standard_normal(len(R))
+            if name == "RECIP":                                            # decision log v2.0-2: scaled error in log space
+                Rn = R * np.exp(scale * sig / R * zz)
+            else:
+                Rn = R + scale * sig * zz
             if np.all(Rn[cols] > 0):
                 out.append(np.log10(Rn[cols])); keep.append(i)
         return np.array(out), keep
