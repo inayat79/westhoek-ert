@@ -884,7 +884,7 @@ def read_index_file(rel, with_value=False):
     return out
 
 
-def bel_retrain(name, g1_keep, b13, s6):
+def bel_retrain(name, g1_keep, b13, s6, return_ho=False, cap_k=None):
     """BEL v3 refit within the 1974 G1 quadrupoles for one treatment (decision log v2.0-0); returns (BEL, field vector, info)."""
     obs, _ = b13.observed_sets(); y = obs["field"]
     _, _, drop, scale_file = A4_TREAT[name]
@@ -917,7 +917,63 @@ def bel_retrain(name, g1_keep, b13, s6):
     assert C["tr"]["D"].shape[1] == len(cols), "treatment prior_data not applied"
     info = dict(n_cols=int(len(cols)), n_scaled=int(np.sum(scale != 1)), scale_min=float(scale.min()), scale_max=float(scale.max()),
                 n_train=int(len(C["tr"]["D"])), n_dropped_cols=int(len(g1_keep) - len(cols)))
-    return b13.BEL(C["tr"]["D"], C["tr"]["T"]), y[cols], info
+    bel = bel_fit(b13, C["tr"]["D"], C["tr"]["T"], cap_k)
+    if return_ho:
+        return bel, y[cols], info, (C["ho"]["D"], C["ho"]["T"])
+    return bel, y[cols], info
+
+
+def bel_fit(b13, D, T, cap_k=None):
+    """13_bel_full.BEL, optionally with the data PCA capped at cap_k components (v2.0-4)."""
+    if cap_k is None:
+        return b13.BEL(D, T)
+    bel = b13.BEL.__new__(b13.BEL)
+    bel.pd = b13.PCA(D, k=cap_k); bel.pt = b13.PCA(T, 0.99)
+    bel.Sd = bel.pd.fwd(D); bel.St = bel.pt.fwd(T)
+    bel.cca = b13.CCA(bel.Sd, bel.St); bel.Cd = bel.cca.cx(bel.Sd); bel.Ct = bel.cca.cy(bel.St)
+    bel.lin = []
+    for i in range(bel.Ct.shape[1]):
+        a, b_ = np.polyfit(bel.Cd[:, i], bel.Ct[:, i], 1); r = bel.Ct[:, i] - (a * bel.Cd[:, i] + b_); bel.lin.append((a, b_, r.std(ddof=2)))
+    return bel
+
+
+def cmd_a4diag(args):
+    """Decision log v2.0-4: held-out check of every A4 BEL refit; RECIP with the data PCA capped at 114."""
+    M = mods(); b13 = M["b13"]
+    import stage6_analysis as s6
+    g31 = _load("g31", "31_scores.py"); TX = b13.TX
+    DPs = [d for d in g31.dp_list() if d["dp"] in g31.DPS]; jb = [int(np.argmin(np.abs(TX - d["x"]))) for d in DPs]
+    g1_keep = np.asarray(wc.load_run("deep_drop_data")["keep_idx"]).astype(int)
+    out = dict(note=POST_HOC + " Diagnostic (v2.0-4).", refits={})
+    def check(name, bel, yv, ho, ti):
+        Dh, Th = ho; cov, wid = [], []
+        for j, (yy, t) in enumerate(zip(Dh, Th)):
+            P = bel.posterior(yy, 2000, np.random.default_rng([129000, 90_000 + j]), "kde"); lo, hi = np.percentile(P, [5, 95], 0)
+            cov.append((t >= lo) & (t <= hi)); wid.append(hi - lo)
+        Pf = bel.posterior(yv, 2000, np.random.default_rng([200500, ti]), "kde")
+        lo, hi = np.percentile(Pf[:, jb], [5, 95], 0); md = np.median(Pf[:, jb], 0)
+        ins = [bool(l <= d["logmid"] <= u) for l, u, d in zip(lo, hi, DPs)]
+        c = float(np.mean(cov))
+        o = dict(n_heldout=int(len(Dh)), heldout_cov=c, heldout_width_median=float(np.median(wid)), field_width_dp_median=float(np.median(hi - lo)),
+                 field_inside=int(sum(ins)), field_p50=[float(v) for v in md], kd=int(bel.pd.k), kt=int(bel.pt.k), cca_r5=[float(v) for v in bel.cca.r[:5]],
+                 unreliable=bool(not (0.85 <= c <= 0.95)))
+        print(f"[a4diag] {name}: ho cov {c:.3f} width {o['heldout_width_median']:.2f}; field width {o['field_width_dp_median']:.2f}; inside {o['field_inside']}/6; kd {o['kd']}", flush=True)
+        return o
+    s6.init(); s6.TX = TX
+    C = s6.load_combined(physical=True); bel = b13.BEL(C["tr"]["D"], C["tr"]["T"]); obs, _ = b13.observed_sets()
+    # G1: the paper fit; its field posterior is the paper's ([129000, 1]), so the DP check uses that seed
+    o = check("G1", bel, obs["field"], (C["ho"]["D"], C["ho"]["T"]), 0)
+    Pf = bel.posterior(obs["field"], 2000, np.random.default_rng([129000, 1]), "kde"); lo, hi = np.percentile(Pf[:, jb], [5, 95], 0)
+    o.update(field_width_dp_median=float(np.median(hi - lo)), field_inside=int(sum(l <= d["logmid"] <= u for l, u, d in zip(lo, hi, DPs))), field_seed="[129000, 1] (paper)")
+    out["refits"]["G1"] = o; out["refits"]["G1b"] = dict(identical_to="G1"); del C, bel
+    for name in ("G2", "G3", "RECIP"):
+        ti = A4_TREAT[name][0]
+        bel, yv, info, ho = bel_retrain(name, g1_keep, b13, s6, return_ho=True)
+        out["refits"][name] = dict(check(name, bel, yv, ho, ti), n_train=info["n_train"]); del bel
+    bel, yv, info, ho = bel_retrain("RECIP", g1_keep, b13, s6, return_ho=True, cap_k=114)
+    out["refits"]["RECIP_k114"] = dict(check("RECIP_k114", bel, yv, ho, 4), n_train=info["n_train"])
+    out["recip_k114_6of6"] = bool(out["refits"]["RECIP_k114"]["field_inside"] == 6)
+    json.dump(out, open(D20("a4diag.json"), "w", encoding="utf-8"), indent=1, default=float)
 
 
 def cmd_a4(args):
@@ -1106,11 +1162,11 @@ def main():
     ap = argparse.ArgumentParser()
     sub = ap.add_subparsers(dest="cmd", required=True)
     a = sub.add_parser("a1"); a.add_argument("--time-only", action="store_true"); a.add_argument("--workers", type=int, default=6)
-    sub.add_parser("a9"); sub.add_parser("a3-lin18"); sub.add_parser("a3-lin24"); sub.add_parser("a2"); sub.add_parser("a6"); sub.add_parser("a7"); sub.add_parser("a5"); sub.add_parser("a3"); sub.add_parser("a4"); sub.add_parser("a10a"); sub.add_parser("a10b"); sub.add_parser("a1-analyse"); sub.add_parser("prior-T")
+    sub.add_parser("a9"); sub.add_parser("a3-lin18"); sub.add_parser("a3-lin24"); sub.add_parser("a2"); sub.add_parser("a6"); sub.add_parser("a7"); sub.add_parser("a5"); sub.add_parser("a3"); sub.add_parser("a4"); sub.add_parser("a10a"); sub.add_parser("a10b"); sub.add_parser("a4diag"); sub.add_parser("a1-analyse"); sub.add_parser("prior-T")
     w = sub.add_parser("worker"); w.add_argument("--worker-id", type=int, required=True); w.add_argument("--dual", action="store_true")
     w.add_argument("--ids", type=int, nargs="+", required=True)
     args = ap.parse_args()
-    dict(a1=cmd_a1, a2=cmd_a2, a6=cmd_a6, a7=cmd_a7, a5=cmd_a5, a3=cmd_a3, a4=cmd_a4, a10a=cmd_a10a, a10b=cmd_a10b, **{"a1-analyse": cmd_a1_analyse}, **{"prior-T": lambda a: prior_T()}, worker=cmd_worker, a9=cmd_a9, **{"a3-lin18": cmd_a3_lin18, "a3-lin24": cmd_a3_lin24})[args.cmd](args)
+    dict(a1=cmd_a1, a2=cmd_a2, a6=cmd_a6, a7=cmd_a7, a5=cmd_a5, a3=cmd_a3, a4=cmd_a4, a10a=cmd_a10a, a10b=cmd_a10b, a4diag=cmd_a4diag, **{"a1-analyse": cmd_a1_analyse}, **{"prior-T": lambda a: prior_T()}, worker=cmd_worker, a9=cmd_a9, **{"a3-lin18": cmd_a3_lin18, "a3-lin24": cmd_a3_lin24})[args.cmd](args)
 
 
 if __name__ == "__main__":

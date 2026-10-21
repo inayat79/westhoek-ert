@@ -339,6 +339,16 @@ def rep_a4():
         y = T["G1"]["rows"][n_]["y"]
         L.append(f"| {n_} | {y:.2f} | " + " | ".join(f"{mk(T[t]['rows'][n_]['thr3_lam50'])} / {mk(T[t]['rows'][n_]['logmid_pooled'])} / {mk(T[t]['rows'][n_]['bel'])}" for t in names) + " |")
     L.append("| **inside, DP2–DP7** | | " + " | ".join(f"**{T[t]['counts']['thr3_lam50']} / {T[t]['counts']['logmid_pooled']} / {T[t]['counts']['bel']}**" for t in names) + " |")
+    if os.path.exists(os.path.join(DP, "a4diag.json")):
+        g = J("a4diag.json"); keep_json("a4diag.json")
+        L += ["", "**Reliability of the BEL refits (diagnostic, decision log v2.0-4).** Held-out check on the prior-v3 held-out models with the same "
+              "treatment-specific noise (seeds as the paper); a refit is flagged *unreliable* if its held-out coverage lies outside 85–95 %.", "",
+              "| refit | data PCs | held-out coverage | held-out median width (m) | field median width DP2–DP7 (m) | inside DP2–DP7 | flag |", "|---|---|---|---|---|---|---|"]
+        for n, v in g["refits"].items():
+            if "identical_to" in v:
+                L.append(f"| {n} | as G1 | | | | | as G1 |"); continue
+            L.append(f"| {n} | {v['kd']} | {100 * v['heldout_cov']:.1f} % | {v['heldout_width_median']:.2f} | {v['field_width_dp_median']:.2f} | {v['field_inside']}/6 | "
+                     f"{'**unreliable**' if v['unreliable'] else 'ok'} |")
     e = d["expectation"]
     L += ["", "## Expectation A4", "", "*Logged:* BEL v3 inside at ≥ 5 of 6 for every treatment; the linearised counts change by at most one DP across treatments.", "",
           f"*Outcome:* **{'holds' if e['holds'] else 'does not hold'}** — BEL minimum {e['bel_min']}/6; linearised count ranges: 3 Ω·m {e['lin_range']['thr3_lam50']}, "
@@ -458,6 +468,147 @@ def rep_numbers():
          "| # | key | value | source | description |", "|---|---|---|---|---|"]
     L += [f"| {i + 1} | `{n['key']}` | {n['value']} | {n['source']} | {n['description']} |" for i, n in enumerate(N)]
     write("numbers_v20.md", L)
+
+
+def rep_summary():
+    a1 = J("a1.json") if os.path.exists(os.path.join(DP, "a1.json")) else None
+    a2, a3, a4, a5, a6, a7, a9 = (J(f"a{i}.json") for i in (2, 3, 4, 5, 6, 7, 9))
+    a10a, a10b = J("a10a.json"), J("a10b.json")
+    dg = J("a4diag.json") if os.path.exists(os.path.join(DP, "a4diag.json")) else None
+    Z = np.load(os.path.join(DP, "a3_lin24.npz"), allow_pickle=True); L18 = np.load(os.path.join(DP, "a3_lin18_samples.npz"))
+    S3 = a3["summary"]; sf = a3["sign_flip"]
+    L = ["# v2.0 — summary of the reviewer-requested analyses", "",
+         "All analyses are **post hoc**, requested by the internal review of WRR v4, and pre-registered in `docs/decision_log.md` v2.0-0 before any "
+         "computation; deviations v2.0-1 (A3 log-midpoint bands), v2.0-2 (A4 RECIP noise) and the diagnostic v2.0-4 (A4 refits) were logged before "
+         "the results they affect. No earlier result or number changes (`results/paper/numbers.md` is byte-identical); new numbers are in "
+         "`numbers_v20.md`. One report per task is in this folder; the WRR v5 figures are in `results/figs_wrr_v5/`.", "",
+         "## Expectations", "", "| task | logged expectation | outcome |", "|---|---|---|"]
+    e = lambda b: "**holds**" if b else "**does not hold**"
+    rows = []
+    if a1:
+        rows.append(("A1", "BEL v3 on the 2025 line ≥ 5/6 inside and IS skill > 0", e(a1["expectation"]["holds"]) + f" ({a1['summary']['k']}/6, skill {a1['summary']['skill_IS']:+.2f})"))
+    rows += [("A2", "truncation changes a BEL interval at DP2 only, no verdict", "**does not hold as written** (DP1 intervals also move; no verdict changes)"),
+             ("A3", "BEL4-24 IS < LIN-LM-24 at all 6 (p = 1/64); BEL3-18 vs LIN-3-18 p > 0.1",
+              f"first part **does not hold** ({sf['BEL4-24 vs LIN-LM-24']['IS']['n_lower']}/6, p = {sf['BEL4-24 vs LIN-LM-24']['IS']['p_one']:.3f}); second **holds** (p = {sf['BEL3-18 vs LIN-3-18']['IS']['p_two']:.2f})"),
+             ("A4", "BEL ≥ 5/6 for every treatment; linearised counts change ≤ 1", e(a4["expectation"]["holds"]) + f" (G3 BEL {a4['treatments']['G3']['counts']['bel']}/6)"),
+             ("A5", "matched-window image < ½ sounding at ≥ 4 of DP3–DP7", e(a5["expectation"]["holds"]) + f" ({a5['expectation']['n_below_half']}/5)"),
+             ("A6", "LOTO sign accuracy (margin) ≥ 90 %, centred R² ≥ 0.5", e(a6["loto"]["sign_margin"] >= 0.9 and a6["loto"]["r2_centred"] >= 0.5) + f" ({100 * a6['loto']['sign_margin']:.0f} %, {a6['loto']['r2_centred']:.2f})"),
+             ("A7", "BEL3-18 ≥ 5/6 under every alternative base", e(min(v["DP2–DP7"]["BEL3-18"]["k"] for v in a7["counts"].values()) >= 5))]
+    L += [f"| {a} | {b} | {c} |" for a, b, c in rows]
+    # ── A9 / Section 3.1
+    p18 = {int(o["lam"]): o for o in a9["pool_2018"]}
+    L += ["", "## Changes for the paper (WRR v5 text)", "",
+          "**Section 3.1 (A9; stopping at χ² ≤ 1).** The sentence \"The reference model is the largest λ that reaches χ2 ≤ 1: λ = 50, with χ2 = 0.752 (Figure 2).\" "
+          "should now read: *\"The reference model is the largest λ that reaches χ2 ≤ 1: λ = 50 (Figure 2). Because pyGIMLi stops at the first "
+          f"iterate with χ2 ≤ 1, the models for λ = 5–50 are those iterates (after {min(p18[l]['n_iter'] for l in (5, 10, 20, 50))}–{max(p18[l]['n_iter'] for l in (5, 10, 20, 50))} "
+          f"Gauss–Newton steps; χ2 = {p18[50]['chi2']:.3f}–{p18[5]['chi2']:.3f}), not the minimizers of their objective functions, and λ = 100 stopped when "
+          f"the objective decreased by less than 2 % (χ2 = {p18[100]['chi2']:.2f}); the linearized covariances are evaluated at these models. On the 2025 line "
+          f"all five inversions stopped at χ2 ≤ 1 after {int(min(Z[f'lam{l}_n_iter'] for l in (5, 10, 20, 50, 100)))}–{int(max(Z[f'lam{l}_n_iter'] for l in (5, 10, 20, 50, 100)))} steps "
+          f"(χ2 = {min(float(Z[f'lam{l}_chi2']) for l in (5, 10, 20, 50)):.2f}–{max(float(Z[f'lam{l}_chi2']) for l in (5, 10, 20, 50)):.2f} for λ = 5–50, "
+          f"{float(Z['lam100_chi2']):.2f} for λ = 100).\"*", "",
+          "**Text S1 (A9).** \"[UPDATE A11: χ² for every λ on the final mesh]\" should now read: *\"On the final mesh with the 1974 G1 data, χ2 = "
+          + ", ".join(f"{p18[l]['chi2']:.3f} (λ = {l})" for l in (5, 10, 20, 50, 100)) +
+          "; the screening value 0.77 is the λ = 20 member, and its difference from λ = 50 reflects where each run stopped (first iterate with χ2 ≤ 1), not the mesh or the data.\"*", ""]
+    # ── A2
+    t = a2["dp_table"]["BEL3-18"]["DP2"]; O, T = a2["field_summary"]["orig"], a2["field_summary"]["trunc"]
+    L += ["**Section 4.2 (A2).** \"It does not change coverage, but it widens the interval [UPDATE A2: truncated at the ground].\" should now read: "
+          f"*\"Truncated at the ground surface, the 2018 interval at DP2 becomes {t['trunc'][0]:.2f} [{t['trunc'][1]:.2f}, {t['trunc'][2]:.2f}] mTAW; no inside/outside "
+          f"verdict changes at any sounding, and the BEL interval-score skill changes from +{O['BEL3-18']['IS']['skill']:.2f} to +{T['BEL3-18']['IS']['skill']:.2f} "
+          f"(prior v3; prior v4 variants +{min(T[m]['IS']['skill'] for m in ('BEL4-18', 'BEL4-18s', 'BEL4-24')):.2f} to +{max(T[m]['IS']['skill'] for m in ('BEL4-18', 'BEL4-18s', 'BEL4-24')):.2f}).\"*", ""]
+    # ── A7
+    c = a7["counts"]
+    L += ["**Section 4.3 (A7).** \"[UPDATE A7: alternative base definitions at DP1 and DP7]\" should now read: *\"With the base taken as the 2.5 Ω·m "
+          f"crossing, the 3 Ω·m crossing, or the main step at DP7 ({a7['dp7_main_step']:.1f} mTAW), the 2018 BEL intervals contained "
+          f"{c['2.5 Ω·m crossing']['DP2–DP7']['BEL3-18']['k']}, {c['3 Ω·m crossing']['DP2–DP7']['BEL3-18']['k']} and {c['DP7 main step']['DP2–DP7']['BEL3-18']['k']} of six; "
+          f"with DP1's shallow step ({a7['dp1_shallow']:.1f} mTAW) as its base, BEL contained {c['DP1 shallow saline layer']['DP1–DP7']['BEL3-18']['k']} of seven.\"*", ""]
+    # ── A3
+    L += ["**Section 4.5 (A3).** \"Their CRPS comes from three quantiles [UPDATE A3].\" should now read: *\"Computed from the posterior samples, the CRPS "
+          f"of the 3 Ω·m bands is {S3['LIN-3-18']['CRPS']:.2f} m (2018) and {S3['LIN-3-24']['CRPS']:.2f} m (2025; skill {S3['LIN-3-18']['skill_CRPS']:+.2f} and "
+          f"{S3['LIN-3-24']['skill_CRPS']:+.2f}). Exact sign-flip tests over the 64 sign patterns of the per-sounding differences give no significant "
+          f"difference between BEL and the 3 Ω·m bands (one-sided p ≥ {min(sf[k]['IS']['p_one'] for k in sf if '-3-' in k):.2f}); BEL scored a lower interval score "
+          f"than the 2025 log-midpoint band at {sf['BEL4-24 vs LIN-LM-24']['IS']['n_lower']} of six soundings (p = {sf['BEL4-24 vs LIN-LM-24']['IS']['p_one']:.2f}; "
+          f"CRPS p = {sf['BEL4-24 vs LIN-LM-24']['CRPS']['p_one']:.3f}).\"*", ""]
+    # ── A5
+    d5 = a5["dps"]; x5 = ("DP3", "DP4", "DP5", "DP6", "DP7")
+    rng = lambda k, i=None: (min((d5[n][k] if i is None else d5[n][k][i]) for n in x5), max((d5[n][k] if i is None else d5[n][k][i]) for n in x5))
+    im, rt, sw = rng("rho_img_matched"), rng("ratio_matched"), rng("sw_img_matched", 0)
+    L += ["**Section 4.4 (A5).** \"over the same elevations as the soundings, the ratios become [UPDATE A5].\" should now read: *\"over the same "
+          f"elevations as the soundings, the image gives {im[0]:.1f}–{im[1]:.1f} Ω·m, {100 * rt[0]:.0f}–{100 * rt[1]:.0f}% of the measured values "
+          f"({sw[0]:.0f}–{sw[1]:.0f}% seawater), below half at {a5['expectation']['n_below_half']} of five soundings.\"*", "",
+          f"**Sections 5.3 and 6 (A5).** \"3.0–5.2 Ω·m … 6–38% of the measured values [UPDATE A5]\" should now read: *\"{im[0]:.1f}–{im[1]:.1f} Ω·m over the same "
+          f"elevations as the soundings, {100 * rt[0]:.0f}–{100 * rt[1]:.0f}% of the measured values\"*; and in the Conclusions *\"… making water with 1.4–8.2% "
+          f"seawater look like {sw[0]:.0f}–{sw[1]:.0f}%.\"*", ""]
+    # ── A6
+    lo = a6["loto"]; vs = a6["oos_metrics"]["v15_sounding|true"]
+    L += ["**Section 4.1 (A6).** \"[UPDATE A6: out-of-sample check]\" should now read: *\"; fitted without each truth in turn, the rule predicted "
+          f"the sign of the bias in {round(lo['sign_margin'] * lo['n_margin'])} of {lo['n_margin']} cases with |q − 0.5| > 0.1 (centred R2 = {lo['r2_centred']:.2f}), "
+          f"and on the truths built from the soundings it predicted the sign in all {vs['n']} cases (R2 = {vs['r2_centred']:.2f})\"*.", ""]
+    # ── A1
+    if a1:
+        s = a1["summary"]
+        L += ["**Section 5.1 (A1).** \"[UPDATE A1]\" should now read: *\". With prior v3 unchanged, the 2025 line gave intervals that contained "
+              f"{s['k']} of six sounding bases (median width {s['median_width']:.1f} m, interval-score skill {s['skill_IS']:+.2f}), so the result does not depend "
+              "on the prior having learned from the soundings.\"*" if s["k"] >= 5 else
+              f"**Section 5.1 (A1).** \"[UPDATE A1]\" should now read: *\". With prior v3 unchanged, the 2025 line gave intervals that contained only {s['k']} of "
+              f"six sounding bases (interval-score skill {s['skill_IS']:+.2f}).\"*", ""]
+    # ── A4 / Table S7 / S5
+    tr = a4["treatments"]
+    L += ["**Text S1 (A4).** \"The field outcomes under each treatment are in Table S7.\" should now read: *\"The field outcomes under each treatment are "
+          f"in Table S7: BEL contained {', '.join(str(tr[n]['counts']['bel']) for n in tr)} of six sounding bases (G1, G1b, G2, G3, reciprocal errors), the "
+          f"3 Ω·m band {', '.join(str(tr[n]['counts']['thr3_lam50']) for n in tr)} and the log-midpoint band {', '.join(str(tr[n]['counts']['logmid_pooled']) for n in tr)}.\"*"
+          + (" Table S7 flags refits whose held-out coverage lies outside 85–95 % (v2.0-4)." if dg else ""), "",
+          "**Table S5 (A8)** = `T_alllog.md`; **Table S7 (A4)** = `A4_treatments_TableS7.md`. **Figures** = `results/figs_wrr_v5/` (A11).", ""]
+    # ── requested tables
+    L += ["## A5 per sounding", "", "| DP | sounding ρ_below (Ω·m) | image, old window | image, matched window | ratio old | ratio matched | % seawater: sounding | image old | image matched |",
+          "|---|---|---|---|---|---|---|---|---|"]
+    for n, v in d5.items():
+        if "window_top" in v:
+            L.append(f"| {n} | {v['rho_below_dp']:.2f} | {v['rho_img_old']:.2f} | {v['rho_img_matched']:.2f} | {v['ratio_old']:.3f} | {v['ratio_matched']:.3f} | "
+                     f"{v['sw_dp'][0]:.1f} | {v['sw_img_old'][0]:.1f} | {v['sw_img_matched'][0]:.1f} |")
+    R5, R1 = a3["sigma_rep"]["0.5"]["summary"], a3["sigma_rep"]["1.0"]["summary"]
+    L += ["", "## A3 representativeness error (DP2–DP7)", "", "| method | inside 0 / 0.5 / 1.0 m | mean IS 0 / 0.5 / 1.0 m (m) |", "|---|---|---|"]
+    L += [f"| {m} | {S3[m]['k']} / {R5[m]['k']} / {R1[m]['k']} | {S3[m]['IS']:.2f} / {R5[m]['IS']:.2f} / {R1[m]['IS']:.2f} |" for m in S3]
+    L += ["", "## A10(a) blocky (L1) vs smooth λ = 50 bands, P50 [P5, P95] (mTAW)", "",
+          "| DP | DP base | 3 Ω·m smooth | 3 Ω·m blocky | log-midpoint smooth | log-midpoint blocky |", "|---|---|---|---|---|---|"]
+    def band(x):
+        x = np.asarray(x, float); f = x[np.isfinite(x)]
+        if np.mean(np.isfinite(x)) < 0.5:
+            return "undefined", None
+        q = np.percentile(f, [50, 5, 95]); return f"{q[0]:.2f} [{q[1]:.2f}, {q[2]:.2f}]", q
+    cnt = {"s3": 0, "sl": 0}
+    for n, r in a10a["rows"].items():
+        if n == "DP1":
+            continue
+        k = int(np.argmin(np.abs(L18["x"] - r["col"]))); y = r["y_logmid"]
+        s3, q3 = band(L18["single_thr3"][k]); sl, ql = band(L18["single_logmid"][k])
+        cnt["s3"] += bool(q3 is not None and q3[1] <= y <= q3[2]); cnt["sl"] += bool(ql is not None and ql[1] <= y <= ql[2])
+        bb = lambda kk: f"{r[kk]['p50']:.2f} [{r[kk]['p5']:.2f}, {r[kk]['p95']:.2f}]" + (" ✓" if r[kk]["inside_logmid"] else " ✗") if "p50" in r[kk] else "undefined"
+        mk = lambda q: "" if q is None else (" ✓" if q[1] <= y <= q[2] else " ✗")
+        L.append(f"| {n} | {y:.2f} | {s3}{mk(q3)} | {bb('thr3')} | {sl}{mk(ql)} | {bb('logmid')} |")
+    cn = a10a["counts_dp2_dp7"]
+    L += [f"| inside | | {cnt['s3']}/6 | {cn['thr3']['vs_logmid']}/6 | {cnt['sl']}/6 | {cn['logmid']['vs_logmid']}/6 |", "",
+          f"Blocky run: χ² = {a10a['chi2']:.3f}, {a10a['n_iter']} iterations ({a10a['stop']}), {a10a['t_inversion_s'] / 60:.1f} min. Smooth = λ = 50 single run (A3 regeneration).", "",
+          "## A10(b) BEL v3 on the factorial truths (z_b = −12 m, realisations 0–4, x = 130–450 m)", "",
+          "| ρ_lens (Ω·m) | k | ρ_below (Ω·m) | coverage | IS skill vs prior v3 | median bias (m) |", "|---|---|---|---|---|---|"]
+    for tname, v in a10b["truths"].items():
+        L.append(f"| {v['rho_lens']:g} | {v['k']} | {v['rho_lens'] * v['k']:.2f} | {v['cov']:.2f} | {v['skill_IS']:+.2f} | {v['median_bias']:+.2f} |")
+    if dg:
+        L += ["", "## A4 diagnostics (v2.0-4)", "", "| refit | data PCs | held-out coverage | held-out median width (m) | field median width DP2–DP7 (m) | inside DP2–DP7 | r₁…r₅ | flag |",
+              "|---|---|---|---|---|---|---|---|"]
+        for n, v in dg["refits"].items():
+            if "identical_to" in v:
+                L.append(f"| {n} | = G1 | | | | | | |"); continue
+            L.append(f"| {n} | {v['kd']} | {100 * v['heldout_cov']:.1f} % ({v['n_heldout']} models) | {v['heldout_width_median']:.2f} | {v['field_width_dp_median']:.2f} | "
+                     f"{v['field_inside']}/6 | {', '.join('%.3f' % x for x in v['cca_r5'])} | {'**unreliable**' if v['unreliable'] else 'ok'} |")
+        L.append(f"\nRECIP with the data PCA capped at 114 PCs: 6 of 6 {'holds' if dg['recip_k114_6of6'] else 'does not hold'}.")
+    L += ["", "## Notes", "",
+          "- BEL refits reproduce the stored posteriors bit for bit only with default BLAS threading (A2 check); all v2.0 BEL fits use it.",
+          "- `stage6_analysis.init()` builds its own copy of `13_bel_full`; the A4 treatments patch that copy (an earlier run that patched the wrong copy was discarded).",
+          "- Archive (A8): `release_v2.0/` (git bundle of all refs + source zip of HEAD), not uploaded.", ""]
+    import re
+    i0 = L.index("## Changes for the paper (WRR v5 text)"); i1 = L.index("## A5 per sounding")
+    L[i0:i1] = [re.sub(r"(?<![\w.])-(?=\d)", "−", x) for x in L[i0:i1]]
+    write("SUMMARY.md", L)
 
 
 if __name__ == "__main__":
