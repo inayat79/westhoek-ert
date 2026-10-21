@@ -112,7 +112,10 @@ def add_figS7(fig, fit, fit_lam):
         fc = c.get_facecolors()[0]
         F = np.array([[0, 0, 0, 0] if near(p) else fc for p in fl["pts"]]); E = np.array([fc if near(p) else matplotlib.colors.to_rgba(eps.EDGE_DARK) for p in fl["pts"]])
         c.set_facecolors(F); c.set_edgecolors(E); c.set_linewidths([0.9 if near(p) else 0.4 for p in fl["pts"]])
-    rebuild_legend(fig, [Line2D([], [], marker="o", ls="", mfc="none", mec="0.3", mew=0.9, label="open: |q − 0.5| ≤ 0.1")])
+    lg = fig.legends[-1]; H, L = list(lg.legend_handles), [t.get_text() for t in lg.get_texts()]; nc = lg._ncols; lg.remove()
+    i = L.index("")                                              # first blank slot (end of the definitions column)
+    H[i] = Line2D([], [], marker="o", ls="", mfc="none", mec="0.3", mew=0.9); L[i] = "open: |q − 0.5| ≤ 0.1"
+    pf.legend_below(fig, H, L, ncol=nc)
     return n_open
 
 
