@@ -401,6 +401,65 @@ def rep_a1():
     write("A1_bel_v3_2025.md", L)
 
 
+def rep_numbers():
+    """v20_ numbers → results/v2_0/numbers_v20.{md,json}; results/paper/numbers.md is not touched."""
+    N = []
+    add = lambda k, v, src, desc: N.append(dict(key="v20_" + k, value=v, source=src, description=desc))
+    a2 = J("a2.json"); t = a2["dp_table"]["BEL3-18"]["DP2"]
+    add("A2_bel3_dp2_trunc", "%.2f [%.2f, %.2f]" % tuple(t["trunc"]), "data/processed/v2_0/a2.json", "BEL v3 2018 at DP2 truncated at the ground, P50 [P5, P95] mTAW")
+    for m in ("BEL3-18", "BEL4-18", "BEL4-18s", "BEL4-24"):
+        s = a2["field_summary"]["trunc"][m]
+        add(f"A2_{m}_trunc_IS_skill", f"{s['IS']['mean']:.2f} m; {s['IS']['skill']:+.2f}", "a2.json", f"{m} truncated: mean IS; IS skill")
+    for m, c in a2["canon"].items():
+        add(f"A2_{m}_cca_r", ", ".join(f"{x:.3f}" for x in c["r"]), "a2.json", f"{m}: leading five canonical correlations")
+        add(f"A2_{m}_mahal_pct", f"{c['mahal2_pct']:.3f}", "a2.json", f"{m}: share of training samples closer to the centre (5-D canonical) than the field")
+    a3 = J("a3.json")
+    for m, s in a3["summary"].items():
+        add(f"A3_{m}_crps_samples", f"{s['CRPS']:.3f}", "a3.json", f"{m}: mean CRPS (energy form, samples), DP2–DP7")
+        add(f"A3_{m}_cov_cp90", f"{s['k']}/6 [{s['cp90'][0]:.2f}, {s['cp90'][1]:.2f}]", "a3.json", f"{m}: coverage with Clopper–Pearson 90 %")
+    for k, v in a3["sign_flip"].items():
+        add("A3_signflip_" + k.replace(" vs ", "_vs_"), f"IS p = {v['IS']['p_one']:.3f} ({v['IS']['n_lower']}/6); CRPS p = {v['CRPS']['p_one']:.3f}", "a3.json", f"exact one-sided sign-flip test, {k}")
+    a4 = J("a4.json")
+    for n, v in a4["treatments"].items():
+        c = v["counts"]; add(f"A4_{n}_counts", f"{c['thr3_lam50']} / {c['logmid_pooled']} / {c['bel']}", "a4.json", f"{n}: inside at DP2–DP7, 3 Ω·m λ50 / log-midpoint pooled / BEL v3")
+    a5 = J("a5.json")
+    for n, v in a5["dps"].items():
+        if "ratio_matched" in v:
+            add(f"A5_{n}_ratio_matched", f"{v['ratio_matched']:.3f}", "a5.json", f"{n}: image / sounding ρ_below, matched window")
+            add(f"A5_{n}_sw_img_matched", f"{v['sw_img_matched'][0]:.1f} %", "a5.json", f"{n}: % seawater from the image, matched window (median)")
+    a6 = J("a6.json"); lo = a6["loto"]
+    add("A6_loto", f"RMSE {lo['rmse']:.2f} m; R²c {lo['r2_centred']:.2f}; sign {lo['sign_all']:.2f} (margin {lo['sign_margin']:.2f}, n {lo['n_margin']})", "a6.json", "bias rule leave-one-truth-out")
+    for k, v in a6["oos_metrics"].items():
+        if v:
+            add("A6_oos_" + k.replace("|", "_"), f"RMSE {v['rmse']:.2f} m; R²c {f2(v['r2_centred'])}; sign {v['sign_all']:.2f}", "a6.json", f"bias rule out of sample, {k}")
+    a7 = J("a7.json")
+    for an, v in a7["counts"].items():
+        add("A7_bel3_" + an.split(" (")[0].replace(" ", "_").replace("·", ""), f"{v['DP2–DP7']['BEL3-18']['k']}/6; {v['DP1–DP7']['BEL3-18']['k']}/7", "a7.json", f"BEL v3 2018 inside, base: {an}")
+    a9 = J("a9.json")
+    for o in a9["pool_2018"]:
+        add(f"A9_2018_lam{int(o['lam'])}", f"{o['n_iter']} it; {o['stop']}; χ² {o['chi2']:.3f}", "a9.json", f"2018 G1 λ = {o['lam']:g}: iterations, stop, χ²")
+    Z = np.load(os.path.join(DP, "a3_lin24.npz"), allow_pickle=True)
+    for lam in (5, 10, 20, 50, 100):
+        p = f"lam{lam}_"
+        add(f"A9_2025_lam{lam}", f"{int(Z[p + 'n_iter'])} it; {Z[p + 'stop']}; χ² {float(Z[p + 'chi2']):.3f}", "a3_lin24.npz", f"2025 line λ = {lam}: iterations, stop, χ²")
+    for f, key in (("a1.json", "A1"), ("a10a.json", "A10a"), ("a10b.json", "A10b")):
+        if not os.path.exists(os.path.join(DP, f)):
+            continue
+        d = J(f)
+        if key == "A1":
+            s = d["summary"]; add("A1_bel3_2025", f"{s['k']}/6; width {s['median_width']:.2f} m; IS {s['IS']:.2f} (skill {s['skill_IS']:+.2f}); CRPS {s['CRPS']:.3f} (skill {s['skill_CRPS']:+.2f})", f, "BEL prior v3 on the 2025 line, DP2–DP7")
+        elif key == "A10a":
+            c = d["counts_dp2_dp7"]; add("A10a_blocky", f"χ² {d['chi2']:.3f}; 3 Ω·m {c['thr3']['vs_logmid']}/6; log-midpoint {c['logmid']['vs_logmid']}/6", f, "blocky λ = 50: coverage of the DP base")
+        else:
+            for t, v in d["truths"].items():
+                add(f"A10b_{t}", f"cov {v['cov']:.2f}; IS skill {v['skill_IS']:+.2f}", f, f"BEL v3 on factorial truth {t}")
+    json.dump(N, open(os.path.join(RS, "numbers_v20.json"), "w", encoding="utf-8"), indent=1, ensure_ascii=False)
+    L = ["# v2.0 numbers (`v20_` keys)", "", "New numbers of the v2.0 analyses. `results/paper/numbers.md` is unchanged (byte-identical).", "",
+         "| # | key | value | source | description |", "|---|---|---|---|---|"]
+    L += [f"| {i + 1} | `{n['key']}` | {n['value']} | {n['source']} | {n['description']} |" for i, n in enumerate(N)]
+    write("numbers_v20.md", L)
+
+
 if __name__ == "__main__":
     for a in sys.argv[1:]:
         globals()["rep_" + a]()
