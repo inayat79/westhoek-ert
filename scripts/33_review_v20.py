@@ -155,6 +155,74 @@ def cmd_a1(args):
     print(f"[a1] forward done ({time.time() - t0:.0f} s)", flush=True)
 
 
+def cmd_a1_analyse(args):
+    """BEL with prior v3 unchanged on the L24 geometry: own approximation-error set, held-out set, falsification,
+    field posterior and the DP2–DP7 scores against its own prior (as 30_bel_v4.l24_analyse; v3 bounds; A1 seeds)."""
+    M = mods(); g30, b13 = M["g30"], M["b13"]
+    import stage6_analysis as s6
+    g31 = _load("g31", "31_scores.py"); s15, g14 = g30.s15, g30.g14
+    TXL = g30.TX_L24; s6.init(); s6.TX = TXL
+    g28, elec, qk, keep, _ = g30.l24_geometry()
+    dd = os.path.join(a1_dir(), "dual"); dual = [np.load(os.path.join(dd, f)) for f in sorted(os.listdir(dd)) if f.endswith(".npz") and "tmp" not in f]
+    dl = np.array([np.log10(z["R_fine"]) - np.log10(z["R_medium"]) for z in dual]); mu_d = dl.mean(0); dev = dl - mu_d
+    d = os.path.join(a1_dir(), "train"); sets = []
+    for f in sorted(os.listdir(d)):
+        if f.endswith(".npz") and "tmp" not in f:
+            z = np.load(os.path.join(d, f), allow_pickle=True)
+            sets.append((int(f[1:-4]), {"R_medium": z["R_medium"], "theta": z["theta"], "target": z["target"]}))
+    exp_ids = set(V2_IDS + V3_IDS); have = {i for i, _ in sets}
+    C = {}
+    for name, ss in (("tr", [x for x in sets if is_train(x[0])]), ("ho", [x for x in sets if not is_train(x[0])])):
+        D, kp = b13.prior_data(ss, mu_d, dev); zm = {i: z for i, z in ss}
+        th = [json.loads(str(zm[i]["theta"])) for i in kp]; T = np.array([zm[i]["target"] for i in kp])
+        m = np.array([s6.site(t, tt) and t["rho_lens"] >= s6.PHYS_RHO_LENS_MIN for t, tt in zip(th, T)], dtype=bool)
+        C[name] = dict(D=D[m], T=T[m], th=[t for t, k in zip(th, m) if k], n_all=len(ss), n_pos=len(kp), n_kept=int(m.sum()))
+    E = g28.g27.read_ert(); y = np.log10(E["R"][keep])
+    D, T, th = C["tr"]["D"], C["tr"]["T"], C["tr"]["th"]
+    bel = b13.BEL(D, T); Pf = bel.posterior(y, 2000, np.random.default_rng([A1_SEED_BASE, 1]), "kde")
+    cov, wid = [], []
+    for j, (yy, t) in enumerate(zip(C["ho"]["D"], C["ho"]["T"])):
+        P = bel.posterior(yy, 2000, np.random.default_rng([A1_SEED_BASE, 90_000 + j]), "kde"); lo, hi = np.percentile(P, [5, 95], 0)
+        cov.append((t >= lo) & (t <= hi)); wid.append(hi - lo)
+    sc = bel.Sd; var = sc.var(0, ddof=1); sf = bel.pd.fwd(y[None])[0]
+    mu, Cm = b13.pilot.fast_mcd(sc); Ci = np.linalg.inv(Cm)
+    fal = dict(t2=float(np.mean(np.sum(sc ** 2 / var, 1) < np.sum(sf ** 2 / var))),
+               t2r=float(np.mean(np.einsum("ij,jk,ik->i", sc - mu, Ci, sc - mu) < (sf - mu) @ Ci @ (sf - mu))),
+               q=float(np.mean(bel.pd.resid(D) < bel.pd.resid(y[None])[0])))
+    Ytr = np.array([g14.derived_targets(t) for t in th]); Yho = np.array([g14.derived_targets(t) for t in C["ho"]["th"]])
+    b2 = s15.BEL2(D, Ytr, bounded=True); P2 = b2.posterior(y[None], 2000, np.random.default_rng([A1_SEED_2, 3]))
+    c2 = []
+    for j, yy in enumerate(C["ho"]["D"]):
+        P = b2.posterior(yy, 2000, np.random.default_rng([A1_SEED_2, 60_000 + j])); lo, hi = np.percentile(P, [5, 95], 0)
+        c2.append((Yho[j] >= lo) & (Yho[j] <= hi))
+    # field scores at DP2–DP7 against its own prior (training targets); prior CRPS subsample seeds [160000, prior set, 500 + j]
+    DPs = [x for x in g31.dp_list() if x["dp"] in g31.DPS]; rows = []
+    for i, dp in enumerate(DPs):
+        j = int(np.argmin(np.abs(TXL - dp["x"]))); yb = dp["logmid"]
+        sb_ = g31.from_samples(Pf[:, j], yb, [160000, g31.SETS["field"], 100 * i + j])
+        l, mq, u = np.percentile(T[:, j], [5, 50, 95])
+        sp = dict(l=l, m=mq, u=u, is_=float(g31.interval_score(l, u, yb)), crps=float(g31.crps_sorted(g31.cap(T[:, j], [160000, g31.SETS["prior"], 500 + j]), yb)[0]))
+        rows.append(dict(dp=dp["dp"], col=float(TXL[j]), y=yb, bel=sb_, prior=sp, inside=bool(sb_["l"] <= yb <= sb_["u"]), prior_inside=bool(l <= yb <= u)))
+    k = sum(r["inside"] for r in rows)
+    IS = float(np.mean([r["bel"]["is_"] for r in rows])); ISp = float(np.mean([r["prior"]["is_"] for r in rows]))
+    CR = float(np.mean([r["bel"]["crps"] for r in rows])); CRp = float(np.mean([r["prior"]["crps"] for r in rows]))
+    summ = dict(k=int(k), n=len(rows), cp90=clopper_pearson(int(k), len(rows)), median_width=float(np.median([r["bel"]["u"] - r["bel"]["l"] for r in rows])),
+                IS=IS, CRPS=CR, prior_IS=ISp, prior_CRPS=CRp, skill_IS=1 - IS / ISp, skill_CRPS=1 - CR / CRp,
+                prior_k=int(sum(r["prior_inside"] for r in rows)))
+    out = dict(note=POST_HOC, n_expected=len(exp_ids), n_have=len(have & exp_ids), missing=sorted(exp_ids - have)[:50], n_dual=len(dual),
+               n={k_: {kk: v for kk, v in C[k_].items() if kk.startswith("n_")} for k_ in ("tr", "ho")}, kd=int(bel.pd.k), kt=int(bel.pt.k),
+               heldout=dict(cov=float(np.mean(cov)) if cov else np.nan, cov_k=int(np.sum(cov)), cov_n=int(np.size(cov)),
+                            width_median=float(np.median(wid)) if wid else np.nan,
+                            cov2_rho_below=float(np.mean(np.array(c2)[:, 3])) if c2 else np.nan),
+               falsification=fal, approx=dict(n=len(dl), mean_abs_median=float(np.median(np.abs(mu_d))), sd_median=float(np.median(dev.std(0, ddof=1)))),
+               rho_below=[float(np.median(10 ** P2[:, 3])), float(np.percentile(10 ** P2[:, 3], 5)), float(np.percentile(10 ** P2[:, 3], 95))],
+               rows=rows, summary=summ, expectation=dict(holds=bool(k >= 5 and summ["skill_IS"] > 0)))
+    sfx = "_smoke" if os.environ.get("A1_SMOKE") else ""
+    np.savez(D20(f"a1_bel_v3_l24{sfx}.npz"), Pf=Pf, P2=P2, TX=TXL, ho_cov=np.array(cov), Ttr=T)
+    json.dump(out, open(D20(f"a1{sfx}.json"), "w", encoding="utf-8"), indent=1, default=float)
+    print("[a1-analyse]", json.dumps(summ), out["heldout"], fal, flush=True)
+
+
 # ─────────────────────────────────────────────────────────────────────────────
 # A3 (L18) — regenerate the field linearised samples exactly as 11_stage4_closeout.cmd_a4
 # ─────────────────────────────────────────────────────────────────────────────
@@ -652,6 +720,346 @@ def cmd_a5(args):
     print(out["expectation"], out.get("image_rerun_maxdiff_log10_at_dps"))
 
 
+# ─────────────────────────────────────────────────────────────────────────────
+# A3 — scores from samples, per-sounding table, paired tests
+# ─────────────────────────────────────────────────────────────────────────────
+def prior_T():
+    """Training targets (lens base per column) of the four priors; cached (deterministic loaders)."""
+    p = D20("prior_T.npz")
+    if os.path.exists(p):
+        z = np.load(p); return {k: z[k] for k in z.files}
+    M = mods(); g30, b13 = M["g30"], M["b13"]
+    import stage6_analysis as s6
+    out = {}
+    s6.init(); s6.TX = b13.TX; out["PRIOR3"] = np.asarray(s6.load_combined(physical=True)["tr"]["T"], float)
+    out["PRIOR4"] = np.asarray(g30.load_v4()["tr"]["T"], float)
+    _, _, C = g30.l24_sets(); out["PRIOR4-L24"] = np.asarray(C["tr"]["T"], float); del C
+    _, _, S, _ = g30.stretch_sets(); out["PRIOR4-s"] = np.asarray(S["tr"]["T"], float); del S
+    np.savez(p, **out)
+    return out
+
+
+def energy_crps(x, y, seed, ncap=2000):
+    xs = np.asarray(x, float); xs = xs[np.isfinite(xs)]
+    if len(xs) > ncap:
+        xs = np.random.default_rng(seed).choice(xs, ncap, replace=False)
+    xs = np.sort(xs); n = len(xs); i = np.arange(1, n + 1)
+    return float(np.mean(np.abs(xs - y)) - np.sum((2 * i - n - 1) * xs) / n ** 2)
+
+
+def clopper_pearson(k, n, a=0.10):
+    from scipy.stats import beta
+    lo = 0.0 if k == 0 else float(beta.ppf(a / 2, k, n - k + 1)); hi = 1.0 if k == n else float(beta.ppf(1 - a / 2, k + 1, n - k))
+    return [lo, hi]
+
+
+def sign_flip(d):
+    """Exact sign-flip test over all 2^n patterns. One-sided H1: mean(d) < 0 (BEL lower)."""
+    import itertools
+    d = np.asarray(d, float); d = d[np.isfinite(d)]; n = len(d)
+    E = np.array(list(itertools.product([1, -1], repeat=n))); T = (E * np.abs(d)).mean(1); t0 = d.mean()
+    return dict(n=n, mean_diff=float(t0), n_lower=int(np.sum(d < 0)), p_one=float(np.mean(T <= t0 + 1e-12)),
+                p_two=float(np.mean(np.abs(T) >= abs(t0) - 1e-12)), n_patterns=len(E))
+
+
+def cmd_a3(args):
+    M = mods(); g30, b13 = M["g30"], M["b13"]
+    g31 = _load("g31", "31_scores.py")
+    TX, TXL = b13.TX, g30.TX_L24
+    L18 = np.load(D20("a3_lin18_samples.npz")); L24 = np.load(D20("a3_lin24.npz"), allow_pickle=True)
+    chk24 = json.load(open(D20("a3_lin24_check.json"), encoding="utf-8"))
+    B3 = np.load(os.path.join(wc.ROOT, "data", "processed", "paper", "bel_products.npz"), allow_pickle=True)
+    Z4 = np.load(os.path.join(g30.D4(), "bel_v4.npz"), allow_pickle=True); ZL = np.load(os.path.join(g30.D4L(), "bel_v4_l24.npz"), allow_pickle=True)
+    Zs = np.load(os.path.join(g30.DLT(), "layout_vs_time.npz"), allow_pickle=True)
+    PT = prior_T()
+    DPs = [d for d in g31.dp_list() if d["dp"] in g31.DPS]
+    meths = list(g31.FIELD_METHODS)
+    def samples(m, x):
+        """Predictive samples of method m at DP position x, and the column used."""
+        if m in ("BEL3-18", "BEL4-18", "BEL4-18s", "BEL4-24"):
+            P, T_ = {"BEL3-18": (B3["Pf"], TX), "BEL4-18": (Z4["Pf"], TX), "BEL4-18s": (Zs["sub_Pf"], TX), "BEL4-24": (ZL["Pf"], TXL)}[m]
+            j = int(np.argmin(np.abs(T_ - x))); return P[:, j], T_[j]
+        if m.startswith("PRIOR"):
+            T_ = TXL if m == "PRIOR4-L24" else TX; j = int(np.argmin(np.abs(T_ - x))); return PT[m][:, j], T_[j]
+        key = {"LIN-LM": "pooled_logmid", "LIN-3": "single_thr3", "LIN-MG": "pooled_maxgrad"}[m[:-3]]
+        if m.endswith("-18"):
+            k = int(np.argmin(np.abs(L18["x"] - x))); return L18[key][k].astype(float), L18["x"][k]
+        k = int(np.argmin(np.abs(L24["xcol"] - x)))
+        key24 = {"pooled_logmid": "pooled_dep_logmid", "single_thr3": "lam50_dep_thr3", "pooled_maxgrad": "pooled_dep_maxgrad"}[key]
+        return L24[key24][k].astype(float), L24["xcol"][k]
+    def score(x, y, seed):
+        x = np.asarray(x, float); share = float(np.mean(np.isfinite(x)))
+        if share < 0.5:
+            return dict(share=share, l=np.nan, m=np.nan, u=np.nan, is_=np.nan, crps=np.nan, ae=np.nan, inside=False)
+        xf = x[np.isfinite(x)]; l, md, u = np.percentile(xf, [5, 50, 95])
+        return dict(share=share, l=float(l), m=float(md), u=float(u), is_=float(g31.interval_score(l, u, y)), crps=energy_crps(xf, y, seed),
+                    ae=float(abs(md - y)), inside=bool(l <= y <= u))
+    C = g31.load_cases(); ref = {(r["method"], r["dp"]): r for r in C if r["set"] == "field" and r["truth_kind"] == "logmid"}
+    tab = {m: {} for m in meths}; rep = {0.5: {m: {} for m in meths}, 1.0: {m: {} for m in meths}}
+    for mi, m in enumerate(meths):
+        for di, d in enumerate(DPs):
+            x, col = samples(m, d["x"]); y = d["logmid"]
+            s = score(x, y, [200300, mi, di]); s["col"] = float(col)
+            r0 = ref.get((m, d["dp"]))
+            s["stored_is"] = r0["is"] if r0 else np.nan; s["stored_crps"] = r0["crps"] if r0 else np.nan; s["stored_approx"] = r0["approx"] if r0 else None
+            tab[m][d["dp"]] = s
+            for si, sg in ((1, 0.5), (2, 1.0)):
+                xf = np.asarray(x, float); xf = xf[np.isfinite(xf)] if np.mean(np.isfinite(xf)) >= 0.5 else np.array([np.nan])
+                xn = xf + np.random.default_rng([200310, si, mi, di]).normal(0, sg, len(xf))
+                rep[sg][m][d["dp"]] = score(xn, y, [200300, mi, di])
+    vec = lambda T_, m, k: np.array([T_[m][n][k] for n in g31.DPS], float)
+    def summary(T_):
+        out = {}
+        for m in meths:
+            k = int(sum(T_[m][n]["inside"] for n in g31.DPS)); n_ = int(np.isfinite(vec(T_, m, "is_")).sum())
+            pr = None if m.startswith("PRIOR") else {"BEL3-18": "PRIOR3", "BEL4-18": "PRIOR4", "BEL4-18s": "PRIOR4-s", "BEL4-24": "PRIOR4-L24"}.get(m, "PRIOR4" if m.endswith("-18") else "PRIOR4-L24")
+            o = dict(prior=pr, k=k, n=n_, n_dp=len(g31.DPS), cp90=clopper_pearson(k, len(g31.DPS)), width=float(np.nanmedian(vec(T_, m, "u") - vec(T_, m, "l"))),
+                     IS=float(np.nanmean(vec(T_, m, "is_"))), CRPS=float(np.nanmean(vec(T_, m, "crps"))), MAE=float(np.nanmean(vec(T_, m, "ae"))))
+            if pr:
+                o["skill_IS"] = 1 - o["IS"] / float(np.nanmean(vec(T_, pr, "is_"))); o["skill_CRPS"] = 1 - o["CRPS"] / float(np.nanmean(vec(T_, pr, "crps")))
+            out[m] = o
+        return out
+    res = dict(note=POST_HOC, lin24_check=chk24, per_sounding=tab, summary=summary(tab),
+               sigma_rep={str(s): dict(per_sounding=rep[s], summary=summary(rep[s])) for s in rep})
+    # exact sign-flip tests
+    lins = ["LIN-LM-18", "LIN-3-18", "LIN-MG-18", "LIN-LM-24", "LIN-3-24", "LIN-MG-24"]
+    res["sign_flip"] = {f"{b} vs {l}": {k: sign_flip(vec(tab, b, kk) - vec(tab, l, kk)) for k, kk in (("IS", "is_"), ("CRPS", "crps"))}
+                        for b in ("BEL3-18", "BEL4-24") for l in lins}
+    res["sign_flip_sigma_rep"] = {str(s): {f"{b} vs {l}": {k: sign_flip(vec(rep[s], b, kk) - vec(rep[s], l, kk)) for k, kk in (("IS", "is_"), ("CRPS", "crps"))}
+                                           for b in ("BEL3-18", "BEL4-24") for l in lins} for s in rep}
+    # leave-one-sounding-out ranking
+    loo = {}
+    for k, kk in (("IS", "is_"), ("CRPS", "crps")):
+        ranks = {"BEL3-18": [], "BEL4-24": []}; beats = {f"{b} vs {l}": [] for b in ranks for l in lins}
+        for leave in g31.DPS:
+            keep = [n for n in g31.DPS if n != leave]
+            mean = {m: float(np.nanmean([tab[m][n][kk] for n in keep])) for m in meths}
+            order = sorted(meths, key=lambda m: (np.isnan(mean[m]), mean[m]))
+            for b in ranks:
+                ranks[b].append(order.index(b) + 1)
+                for l in lins:
+                    beats[f"{b} vs {l}"].append(bool(mean[b] < mean[l]))
+        full = {m: float(np.nanmean(vec(tab, m, kk))) for m in meths}
+        loo[k] = dict(full_rank={b: sorted(meths, key=lambda m: full[m]).index(b) + 1 for b in ranks}, ranks=ranks,
+                      beats_in_all_6={kk_: all(v) for kk_, v in beats.items()}, beats_count={kk_: int(sum(v)) for kk_, v in beats.items()})
+    res["loo"] = loo
+    # Clopper–Pearson for the field coverages under the A7 bases and the held-out sets
+    a7p = D20("a7.json")
+    if os.path.exists(a7p):
+        A7 = json.load(open(a7p, encoding="utf-8"))
+        res["cp90_a7"] = {an: {ds: {m: dict(k=v["k"], n=v["n"], cp90=clopper_pearson(v["k"], v["n"])) for m, v in dv.items()} for ds, dv in av.items()}
+                          for an, av in A7["counts"].items()}
+    ho = {}
+    for st, mth in (("ho_v3", "BEL3"), ("ho_v4", "BEL4"), ("ho_v4L24", "BEL4-L24")):
+        rr = [r for r in C if r["set"] == st and r["method"] == mth]
+        k = int(sum(r["l"] <= r["y"] <= r["u"] for r in rr)); ho[st] = dict(k=k, n=len(rr), cp90=clopper_pearson(k, len(rr)))
+    res["cp90_heldout"] = ho
+    json.dump(res, open(D20("a3.json"), "w", encoding="utf-8"), indent=1, default=float)
+    print("[a3] done; IS:", {m: round(v["IS"], 2) for m, v in res["summary"].items()})
+    for k, v in res["sign_flip"].items():
+        print("  ", k, "IS p1", round(v["IS"]["p_one"], 4), "p2", round(v["IS"]["p_two"], 4), "CRPS p1", round(v["CRPS"]["p_one"], 4))
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# A4 — outlier treatments and error model at the soundings
+# ─────────────────────────────────────────────────────────────────────────────
+A4_TREAT = {  # name: (index, {λ: run tag}, drop list, error-scale file)
+    "G1b": (1, {5: "v20_g1b_lam5", 10: "v20_g1b_lam10", 20: "v20_g1b_lam20", 50: "g1b_thr299", 100: "v20_g1b_lam100"},
+            "results/bel_v3/g1b_droplist_thr299.txt", None),
+    "G2": (2, {5: "v20_g2_lam5", 10: "v20_g2_lam10", 20: "deep_drop_elec", 50: "v20_g2_lam50", 100: "v20_g2_lam100"},
+           "results/deep_all_G2_droplist_flagged_electrodes.txt", None),
+    "G3": (3, {5: "v20_g3_lam5", 10: "v20_g3_lam10", 20: "deep_downweight", 50: "v20_g3_lam50", 100: "v20_g3_lam100"},
+           None, "results/deep_all_G3_err_scale.txt"),
+    "RECIP": (4, {5: "v20_recip_lam5", 10: "v20_recip_lam10", 20: "v20_recip_lam20", 50: "g1_lam50_recip", 100: "v20_recip_lam100"},
+              "results/deep_all_droplist.txt", "data/processed/v1_4/recip_err_scale.txt"),
+}
+
+
+def read_index_file(rel, with_value=False):
+    out = {}
+    for ln in open(os.path.join(wc.ROOT, rel), encoding="utf-8"):
+        s = ln.split()
+        if s and not s[0].startswith("#"):
+            out[int(s[0])] = float(s[1]) if with_value else True
+    return out
+
+
+def bel_retrain(name, g1_keep, b13, s6):
+    """BEL v3 refit within the 1974 G1 quadrupoles for one treatment (decision log v2.0-0); returns (BEL, field vector, info)."""
+    obs, _ = b13.observed_sets(); y = obs["field"]
+    _, _, drop, scale_file = A4_TREAT[name]
+    cols = np.arange(len(g1_keep)); scale = np.ones(len(g1_keep))
+    if name == "G2":
+        dl = read_index_file(drop); cols = np.array([j for j, k in enumerate(g1_keep) if int(k) not in dl])
+    if scale_file:
+        sc = read_index_file(scale_file, with_value=True); scale = np.array([sc.get(int(k), 1.0) for k in g1_keep])
+    def pd_treat(samples, mu, dev):
+        out, keep = [], []
+        n1 = dev.shape[0] - 1
+        for i, z in samples:
+            l = np.log10(z["R_medium"]) + mu
+            e = dev.T @ np.random.default_rng([b13.APPROX_SEED, i]).standard_normal(dev.shape[0]) / np.sqrt(n1)
+            R = 10 ** (l + e)
+            Rn = R + scale * np.sqrt((b13.ERR_REL * R) ** 2 + b13.ERR_ABS ** 2) * np.random.default_rng([b13.NOISE_SEED, i]).standard_normal(len(R))
+            if np.all(Rn[cols] > 0):
+                out.append(np.log10(Rn[cols])); keep.append(i)
+        return np.array(out), keep
+    s6.init(); s6.TX = b13.TX                                        # init() builds stage6's own copy of 13_bel_full: patch that copy
+    orig = s6.b13.prior_data; s6.b13.prior_data = pd_treat
+    try:
+        C = s6.load_combined(physical=True)
+    finally:
+        s6.b13.prior_data = orig
+    assert C["tr"]["D"].shape[1] == len(cols), "treatment prior_data not applied"
+    info = dict(n_cols=int(len(cols)), n_scaled=int(np.sum(scale != 1)), scale_min=float(scale.min()), scale_max=float(scale.max()),
+                n_train=int(len(C["tr"]["D"])), n_dropped_cols=int(len(g1_keep) - len(cols)))
+    return b13.BEL(C["tr"]["D"], C["tr"]["T"]), y[cols], info
+
+
+def cmd_a4(args):
+    M = mods(); b13 = M["b13"]
+    import stage6_analysis as s6
+    c11 = _load("c11", "11_stage4_closeout.py"); g31 = _load("g31", "31_scores.py")
+    DPs = g31.dp_list(); TX = b13.TX
+    ref = wc.load_run("g1_lam50"); mesh, _ = wc.rebuild_paradomain(ref); ex, ez = wc.land_surface()
+    grid = np.arange(np.ceil(ex.min()), np.floor(ex.max()) + 1, 2.0)
+    xdp = np.array([grid[int(np.argmin(np.abs(grid - d["x"])))] for d in DPs])
+    cs = wc.ColumnSampler(mesh, xdp)
+    g1 = wc.load_run("deep_drop_data"); g1_keep = np.asarray(g1["keep_idx"]).astype(int)
+    assert len(g1_keep) == 1974
+    L18 = np.load(D20("a3_lin18_samples.npz")); kk = [int(np.argmin(np.abs(L18["x"] - x))) for x in xdp]
+    B3 = np.load(os.path.join(wc.ROOT, "data", "processed", "paper", "bel_products.npz"), allow_pickle=True)
+    jb = [int(np.argmin(np.abs(TX - d["x"]))) for d in DPs]
+    q = lambda v: (lambda f: [float(np.median(f)), float(np.percentile(f, 5)), float(np.percentile(f, 95)), float(np.mean(np.isfinite(v)))]
+                   if len(f) else [np.nan] * 3 + [0.0])(np.asarray(v, float)[np.isfinite(v)])
+    out = dict(note=POST_HOC, columns=xdp.tolist(), treatments={})
+    def readout(thr3_50, lm_pool, bel):
+        rows = {}
+        for i, d in enumerate(DPs):
+            y = d["logmid"]; r = {}
+            for k, S in (("thr3_lam50", thr3_50[i]), ("logmid_pooled", lm_pool[i]), ("bel", bel[i])):
+                b = q(S); ok = b[3] >= 0.5 and np.isfinite(b[1])
+                r[k] = dict(p50=b[0], p5=b[1], p95=b[2], share=b[3], inside=bool(ok and b[1] <= y <= b[2]))
+            r["y"] = y; rows[d["dp"]] = r
+        cnt = {k: int(sum(rows[n][k]["inside"] for n in g31.DPS)) for k in ("thr3_lam50", "logmid_pooled", "bel")}
+        return rows, cnt
+    # G1 = the paper's products (A3 regeneration, paper BEL)
+    rows, cnt = readout([L18["single_thr3"][k].astype(float) for k in kk], [L18["pooled_logmid"][k].astype(float) for k in kk], [B3["Pf"][:, j] for j in jb])
+    out["treatments"]["G1"] = dict(rows=rows, counts=cnt, runs={l: t for l, t in POOL_2018}, bel="paper BEL v3 (1718 training samples, 1974 G1 data)")
+    import scipy.linalg as sla
+    for name, (ti, runs, _, _) in A4_TREAT.items():
+        meta, single, pooled = {}, None, []
+        for lam in (5, 10, 20, 50, 100):
+            run = wc.load_run(runs[lam])
+            assert len(run["model"]) == ref["model"].size, "mesh differs"
+            L_, _, _, _ = wc.cholesky_A(run)
+            S = np.log(run["model"])[:, None] + sla.solve_triangular(L_, np.random.default_rng([200400, ti, lam]).standard_normal((len(run["model"]), 1000)),
+                                                                     lower=True, trans="T")
+            Dd = depth_samples(c11, cs, S)
+            if lam == 50:
+                single = Dd["thr3"]
+            pooled.append(Dd["logmid"])
+            meta[lam] = dict(tag=runs[lam], n_data=int(len(run["R"])), chi2=float(run["chi2"]), n_iter=int(run["n_iter"]), stop=str(run["stop_reason"]))
+            print(f"[a4] {name} λ={lam}: {runs[lam]} n={meta[lam]['n_data']} χ²={meta[lam]['chi2']:.3f} {meta[lam]['stop']}", flush=True)
+        P = np.hstack(pooled)
+        if name == "G1b":
+            belS = [B3["Pf"][:, j] for j in jb]; binfo = dict(identical_to="G1", reason="the 62 data G1b adds to G1 have no training responses")
+        else:
+            bel, yv, binfo = bel_retrain(name, g1_keep, b13, s6)
+            Pf = bel.posterior(yv, 2000, np.random.default_rng([200500, ti]), "kde"); belS = [Pf[:, j] for j in jb]
+            binfo.update(kd=int(bel.pd.k), kt=int(bel.pt.k)); del bel
+            print(f"[a4] {name} BEL: {binfo}", flush=True)
+        rows, cnt = readout([single[i] for i in range(len(DPs))], [P[i] for i in range(len(DPs))], belS)
+        out["treatments"][name] = dict(rows=rows, counts=cnt, runs=meta, bel=binfo)
+    c = {k: [v["counts"][k] for v in out["treatments"].values()] for k in ("thr3_lam50", "logmid_pooled", "bel")}
+    out["expectation"] = dict(bel_min=min(c["bel"]), lin_range={k: max(c[k]) - min(c[k]) for k in ("thr3_lam50", "logmid_pooled")})
+    out["expectation"]["holds"] = bool(out["expectation"]["bel_min"] >= 5 and all(v <= 1 for v in out["expectation"]["lin_range"].values()))
+    json.dump(out, open(D20("a4.json"), "w", encoding="utf-8"), indent=1, default=float)
+    print("[a4]", {n: v["counts"] for n, v in out["treatments"].items()}, out["expectation"], flush=True)
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# A10 (optional) — (a) blocky (L1) inversion of the G1 data
+# ─────────────────────────────────────────────────────────────────────────────
+def cmd_a10a(args):
+    import scipy.linalg as sla
+    t0 = time.time()
+    c11 = _load("c11", "11_stage4_closeout.py"); sb = c11.sb; g31 = _load("g31", "31_scores.py")
+    m02 = c11._load("inv02", "02_land_inversion.py"); m02.VERBOSE = False
+    with contextlib.redirect_stdout(io.StringIO()):
+        land, keep_idx = m02.apply_drop_list(m02.parse_crtomo(m02.LAND_FILE), os.path.join(wc.ROOT, "results", "deep_all_droplist.txt"))
+        elec, _ = m02.parse_electrodes(m02.ELEC_FILE)
+        data = m02.build_datacont(land, elec, err_rel=sb.ERR_REL)[0]
+        mgr = m02.run_inversion(data, lam=50.0, para_depth=sb.PARA_DEPTH, para_dx=sb.PARA_DX, max_iter=sb.MAX_ITER, blocky=True)
+        res = m02.compute_resolution_matrix(mgr, data, lam_expected=50.0)
+    model = np.array(mgr.model); t_inv = time.time() - t0
+    ref = wc.load_run("g1_lam50"); assert len(model) == ref["model"].size, "mesh differs"
+    r = (np.log(np.array(data["rhoa"])) - np.log(np.array(mgr.inv.response))) / np.array(data["err"])
+    chi2, chi2_pg, n_iter = float(np.mean(r ** 2)), float(mgr.inv.chi2()), m02.n_iterations(mgr)
+    stop = "chi2<=1" if chi2_pg <= 1 else ("iteration cap" if n_iter >= sb.MAX_ITER else "dPhi<2%")
+    L_, _, _, _ = wc.cholesky_A(dict(J=res["J"], data_err=res["err"], C=res["C"], lam=50.0, model=model))
+    S = np.log(model)[:, None] + sla.solve_triangular(L_, np.random.default_rng([200600, 0]).standard_normal((len(model), 1000)), lower=True, trans="T")
+    mesh, _ = wc.rebuild_paradomain(ref); ex, ez = wc.land_surface()
+    grid = np.arange(np.ceil(ex.min()), np.floor(ex.max()) + 1, 2.0)
+    DPs = g31.dp_list(); xdp = np.array([grid[int(np.argmin(np.abs(grid - d["x"])))] for d in DPs]); cs = wc.ColumnSampler(mesh, xdp)
+    D = depth_samples(c11, cs, S); hat = c11.interfaces_all(cs(np.log10(model))[:, :, None], cs.z)
+    rows = {}
+    for i, d in enumerate(DPs):
+        rr = {}
+        for k in ("thr3", "logmid"):
+            x = D[k][i]; sh = float(np.mean(np.isfinite(x))); xf = x[np.isfinite(x)]
+            if sh >= 0.5:
+                l, m, u = np.percentile(xf, [5, 50, 95])
+                rr[k] = dict(share=sh, p50=float(m), p5=float(l), p95=float(u), mhat=float(hat[k][i, 0]),
+                             inside_logmid=bool(l <= d["logmid"] <= u), inside_thr3=bool(np.isfinite(d["thr3"]) and l <= d["thr3"] <= u),
+                             IS=float(g31.interval_score(l, u, d["logmid"])))
+            else:
+                rr[k] = dict(share=sh, mhat=float(hat[k][i, 0]))
+        rows[d["dp"]] = dict(x=d["x"], col=float(xdp[i]), y_logmid=d["logmid"], y_thr3=d["thr3"], **rr)
+    cnt = {k: dict(vs_logmid=int(sum(rows[n][k].get("inside_logmid", False) for n in g31.DPS)),
+                   vs_thr3=int(sum(rows[n][k].get("inside_thr3", False) for n in g31.DPS))) for k in ("thr3", "logmid")}
+    out = dict(note=POST_HOC, n_data=int(len(r)), chi2=chi2, chi2_pg=chi2_pg, n_iter=n_iter, stop=stop, t_inversion_s=t_inv,
+               t_total_s=time.time() - t0, rows=rows, counts_dp2_dp7=cnt,
+               caveat="A = JᵀWd²J + λCᵀC with C the (unweighted) constraint matrix of compute_resolution_matrix: the IRLS weights of the "
+                      "L1 model norm at the final iterate are not in A, so the bands are the smooth-norm linearisation around the blocky model.")
+    json.dump(out, open(D20("a10a.json"), "w", encoding="utf-8"), indent=1, default=float)
+    print("[a10a]", chi2, stop, n_iter, cnt, f"{time.time() - t0:.0f} s", flush=True)
+
+
+def cmd_a10b(args):
+    """BEL v3 (paper fit) on the 8 sharp factorial truths with z_b = −12 m, realisations 0–4 (stored v1.3 noisy data)."""
+    t0 = time.time()
+    M = mods(); b13 = M["b13"]
+    import stage6_analysis as s6
+    g25 = _load("g25", "25_generalisation.py"); g31 = _load("g31", "31_scores.py")
+    s6.init(); s6.TX = b13.TX; TX = b13.TX
+    C = s6.load_combined(physical=True); bel = b13.BEL(C["tr"]["D"], C["tr"]["T"]); T = np.asarray(C["tr"]["T"], float); del C
+    cols = np.where((TX >= 130) & (TX <= 450))[0]
+    pq = np.percentile(T, [5, 95], 0)
+    truths = [f"G_{rl:g}_{k}_-12_0" for rl in (0.8, 1.42) for k in (2, 4, 8, 16)]
+    out = dict(note=POST_HOC, columns=TX[cols].tolist(), truths={})
+    for t in truths:
+        ti = g25.TI[t]; zb = g25.params(t)["z_b"]; recs = []
+        for real in range(5):
+            z = np.load(os.path.join(g25.SRC, t, f"noisy_r{real}.npz"))
+            R = z["R_noisy"]
+            if not np.all(R > 0):
+                recs.append(dict(real=real, skipped="non-positive R")); continue
+            P = bel.posterior(np.log10(R), 2000, np.random.default_rng([200700, ti, real]), "kde")
+            lo, hi = np.percentile(P[:, cols], [5, 95], 0)
+            IS = g31.interval_score(lo, hi, zb); ISp = g31.interval_score(pq[0, cols], pq[1, cols], zb)
+            recs.append(dict(real=real, cov=float(np.mean((lo <= zb) & (zb <= hi))), IS=float(np.mean(IS)), IS_prior=float(np.mean(ISp)),
+                             median_bias=float(np.median(np.median(P[:, cols], 0) - zb)), width=float(np.median(hi - lo))))
+        ok = [r for r in recs if "cov" in r]
+        out["truths"][t] = dict(rho_lens=g25.params(t)["rho_lens"], k=g25.params(t)["k"], z_b=zb, reals=recs,
+                                cov=float(np.mean([r["cov"] for r in ok])), IS=float(np.mean([r["IS"] for r in ok])),
+                                IS_prior=float(np.mean([r["IS_prior"] for r in ok])), median_bias=float(np.median([r["median_bias"] for r in ok])))
+        out["truths"][t]["skill_IS"] = 1 - out["truths"][t]["IS"] / out["truths"][t]["IS_prior"]
+        print("[a10b]", t, {k: round(v, 3) for k, v in out["truths"][t].items() if isinstance(v, float)}, flush=True)
+    out["t_total_s"] = time.time() - t0
+    json.dump(out, open(D20("a10b.json"), "w", encoding="utf-8"), indent=1, default=float)
+
+
 POOL_2018 = [(5, "g1_lam5"), (10, "g1_lam10"), (20, "deep_drop_data"), (50, "g1_lam50"), (100, "g1_lam100")]
 
 
@@ -694,11 +1102,11 @@ def main():
     ap = argparse.ArgumentParser()
     sub = ap.add_subparsers(dest="cmd", required=True)
     a = sub.add_parser("a1"); a.add_argument("--time-only", action="store_true"); a.add_argument("--workers", type=int, default=6)
-    sub.add_parser("a9"); sub.add_parser("a3-lin18"); sub.add_parser("a3-lin24"); sub.add_parser("a2"); sub.add_parser("a6"); sub.add_parser("a7"); sub.add_parser("a5")
+    sub.add_parser("a9"); sub.add_parser("a3-lin18"); sub.add_parser("a3-lin24"); sub.add_parser("a2"); sub.add_parser("a6"); sub.add_parser("a7"); sub.add_parser("a5"); sub.add_parser("a3"); sub.add_parser("a4"); sub.add_parser("a10a"); sub.add_parser("a10b"); sub.add_parser("a1-analyse"); sub.add_parser("prior-T")
     w = sub.add_parser("worker"); w.add_argument("--worker-id", type=int, required=True); w.add_argument("--dual", action="store_true")
     w.add_argument("--ids", type=int, nargs="+", required=True)
     args = ap.parse_args()
-    dict(a1=cmd_a1, a2=cmd_a2, a6=cmd_a6, a7=cmd_a7, a5=cmd_a5, worker=cmd_worker, a9=cmd_a9, **{"a3-lin18": cmd_a3_lin18, "a3-lin24": cmd_a3_lin24})[args.cmd](args)
+    dict(a1=cmd_a1, a2=cmd_a2, a6=cmd_a6, a7=cmd_a7, a5=cmd_a5, a3=cmd_a3, a4=cmd_a4, a10a=cmd_a10a, a10b=cmd_a10b, **{"a1-analyse": cmd_a1_analyse}, **{"prior-T": lambda a: prior_T()}, worker=cmd_worker, a9=cmd_a9, **{"a3-lin18": cmd_a3_lin18, "a3-lin24": cmd_a3_lin24})[args.cmd](args)
 
 
 if __name__ == "__main__":
