@@ -95,12 +95,13 @@ New numbers of the v2.0 analyses. `results/paper/numbers.md` is unchanged (byte-
 | 89 | `v20_A9_2025_lam20` | 4 it; chi2<=1; χ² 0.218 | a3_lin24.npz | 2025 line λ = 20: iterations, stop, χ² |
 | 90 | `v20_A9_2025_lam50` | 4 it; chi2<=1; χ² 0.269 | a3_lin24.npz | 2025 line λ = 50: iterations, stop, χ² |
 | 91 | `v20_A9_2025_lam100` | 3 it; chi2<=1; χ² 0.734 | a3_lin24.npz | 2025 line λ = 100: iterations, stop, χ² |
-| 92 | `v20_A10a_blocky` | χ² 0.992; 3 Ω·m 3/6; log-midpoint 5/6 | a10a.json | blocky λ = 50: coverage of the DP base |
-| 93 | `v20_A10b_G_0.8_2_-12_0` | cov 0.44; IS skill +0.10 | a10b.json | BEL v3 on factorial truth G_0.8_2_-12_0 |
-| 94 | `v20_A10b_G_0.8_4_-12_0` | cov 0.97; IS skill +0.58 | a10b.json | BEL v3 on factorial truth G_0.8_4_-12_0 |
-| 95 | `v20_A10b_G_0.8_8_-12_0` | cov 1.00; IS skill +0.59 | a10b.json | BEL v3 on factorial truth G_0.8_8_-12_0 |
-| 96 | `v20_A10b_G_0.8_16_-12_0` | cov 1.00; IS skill +0.58 | a10b.json | BEL v3 on factorial truth G_0.8_16_-12_0 |
-| 97 | `v20_A10b_G_1.42_2_-12_0` | cov 0.44; IS skill +0.13 | a10b.json | BEL v3 on factorial truth G_1.42_2_-12_0 |
-| 98 | `v20_A10b_G_1.42_4_-12_0` | cov 1.00; IS skill +0.59 | a10b.json | BEL v3 on factorial truth G_1.42_4_-12_0 |
-| 99 | `v20_A10b_G_1.42_8_-12_0` | cov 1.00; IS skill +0.58 | a10b.json | BEL v3 on factorial truth G_1.42_8_-12_0 |
-| 100 | `v20_A10b_G_1.42_16_-12_0` | cov 1.00; IS skill +0.58 | a10b.json | BEL v3 on factorial truth G_1.42_16_-12_0 |
+| 92 | `v20_A1_bel3_2025` | 6/6; width 10.00 m; IS 10.47 (skill +0.54); CRPS 1.432 (skill +0.35) | a1.json | BEL prior v3 on the 2025 line, DP2–DP7 |
+| 93 | `v20_A10a_blocky` | χ² 0.992; 3 Ω·m 3/6; log-midpoint 5/6 | a10a.json | blocky λ = 50: coverage of the DP base |
+| 94 | `v20_A10b_G_0.8_2_-12_0` | cov 0.44; IS skill +0.10 | a10b.json | BEL v3 on factorial truth G_0.8_2_-12_0 |
+| 95 | `v20_A10b_G_0.8_4_-12_0` | cov 0.97; IS skill +0.58 | a10b.json | BEL v3 on factorial truth G_0.8_4_-12_0 |
+| 96 | `v20_A10b_G_0.8_8_-12_0` | cov 1.00; IS skill +0.59 | a10b.json | BEL v3 on factorial truth G_0.8_8_-12_0 |
+| 97 | `v20_A10b_G_0.8_16_-12_0` | cov 1.00; IS skill +0.58 | a10b.json | BEL v3 on factorial truth G_0.8_16_-12_0 |
+| 98 | `v20_A10b_G_1.42_2_-12_0` | cov 0.44; IS skill +0.13 | a10b.json | BEL v3 on factorial truth G_1.42_2_-12_0 |
+| 99 | `v20_A10b_G_1.42_4_-12_0` | cov 1.00; IS skill +0.59 | a10b.json | BEL v3 on factorial truth G_1.42_4_-12_0 |
+| 100 | `v20_A10b_G_1.42_8_-12_0` | cov 1.00; IS skill +0.58 | a10b.json | BEL v3 on factorial truth G_1.42_8_-12_0 |
+| 101 | `v20_A10b_G_1.42_16_-12_0` | cov 1.00; IS skill +0.58 | a10b.json | BEL v3 on factorial truth G_1.42_16_-12_0 |
