@@ -22,7 +22,7 @@ TYPES = {1: "rectangle", 2: "ellipse", 3: "curve", 4: "polygon", 5: "bitmap", 6:
 
 def app():
     import win32com.client
-    a = win32com.client.Dispatch("CorelDRAW.Application.25")
+    a = win32com.client.gencache.EnsureDispatch("CorelDRAW.Application.25")      # early binding: optional COM arguments
     a.Visible = False
     try:
         a.Optimization = True
@@ -70,7 +70,7 @@ def cmd_inspect(d, out):
         if not fn.lower().endswith(".cdr"):
             continue
         t0 = time.time()
-        doc = a.OpenDocument(os.path.join(d, fn))
+        doc = a.OpenDocument(os.path.abspath(os.path.join(d, fn)), 0)
         doc.Unit = MM
         pg = doc.ActivePage
         res[fn] = dict(page_mm=[round(pg.SizeWidth, 3), round(pg.SizeHeight, 3)], n_pages=doc.Pages.Count,
@@ -120,19 +120,23 @@ def cmd_build(svg_dir, cdr_dir, report):
             continue
         name = fn[:-4]; t0 = time.time()
         doc = a.CreateDocument(); doc.Unit = MM
-        doc.ActiveLayer.Import(os.path.join(svg_dir, fn))
+        opts = a.CreateStructImportOptions(); opts.MaintainLayers = True
+        imp = doc.ActiveLayer.ImportEx(os.path.abspath(os.path.join(svg_dir, fn)), 0, opts)   # 0 = cdrAutoSense
+        imp.Finish()
         sel = doc.ActivePage.Shapes.All()
         w, h = sel.SizeWidth, sel.SizeHeight
         doc.ActivePage.SetSize(w, h); sel.SetPosition(0, h)
         first = count(doc)
         p = os.path.join(cdr_dir, name + ".cdr")
-        doc.SaveAs(p); doc.Close()
-        doc = a.OpenDocument(p); doc.Unit = MM
+        so = a.CreateStructSaveAsOptions(); doc.SaveAs(os.path.abspath(p), so); doc.Close()
+        doc = a.OpenDocument(os.path.abspath(p), 0); doc.Unit = MM
         again = count(doc)
         png = os.path.join(cdr_dir, "_render_" + name + ".png")
         try:
-            ex = doc.ExportBitmap(png, 802, 0, 3, int(round(190 / 25.4 * 150)), 0, 150, 150)   # cdrPNG, all, RGB, 150 dpi
-            ex.Finish()
+            pw, ph = doc.ActivePage.SizeWidth, doc.ActivePage.SizeHeight
+            ex = doc.ExportBitmap(os.path.abspath(png), 802, 1, 4, int(round(pw / 25.4 * 300)), int(round(ph / 25.4 * 300)), 300, 300,
+                                  1, False, False, True, False, 1, a.CreateStructPaletteOptions(), a.CreateRect(0, 0, pw, ph))
+            ex.Finish()                                       # cdrPNG, current page, RGB, 300 dpi, anti-aliased, whole page
         except Exception as e:
             png = f"render failed: {e}"
         page = [round(doc.ActivePage.SizeWidth, 2), round(doc.ActivePage.SizeHeight, 2)]

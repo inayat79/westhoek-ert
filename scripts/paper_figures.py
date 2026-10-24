@@ -969,7 +969,8 @@ def _v15_inputs():
     return g30, g28, D4, D4L, DLT, Dg
 
 
-def fig11():
+def fig11(bins_a=None):
+    """bins_a: histogram bin edges of panel (a) (v2.2: aligned to the prior bounds); default as v1.8."""
     g30, g28, D4, D4L, DLT, Dg = _v15_inputs()
     Z = np.load(os.path.join(DLT, "layout_vs_time.npz"), allow_pickle=True); S = np.load(os.path.join(D4, "synth.npz"))
     F = np.load(os.path.join(D4, "bel_v4.npz"), allow_pickle=True); L = np.load(os.path.join(D4L, "bel_v4_l24.npz"), allow_pickle=True)
@@ -981,7 +982,7 @@ def fig11():
     x0 = float(Z["x0"])
     fig = new_fig(90)
     axes = fig.subplots(1, 2, gridspec_kw=dict(width_ratios=[1, 1.6]))
-    ax = axes[0]; bins = np.logspace(np.log10(1.5), np.log10(120), 40)
+    ax = axes[0]; bins = np.logspace(np.log10(1.5), np.log10(120), 40) if bins_a is None else np.asarray(bins_a, float)
     ax.hist(pT18, bins, density=True, alpha=0.40, color="#1f4e9c", label="Synthetic from soundings, 2018 layout")
     ax.hist(pT24, bins, density=True, facecolor=matplotlib.colors.to_rgba("#7fa6e0", 0.45), edgecolor="#1f4e9c", hatch="////", lw=0,
             label="Synthetic from soundings, 2025 layout")

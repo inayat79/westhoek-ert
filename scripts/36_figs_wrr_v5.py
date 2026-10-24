@@ -79,6 +79,45 @@ def add_fig6(fig):
         ax.text(rb * 1.03, ytop * (0.97 if k_ % 2 == 0 else 0.80), nm, rotation=90, ha="left", va="top", fontsize=eps.size("tick"), color="#1f4e9c",
                 bbox=dict(boxstyle="square,pad=0.05", fc="white", ec="none", alpha=0.8), zorder=7)
     rebuild_legend(fig, [Line2D([], [], color="#1f4e9c", ls=":", lw=0.7, label="ρ$_\\mathbf{below,DP}$ at DP3–DP7 (2024 soundings)")])
+    # v2.2: the bounds of the prior-v4 ρ_below range, read from the configuration that generated the ensemble
+    lo, hi = prior_v4_bounds()
+    for v in (lo, hi):
+        ax.axvline(v, color=BOUND_STYLE["color"], ls=BOUND_STYLE["ls"], lw=BOUND_STYLE["lw"], zorder=BOUND_STYLE["zorder"], label=BOUND_LABEL)
+    rebuild_legend(fig, [Line2D([], [], color=BOUND_STYLE["color"], ls=BOUND_STYLE["ls"], lw=BOUND_STYLE["lw"], label=f"Prior bounds ({lo:g} and {hi:g} Ω·m)")])
+
+
+# v2.2: style of the prior-bound lines in Figure 6(a): above the histograms (patches, zorder 1) and the sounding lines (2),
+# below the axes frame (2.5) and the DP labels (7)
+BOUND_STYLE = dict(color="#737373", ls=(0, (3, 1.5)), lw=0.8, zorder=2.2)
+BOUND_LABEL = "Prior bounds"                       # series name in the CSV; the legend entry is added separately
+
+
+def prior_v4_bounds():
+    """ρ_below range of prior v4, read from the configuration that generated the ensemble (30_bel_v4.spec_v4, used by draw4)."""
+    r = pf.mod("g30").spec_v4()["params"]["rho_below"]
+    lo, hi = (float(v) for v in r["range"])
+    if (lo, hi) != (2.0, 100.0) or r["dist"] != "log-uniform":
+        raise SystemExit(f"prior-v4 ρ_below bounds are {lo}–{hi} ({r['dist']}), expected 2–100 Ω·m log-uniform: stopping")
+    return lo, hi
+
+
+def aligned_bins(lo, hi, x0=1.5, x1=120.0, n_old=39):
+    """v2.2: log-spaced bins with edges exactly at the prior bounds, at the bin density of v2.1 (39 bins on 1.5–120 Ω·m),
+    extended by whole bins to cover at least 1.5–120 Ω·m."""
+    per_dec = n_old / np.log10(x1 / x0)
+    n_in = int(round(per_dec * np.log10(hi / lo))); w = np.log10(hi / lo) / n_in
+    nb, na = int(np.ceil(np.log10(lo / x0) / w - 1e-9)), int(np.ceil(np.log10(x1 / hi) / w - 1e-9))
+    e = 10 ** (np.log10(lo) + w * np.arange(-nb, n_in + na + 1))
+    e[nb] = lo; e[nb + n_in] = hi                                       # exact, not 10**log10(x)
+    return e
+
+
+def fig_6():
+    """Figure 6 (v2.2): paper_figures.fig11 with the histogram bins of panel (a) aligned to the prior-v4 bounds; otherwise identical."""
+    lo, hi = prior_v4_bounds()
+    bins = aligned_bins(lo, hi)
+    fig, m = pf.fig11(bins_a=bins)
+    return fig, dict(m or {}, bins=bins)
 
 
 def add_figS12(fig):
@@ -228,11 +267,59 @@ def unclip_markers(fig, tol_px=0.5):
     return n
 
 
+def group_bounds_svg(path, fig, lines):
+    """v2.2: wrap the two prior-bound lines in one group panel_a/series/prior_bounds and report their x positions
+    (SVG user units = pt) against the expected positions of the 2 (minor) and 10² (major) ticks."""
+    import re
+    s = open(path, encoding="utf-8").read()
+    blocks = []
+    for nm in ("lower", "upper"):
+        m = re.search(r'<g id="panel_a/series/prior_bounds/%s">.*?</g>' % nm, s, flags=re.S)
+        blocks.append(m)
+    if not all(blocks) or s[blocks[0].end():blocks[1].start()].strip():
+        raise SystemExit("prior-bound lines are not adjacent in the SVG: cannot group them")
+    inner = s[blocks[0].start():blocks[1].end()]
+    s = s[:blocks[0].start()] + '<g id="panel_a/series/prior_bounds">\n' + inner + "\n</g>" + s[blocks[1].end():]
+    open(path, "w", encoding="utf-8").write(s)
+    ax = fig.axes[0]; H = fig.get_size_inches()[1] * 72
+    xs = []
+    for b in blocks:
+        d = re.search(r'd="M\s*([-\d.]+)\s+([-\d.]+)\s*L\s*([-\d.]+)\s+([-\d.]+)', b.group(0))
+        xs.append([float(d.group(1)), float(d.group(3))])
+    exp = [float(ax.transData.transform((v, 1))[0] * 72 / fig.dpi) for v in (2.0, 100.0)]
+    minor = [float(v) for v in ax.xaxis.get_minorticklocs()]; major = [float(v) for v in ax.xaxis.get_majorticklocs()]
+    return dict(svg_x_pt=dict(lower=xs[0], upper=xs[1]), expected_tick_x_pt=dict(minor_2=exp[0], major_100=exp[1]),
+                diff_pt=[abs(xs[0][0] - exp[0]), abs(xs[1][0] - exp[1])], minor_tick_2_present=any(abs(v - 2.0) < 1e-12 for v in minor),
+                major_tick_100_present=any(abs(v - 100.0) < 1e-9 for v in major), line_xdata=[float(l.get_xdata()[0]) for l in lines])
+
+
+def append_hist_bars(fig, path):
+    """v2.2: make_paper_figures.figure_rows skips histogram bars (it compares the patch's full transform, not its data
+    transform, with transData). Append the bars of Figure 6(a) — series, left edge x, height (density), width — so the CSV
+    holds every plotted value. Other figures' CSVs are not changed."""
+    import csv
+    from matplotlib.patches import Rectangle
+    ax = fig.axes[0]; rows = []
+    for c in ax.containers:
+        lab = c.get_label() or ""
+        if lab.startswith("_") and len(c) and not (c[0].get_label() or "_").startswith("_"):
+            lab = c[0].get_label()                     # hist() puts the series label on the first bar
+        for i, p in enumerate(c):
+            if isinstance(p, Rectangle) and p.get_data_transform() == ax.transData:
+                rows.append(["a", lab, "bar (x left, y bottom; value = height; size = width)", i, f"{p.get_x():.6g}", f"{p.get_y():.6g}",
+                             f"{p.get_height():.6g}", f"{p.get_width():.6g}", "ρ_below (Ω·m)", "Density", "density"])
+    with open(path, "a", encoding="utf-8", newline="") as f:
+        csv.writer(f, lineterminator="\n").writerows(rows)
+    return len(rows)
+
+
 def build(label, short, byname, s03, corel=False):
     eps.corel_mode(corel)
     name, fn = byname[short]; note = ""
     if short == "FigS03":
         fig, _ = pf.figS03(*s03[:3])
+    elif short == "Fig11":
+        fig, _ = fig_6(); note = "v2.2: panel (a) bins aligned to the prior bounds"
     elif short == "Fig09":
         fig, _ = pf.fig09(img_col="#4D4D4D")            # v2.1: dark grey dashed as in v1.9.1 (v2.0 used the red default by mistake)
     elif short == "Fig10":
@@ -242,7 +329,7 @@ def build(label, short, byname, s03, corel=False):
     if label == "Figure5":
         add_fig5(fig); note = "A5 depth windows (sounding solid, image dotted); 2025 image dark grey dashed"
     elif label == "Figure6":
-        add_fig6(fig); note = "DP3–DP7 ρ_below lines; grey 8 Ω·m line removed"
+        add_fig6(fig); note += "; DP3–DP7 ρ_below lines; grey 8 Ω·m line removed; prior bounds 2 and 100 Ω·m (v2.2)"
     elif label == "FigureS7":
         n = add_figS7(fig, s03[0], s03[1]); note = f"{n} open markers in (a) for |q − 0.5| ≤ 0.1"
     if label in LEGEND_NCOL:
@@ -254,13 +341,14 @@ def main():
     import argparse
     import make_paper_figures as mpf
     ap = argparse.ArgumentParser(); ap.add_argument("only", nargs="?", default=None); ap.add_argument("--corel", action="store_true")
+    ap.add_argument("--corel-dir", default=COREL, help="output folder of --corel (v2.1: Coral Draw/v2.1; v2.2: Coral Draw/v2.2)")
     ap.add_argument("--csv", action="store_true", help="also write the plotted values to results/figs_wrr_v5/data/<label>.csv")
     a = ap.parse_args()
     only = set(a.only.split(",")) if a.only else None
     pf.DATA_DIR = os.path.join(STYLE, "data")
     byname = {n.split("_")[0]: (n, fn) for n, fn, _ in pf.FIGURES}
     s03 = pf.figS03_data(STYLE) if (only is None or "FigureS7" in only) else None
-    out = COREL if a.corel else OUT
+    out = a.corel_dir if a.corel else OUT
     for d in ([os.path.join(out, x) for x in ("SVG", "PDF", "preview")] if a.corel else [out]):
         os.makedirs(d, exist_ok=True)
     log = {}
@@ -275,6 +363,9 @@ def main():
             r["rasterized_switched_off"] = mpf.vectorize(fig); r["translucent_hatches_split"] = mpf.split_translucent_hatches(fig)
             r["clip_kept"], r["clip_removed"] = mpf.unclip(fig)
             r["marker_clips_removed"] = unclip_markers(fig); r["clip_kept"] -= r["marker_clips_removed"]; mpf.assign_gids(fig)
+            bl = [ln for ln in fig.axes[0].lines if ln.get_label() == BOUND_LABEL] if label == "Figure6" else []
+            for ln, nm in zip(bl, ("lower", "upper")):
+                ln.set_gid(f"panel_a/series/prior_bounds/{nm}")
             r["rows"], _ = mpf.figure_rows(fig)
             r["size_mm"] = [round(v * 25.4, 2) for v in fig.get_size_inches()]
             for ext, kw in (("svg", dict(format="svg", dpi=mpf.IMG_DPI, metadata={"Date": None})),
@@ -284,10 +375,14 @@ def main():
                 fig.savefig(pth, bbox_inches=None, **kw)
                 if ext == "svg":
                     r["svg_font_rewrites"] = mpf.svg_explicit_fonts(pth); r["svg_mathtext_runs"] = mpf.svg_mathtext_runs(pth)
+                    if bl:
+                        r["prior_bounds_svg"] = group_bounds_svg(pth, fig, bl)
             print(label, short, note, "smallest", r["smallest_pt"], "clipped", r["clipped"], "clips kept", r["clip_kept"], flush=True)
         else:
             if a.csv:
                 os.makedirs(os.path.join(OUT, "data"), exist_ok=True); mpf.write_figure_csv(fig, label, short, os.path.join(OUT, "data"))
+                if label == "Figure6":
+                    append_hist_bars(fig, os.path.join(OUT, "data", f"{label}.csv"))
             files, smallest, clipped = eps.savefig(fig, label, OUT, 190, formats=("tif", "pdf"))
             r = dict(source=short, function=name, note=note, smallest_font_pt=smallest, clipped=clipped,
                      overlaps=(ov if isinstance(ov, (list, dict)) else str(ov)), files=[os.path.relpath(f, ROOT) for f in files])
@@ -295,7 +390,7 @@ def main():
         log[label] = r
         plt.close(fig)
     eps.corel_mode(False)
-    p = os.path.join(out, "figs_v21_corel_log.json" if a.corel else "figs_v5_log.json")
+    p = os.path.join(out, f"figs_{os.path.basename(os.path.normpath(out)).replace('.', '')}_corel_log.json" if a.corel else "figs_v5_log.json")
     old = json.load(open(p, encoding="utf-8")) if os.path.exists(p) and only else {}
     old.update(log)
     json.dump(old, open(p, "w", encoding="utf-8"), indent=1, default=str, ensure_ascii=False)
