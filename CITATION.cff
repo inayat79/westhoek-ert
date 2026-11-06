@@ -1,0 +1,30 @@
+cff-version: 1.2.0
+message: "If you use this software, please cite the archived version and the paper below."
+title: "Westhoek ERT interface uncertainty: Code, decision log and derived products"
+version: 3.1.0
+date-released: 2026-11-06
+license: MIT
+type: software
+doi: 10.5281/zenodo.XXXXXXX
+authors:
+  - family-names: Rahman
+    given-names: Inayat Ur
+    email: gigyani.rahman@gmail.com
+    orcid: "https://orcid.org/0000-0000-0000-0000"
+keywords:
+  - electrical resistivity tomography
+  - uncertainty quantification
+  - Bayesian Evidential Learning
+  - coastal aquifer
+  - upper saline plume
+  - pre-registration
+preferred-citation:
+  type: article
+  title: "Testing Coastal ERT Uncertainty Workflows for Saline Interface Depths Against Independent Soundings"
+  authors:
+    - family-names: Rahman
+      given-names: Inayat Ur
+      orcid: "https://orcid.org/0000-0000-0000-0000"
+  journal: "Water Resources Research"
+  status: submitted
+  year: 2026

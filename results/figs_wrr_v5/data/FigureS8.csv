@@ -1,0 +1,87 @@
+panel,series,kind,item,x,y,value,size,x_axis (name and unit),y_axis (name and unit),value_name (unit)
+a,line0,line,0,15.8438,27,,,Mean interval score (m); grey tick: prior,,
+a,line1,line,0,24.9003,27,,,Mean interval score (m); grey tick: prior,,
+a,line2,line,0,13.7317,26,,,Mean interval score (m); grey tick: prior,,
+a,line3,line,0,24.2651,26,,,Mean interval score (m); grey tick: prior,,
+a,line4,line,0,13.5403,25,,,Mean interval score (m); grey tick: prior,,
+a,line5,line,0,24.6601,25,,,Mean interval score (m); grey tick: prior,,
+a,line6,line,0,11.8921,24,,,Mean interval score (m); grey tick: prior,,
+a,line7,line,0,23.2948,24,,,Mean interval score (m); grey tick: prior,,
+a,line8,line,0,6.89655,23,,,Mean interval score (m); grey tick: prior,,
+a,line9,line,0,24.1445,23,,,Mean interval score (m); grey tick: prior,,
+a,line10,line,0,8.14992,22,,,Mean interval score (m); grey tick: prior,,
+a,line11,line,0,24.1194,22,,,Mean interval score (m); grey tick: prior,,
+a,line12,line,0,6.97868,21,,,Mean interval score (m); grey tick: prior,,
+a,line13,line,0,24.1568,21,,,Mean interval score (m); grey tick: prior,,
+a,line14,line,0,8.15116,20,,,Mean interval score (m); grey tick: prior,,
+a,line15,line,0,24.1385,20,,,Mean interval score (m); grey tick: prior,,
+a,line16,line,0,16.8781,19,,,Mean interval score (m); grey tick: prior,,
+a,line17,line,0,24.9049,19,,,Mean interval score (m); grey tick: prior,,
+a,line18,line,0,9.0473,18,,,Mean interval score (m); grey tick: prior,,
+a,line19,line,0,24.9104,18,,,Mean interval score (m); grey tick: prior,,
+a,line20,line,0,25.3425,17,,,Mean interval score (m); grey tick: prior,,
+a,line21,line,0,23.5871,17,,,Mean interval score (m); grey tick: prior,,
+a,line22,line,0,26.7312,16,,,Mean interval score (m); grey tick: prior,,
+a,line23,line,0,23.5929,16,,,Mean interval score (m); grey tick: prior,,
+a,line24,line,0,25.5245,15,,,Mean interval score (m); grey tick: prior,,
+a,line25,line,0,23.5871,15,,,Mean interval score (m); grey tick: prior,,
+a,line26,line,0,26.9136,14,,,Mean interval score (m); grey tick: prior,,
+a,line27,line,0,23.5929,14,,,Mean interval score (m); grey tick: prior,,
+a,line28,line,0,88.3121,13,,,Mean interval score (m); grey tick: prior,,
+a,line29,line,0,23.5871,13,,,Mean interval score (m); grey tick: prior,,
+a,line30,line,0,73.7379,12,,,Mean interval score (m); grey tick: prior,,
+a,line31,line,0,23.5929,12,,,Mean interval score (m); grey tick: prior,,
+a,line32,line,0,17.6498,11,,,Mean interval score (m); grey tick: prior,,
+a,line33,line,0,23.1691,11,,,Mean interval score (m); grey tick: prior,,
+a,line34,line,0,13.3634,10,,,Mean interval score (m); grey tick: prior,,
+a,line35,line,0,23.1738,10,,,Mean interval score (m); grey tick: prior,,
+a,line36,line,0,16.5616,9,,,Mean interval score (m); grey tick: prior,,
+a,line37,line,0,23.1691,9,,,Mean interval score (m); grey tick: prior,,
+a,line38,line,0,11.782,8,,,Mean interval score (m); grey tick: prior,,
+a,line39,line,0,23.1738,8,,,Mean interval score (m); grey tick: prior,,
+a,line40,line,0,28.2356,7,,,Mean interval score (m); grey tick: prior,,
+a,line41,line,0,22.732,7,,,Mean interval score (m); grey tick: prior,,
+a,line42,line,0,20.2138,6,,,Mean interval score (m); grey tick: prior,,
+a,line43,line,0,22.6936,6,,,Mean interval score (m); grey tick: prior,,
+a,line44,line,0,18.9123,5,,,Mean interval score (m); grey tick: prior,,
+a,line45,line,0,22.732,5,,,Mean interval score (m); grey tick: prior,,
+a,line46,line,0,12.1581,4,,,Mean interval score (m); grey tick: prior,,
+a,line47,line,0,22.6936,4,,,Mean interval score (m); grey tick: prior,,
+a,line48,line,0,8.75101,3,,,Mean interval score (m); grey tick: prior,,
+a,line49,line,0,22.4518,3,,,Mean interval score (m); grey tick: prior,,
+a,line50,line,0,18.2461,2,,,Mean interval score (m); grey tick: prior,,
+a,line51,line,0,22.4518,2,,,Mean interval score (m); grey tick: prior,,
+a,line52,line,0,9.6458,1,,,Mean interval score (m); grey tick: prior,,
+a,line53,line,0,22.3949,1,,,Mean interval score (m); grey tick: prior,,
+a,line54,line,0,10.4496,0,,,Mean interval score (m); grey tick: prior,,
+a,line55,line,0,22.4602,0,,,Mean interval score (m); grey tick: prior,,
+b,line0,vline,0,0,,,,Interval-score skill against the prior,,
+b,line1,vline,0,0.3,,,,Interval-score skill against the prior,,
+b,_container0,"bar (x left, y bottom; value = height; size = width)",0,0,26.7,0.6,0.36371,Interval-score skill against the prior,,bar height
+b,_container1,"bar (x left, y bottom; value = height; size = width)",0,0,25.7,0.6,0.434096,Interval-score skill against the prior,,bar height
+b,_container2,"bar (x left, y bottom; value = height; size = width)",0,0,24.7,0.6,0.450922,Interval-score skill against the prior,,bar height
+b,_container3,"bar (x left, y bottom; value = height; size = width)",0,0,23.7,0.6,0.489495,Interval-score skill against the prior,,bar height
+b,_container4,"bar (x left, y bottom; value = height; size = width)",0,0,22.7,0.6,0.714364,Interval-score skill against the prior,,bar height
+b,_container5,"bar (x left, y bottom; value = height; size = width)",0,0,21.7,0.6,0.662101,Interval-score skill against the prior,,bar height
+b,_container6,"bar (x left, y bottom; value = height; size = width)",0,0,20.7,0.6,0.711109,Interval-score skill against the prior,,bar height
+b,_container7,"bar (x left, y bottom; value = height; size = width)",0,0,19.7,0.6,0.662317,Interval-score skill against the prior,,bar height
+b,_container8,"bar (x left, y bottom; value = height; size = width)",0,0,18.7,0.6,0.322296,Interval-score skill against the prior,,bar height
+b,_container9,"bar (x left, y bottom; value = height; size = width)",0,0,17.7,0.6,0.636806,Interval-score skill against the prior,,bar height
+b,_container10,"bar (x left, y bottom; value = height; size = width)",0,0,16.7,0.6,-0.0744219,Interval-score skill against the prior,,bar height
+b,_container11,"bar (x left, y bottom; value = height; size = width)",0,0,15.7,0.6,-0.133018,Interval-score skill against the prior,,bar height
+b,_container12,"bar (x left, y bottom; value = height; size = width)",0,0,14.7,0.6,-0.0821383,Interval-score skill against the prior,,bar height
+b,_container13,"bar (x left, y bottom; value = height; size = width)",0,0,13.7,0.6,-0.140748,Interval-score skill against the prior,,bar height
+b,_container14,"bar (x left, y bottom; value = height; size = width)",0,0,12.7,0.6,-2.74408,Interval-score skill against the prior,,bar height
+b,_container15,"bar (x left, y bottom; value = height; size = width)",0,0,11.7,0.6,-2.12543,Interval-score skill against the prior,,bar height
+b,_container16,"bar (x left, y bottom; value = height; size = width)",0,0,10.7,0.6,0.238218,Interval-score skill against the prior,,bar height
+b,_container17,"bar (x left, y bottom; value = height; size = width)",0,0,9.7,0.6,0.42334,Interval-score skill against the prior,,bar height
+b,_container18,"bar (x left, y bottom; value = height; size = width)",0,0,8.7,0.6,0.285186,Interval-score skill against the prior,,bar height
+b,_container19,"bar (x left, y bottom; value = height; size = width)",0,0,7.7,0.6,0.49158,Interval-score skill against the prior,,bar height
+b,_container20,"bar (x left, y bottom; value = height; size = width)",0,0,6.7,0.6,-0.242105,Interval-score skill against the prior,,bar height
+b,_container21,"bar (x left, y bottom; value = height; size = width)",0,0,5.7,0.6,0.109276,Interval-score skill against the prior,,bar height
+b,_container22,"bar (x left, y bottom; value = height; size = width)",0,0,4.7,0.6,0.168031,Interval-score skill against the prior,,bar height
+b,_container23,"bar (x left, y bottom; value = height; size = width)",0,0,3.7,0.6,0.464252,Interval-score skill against the prior,,bar height
+b,_container24,"bar (x left, y bottom; value = height; size = width)",0,0,2.7,0.6,0.610231,Interval-score skill against the prior,,bar height
+b,_container25,"bar (x left, y bottom; value = height; size = width)",0,0,1.7,0.6,0.18732,Interval-score skill against the prior,,bar height
+b,_container26,"bar (x left, y bottom; value = height; size = width)",0,0,0.7,0.6,0.569286,Interval-score skill against the prior,,bar height
+b,_container27,"bar (x left, y bottom; value = height; size = width)",0,0,-0.3,0.6,0.534748,Interval-score skill against the prior,,bar height

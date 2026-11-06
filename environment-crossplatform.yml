@@ -1,0 +1,19 @@
+# Cross-platform environment (Linux / macOS / Windows): the main packages at the versions of environment.yml (the exact
+# Windows build); everything else is resolved by conda. Not tested on Linux or macOS. 37_corel_v21.py (CorelDRAW
+# automation) needs pywin32 and runs on Windows only.
+name: westhoek-ert
+channels:
+  - conda-forge
+  - gimli
+dependencies:
+  - python=3.11
+  - pygimli=1.5.5
+  - numpy=1.26.4
+  - scipy=1.14.1
+  - matplotlib=3.9.4
+  - pandas=3.0.6
+  - cartopy=0.26.0
+  - pyproj=3.7.2
+  - shapely=2.1.2
+  - pillow=12.3.0
+  - requests=2.34.2

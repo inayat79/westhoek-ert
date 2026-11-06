@@ -31,6 +31,30 @@ FIG_DIR       = os.path.join(ROOT, "figures")
 RESULTS_DIR   = os.path.join(ROOT, "results")
 ELEC_FILE     = os.path.join(ROOT, "data", "raw", "elec.dat")
 
+# Inputs that are not public (see data/README.md): the scripts that need them stop with require_input()'s message.
+RESTRICTED_INPUTS = {
+    "cpt": (os.path.join(ROOT, "data", "raw", "cpt_vrancken_2024"),
+            "mechanical CPT logs and surveyed positions of 23 September 2024 (E. Vrancken, Ghent University; not public)"),
+    "abem": (os.path.join(ROOT, "data", "raw", "Project12_LS210110079_2018-03-07_11-22-23", "project.db"),
+             "2018 Terrameter LS instrument project (T. Hermans, Ghent University; not public)"),
+    "cpt_json": (os.path.join(ROOT, "data", "processed", "v1_4", "cpt.json"),
+                 "sounding geometry and lithology derived from the mechanical CPTs by `27_dp_groundtruth.py cpt`"),
+    "dp_results": (os.path.join(ROOT, "data", "processed", "v1_4", "dp_results.json"),
+                   "sounding bases and resistivities from `27_dp_groundtruth.py dp`, which needs the mechanical CPTs"),
+}
+
+
+def require_input(key, needed_for, path=None):
+    """Stop with a clear message when a restricted input (or a product derived from one) is missing. `path` overrides the
+    default location (for scripts writing to another --out tree)."""
+    default, what = RESTRICTED_INPUTS[key]
+    path = path or default
+    if not os.path.exists(path):
+        raise SystemExit(f"restricted input missing: {os.path.relpath(path, ROOT)} ({what}). Needed for {needed_for}. "
+                         "See data/README.md: this step can be rerun once the data owners publish the data.")
+    return path
+
+
 LOG3 = np.log10(3.0)
 Z_FLOOR = -45.0          # sections are drawn down to this elevation (mTAW)
 VE = 3.0                 # vertical exaggeration of section figures
@@ -66,6 +90,25 @@ def read_electrodes():
             h = p[3].strip() if len(p) > 3 else "\\"
             (land if h in ("\\", "") else sea).append((x, z) if h in ("\\", "") else (x, z, float(h)))
     return np.array(sorted(land)), np.array(sorted(sea))
+
+
+def save_publication(fig, out_root, name, clear_axes_titles=()):
+    """Publication copy of a report figure → <out_root>/results/figs/<name>.{png,pdf}: no working title (the suptitle and the
+    given axes titles are hidden for this save and restored afterwards), 600 dpi PNG, PDF without date metadata."""
+    d = os.path.join(out_root, "results", "figs"); os.makedirs(d, exist_ok=True)
+    st = getattr(fig, "_suptitle", None); vis = st.get_visible() if st is not None else None
+    old = [(ax, ax.get_title()) for ax in clear_axes_titles]
+    if st is not None:
+        st.set_visible(False)
+    for ax, _ in old:
+        ax.set_title("")
+    fig.savefig(os.path.join(d, name + ".png"), dpi=600, bbox_inches="tight", pad_inches=0.03, metadata={"Software": None})
+    fig.savefig(os.path.join(d, name + ".pdf"), bbox_inches="tight", pad_inches=0.03,
+                metadata={"CreationDate": None, "ModDate": None, "Producer": None, "Creator": None})
+    if st is not None:
+        st.set_visible(vis)
+    for ax, t in old:
+        ax.set_title(t)
 
 
 def land_surface():

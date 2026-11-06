@@ -1332,6 +1332,574 @@ def extra_numbers(B):
             "largest cell-wise P(EC25 < 1500 μS/cm) at x ≥ 330 m (the unit value P(fresh) of the discharge water is "
             "`unit_dis`)", fn, "`data/processed/stage6_v2/field_v2.npz`")
     extra_numbers_v103(B)
+    extra_numbers_v11()
+    extra_numbers_v111()
+    extra_numbers_v13()
+    extra_numbers_v14()
+    extra_numbers_v14_groundtruth()
+    extra_numbers_v15()
+    extra_numbers_v16()
+    extra_numbers_v17()
+
+
+V11_TRUTHS = ("T80a", "T80b", "T80c", "T80d", "T80e", "T80a_ht")
+
+
+def extra_numbers_v17():
+    """v1.7 numbers quoted in the Fig. 1 caption draft (appended after all v1.6 numbers): 32_location_map.py."""
+    p = os.path.join(os.path.dirname(DS6), "v1_7", "location_map.json")
+    if not os.path.exists(p):
+        print("[v1.7] no location-map products — skipped", flush=True)
+        return
+    O = json.load(open(p, encoding="utf-8")); cap = "results/figs/F_01_caption_draft.md"; fn = "32_location_map.py:cmd_build"
+    NUM.add("v17_ortho_year", f"{O['image_year']} ({O['ortho_layer']})", "v1.7: year of the Digitaal Vlaanderen winter orthophoto in Fig. 1c",
+            fn, "`data/external/basemap/sources.json`", ref=(cap, "winter mosaic", str(O["image_year"])))
+    L = O["line2024"]
+    NUM.add("v17_line2024_offset", f"{L['mean_abs_offset_m']:.1f} m (ends {L['offset_from_2018_at_x148_75_m']:.2f} / "
+            f"{L['offset_from_2018_at_x503_75_m']:.2f} m; angle {L['angle_deg']:.2f}°)",
+            "v1.7: perpendicular offset of the 2024 ERT line (least-squares line through S02–S08) from the 2018 K1 chord",
+            fn, "`data/raw/cpt_vrancken_2024/CPT/Location.txt`, `data/raw/GPS_coordinate.xlsx`",
+            ref=(cap, "from K1", f"{L['mean_abs_offset_m']:.1f} m"))
+
+
+def extra_numbers_v16():
+    """v1.6 numbers (appended after all v1.5 numbers; exploratory: scores chosen after the DP results were known, metric
+    definitions logged before computing): 31_scores.py."""
+    p = os.path.join(os.path.dirname(DS6), "v1_6", "scores.json")
+    if not os.path.exists(p):
+        print("[v1.6] no v1.6 products — skipped", flush=True)
+        return
+    O = json.load(open(p, encoding="utf-8")); rv = "results/v1_6/1_scores.md"; ex = " (exploratory; post hoc metric choice)"
+    fn, src = "31_scores.py:cmd_report", "`data/processed/v1_6/cases.csv`"
+    yn = lambda b: "yes" if b else "no"
+    c = O["regen"]
+    NUM.add("v16_regen_identical", f"{yn(c['all_identical'])} (v3 held-out {c['v3_heldout']['n']}, v4 {c['v4_heldout']['n']}, v4-L24 "
+            f"{c['v4L24_heldout']['n']}, v3 on 4 truths)", "v1.6: regenerated BEL posteriors reproduce the stored summaries exactly" + ex,
+            "31_scores.py:cmd_run", "`data/processed/v1_6/regen_check.json`")
+    ci = lambda o, k: f"{o[k]['mean']:.2f} [{o[k]['lo']:.2f}, {o[k]['hi']:.2f}]"
+    sk = lambda o, k: f"{o[k]['skill']:+.2f} [{o[k]['skill_lo']:+.2f}, {o[k]['skill_hi']:+.2f}]"
+    for m in ("BEL3-18", "BEL4-18", "BEL4-18s", "BEL4-24"):
+        o = O["field"][m]
+        NUM.add(f"v16_field_{m.replace('-', '_')}", f"IS {ci(o, 'IS')}, skill {sk(o, 'IS')}; CRPS {ci(o, 'CRPS')}, skill {sk(o, 'CRPS')}; "
+                f"{o['cov']} of {o['n']} inside; sharpness {o['width']:.2f} m",
+                f"v1.6: field lens-base scores of {m} at DP2–DP7 vs {o['prior']} (bootstrap 90 %)" + ex, fn, src,
+                ref=(rv, f"| {m} | {o['prior']} |", ci(o, "IS")))
+    pr = O["field"]["PRIOR4"]
+    NUM.add("v16_field_prior_sharpness", f"{pr['width']:.2f} m (PRIOR4); BEL {min(O['field'][m]['width'] for m in ('BEL3-18', 'BEL4-18', 'BEL4-18s', 'BEL4-24')):.2f}–"
+            f"{max(O['field'][m]['width'] for m in ('BEL3-18', 'BEL4-18', 'BEL4-18s', 'BEL4-24')):.2f} m",
+            "v1.6: median 90 % width at DP2–DP7, prior vs BEL" + ex, fn, src)
+    NUM.add("v16_field_pairs", "; ".join(f"{k}: P(IS) {v['IS']['p']:.3f}, P(CRPS) {v['CRPS']['p']:.3f}" for k, v in O["pairs"].items()),
+            "v1.6: paired bootstrap P(score_A < score_B) over DP2–DP7" + ex, fn, src)
+    H = {g["set"]: g for g in O["synthetic"] if g["group"] == "held-out"}
+    NUM.add("v16_heldout_skill", "; ".join(f"{k}: IS {H[k]['skill_IS']:+.2f}, CRPS {H[k]['skill_CRPS']:+.2f}" for k in ("ho_v3", "ho_v4", "ho_v4L24")),
+            "v1.6: BEL lens-base skill against the prior on the held-out sets" + ex, fn, src)
+    V = O["verdicts"]
+    NUM.add("v16_S1", f"{yn(V['S1']['holds'])} (vs prior {yn(V['S1']['vs_prior'])}, vs LIN-LM-24 {yn(V['S1']['vs_lin_lm'])}, vs LIN-3-24 "
+            f"{yn(V['S1']['vs_lin_3'])})", "v1.6 S1: BEL4-24 better than its prior and both linearised same-epoch methods" + ex, fn, src)
+    NUM.add("v16_S2", f"{yn(V['S2']['holds'])} (BEL4-18 {yn(V['S2']['BEL4-18'])}, BEL3-18 {yn(V['S2']['BEL3-18'])})",
+            "v1.6 S2: 2018 BEL skill > 0 against the prior (IS and CRPS)" + ex, fn, src)
+    NUM.add("v16_S3", f"{yn(V['S3']['holds'])} (v3 {H['ho_v3']['skill_IS']:+.2f}, v4 {H['ho_v4']['skill_IS']:+.2f})",
+            "v1.6 S3: held-out IS skill ≥ 0.3" + ex, fn, src)
+    NUM.add("v16_S4", f"{yn(V['S4']['holds'])} ({V['S4']['n_true']} of {V['S4']['n']} paired comparisons)",
+            "v1.6 S4: linearised mean IS higher than BEL on comparable synthetic truths (r ≤ 10 m)" + ex, fn, src)
+
+
+def extra_numbers_v15():
+    """v1.5 numbers (appended after all v1.4 numbers; exploratory, designed after the DP results were known):
+    28_dp_synthetic.py, 29_detectability.py, 30_bel_v4.py."""
+    d = os.path.join(os.path.dirname(DS6), "v1_5")
+    if not os.path.exists(os.path.join(d, "dp_synth_summary.json")):
+        print("[v1.5] no v1.5 products — skipped", flush=True)
+        return
+    rv = "results/v1_5"; ex = " (exploratory)"
+    S = json.load(open(os.path.join(d, "dp_synth_summary.json"), encoding="utf-8")); M, Q = S["metrics"], S["questions"]
+    f1, s1 = "28_dp_synthetic.py:cmd_report", "`data/processed/v1_5/dp_synth/`"
+    yn = lambda b: "yes" if b else "no"
+    NUM.add("v15_X1", f"{yn(Q['X1']['holds'])}; {len(Q['X1']['ok'])} of 5 ({', '.join(Q['X1']['ok'])})", "v1.5 X1: T1 on L24 reproduces "
+            "the field pattern (log-midpoint ≥ 2 m shallow and 3 Ω·m within ±2.5 m)" + ex, f1, s1,
+            ref=(f"{rv}/2_dp_synthetic.md", "**X1**", f"**{yn(Q['X1']['holds'])}**"))
+    NUM.add("v15_X2", f"{yn(Q['X2']['holds'])}; T1 {len(Q['X2']['ok']['T1'])} of 5, T2 {len(Q['X2']['ok']['T2'])} of 5",
+            "v1.5 X2: image ρ below < 0.5 × true ρ_below on L24" + ex, f1, s1,
+            ref=(f"{rv}/2_dp_synthetic.md", "**X2**", f"**{yn(Q['X2']['holds'])}**"))
+    NUM.add("v15_X3", f"{yn(Q['X3']['holds'])}; {len(Q['X3']['ok'])} of 5", "v1.5 X3: on T3 (brackish below) the log-midpoint "
+            "within ±2 m on L24" + ex, f1, s1, ref=(f"{rv}/2_dp_synthetic.md", "**X3**", f"**{yn(Q['X3']['holds'])}**"))
+    dps = ("DP3", "DP4", "DP5", "DP6", "DP7")
+    for t in ("T1", "T2", "T3"):
+        g = [M[f"{t}|L24|{n}"] for n in dps]
+        NUM.add(f"v15_{t}_L24_offsets", f"log-midpoint {min(m['logmid_off'] for m in g):+.2f} … {max(m['logmid_off'] for m in g):+.2f} m; "
+                f"3 Ω·m {min(m['thr3_off'] for m in g):+.2f} … {max(m['thr3_off'] for m in g):+.2f} m; image ρ below "
+                f"{min(m['rho_below_img'] for m in g):.2f}–{max(m['rho_below_img'] for m in g):.2f} Ω·m",
+                f"v1.5: {t} on L24, DP3–DP7, image − true base and image ρ below the base" + ex, f1, s1)
+    g = [M[f"T1|L24|{n}"] for n in dps]
+    NUM.add("v15_T1_L24_contrast", f"{min(m['contrast_ratio'] for m in g):.2f}–{max(m['contrast_ratio'] for m in g):.2f}",
+            "v1.5: recovered/true log-contrast, T1 on L24, DP3–DP7" + ex, f1, s1)
+    if os.path.exists(os.path.join(d, "detect.json")):
+        X = json.load(open(os.path.join(d, "detect.json"), encoding="utf-8")); f2 = "29_detectability.py:cmd_report"
+        for l in ("L18", "L24"):
+            v = X["vs_ref"][f"{l}|T2"]; r = X["rhos"]
+            NUM.add(f"v15_detect_{l}", f"χ²/N vs ρ_below = 12: {', '.join(f'{a:g}: {b:.2f}' for a, b in zip(r, v))}",
+                    f"v1.5: noise-free separability of ρ_below on {l} (T2 clay top)" + ex, f2, "`data/processed/v1_5/detect/`")
+            NUM.add(f"v15_detect_trade_{l}", f"{len(X['trade'][l])} clay-top/ρ_below pairs at χ²/N < 1", f"v1.5: trade-off between the clay "
+                    f"top (−30 / −26 mTAW) and ρ_below on {l}" + ex, f2, "`data/processed/v1_5/detect/`")
+            F = X["field"][l]
+            NUM.add(f"v15_field_fit_{l}", f"T1 {F['T1']['primary']:.2f}, T3 {F['T3']['primary']:.2f}", f"v1.5: χ²/N of the noise-free T1 / T3 "
+                    f"responses against the measured {l} data (G1 / Stage-1 kept)" + ex, f2, "`data/processed/v1_5/detect/`",
+                    ref=(f"{rv}/3_detectability.md", f"| {l} |", f"| {F['T1']['primary']:.2f} | {F['T3']['primary']:.2f} |"))
+        NUM.add("v15_X5", yn(X["X5"]), "v1.5 X5: ERT.dat fits T1 at least as well as T3" + ex, f2, "`data/processed/v1_5/detect/`",
+                ref=(f"{rv}/3_detectability.md", "**X5**", f"**{yn(X['X5'])}**"))
+    if os.path.exists(os.path.join(d, "bel_v4_summary.json")):
+        B = json.load(open(os.path.join(d, "bel_v4_summary.json"), encoding="utf-8")); f3 = "30_bel_v4.py:cmd_report"
+        s3 = "`data/processed/v1_5/bel_v4/`"
+        fm = lambda v: f"{v[0]:.2f} [{v[1]:.2f}, {v[2]:.2f}]"
+        NUM.add("v15_bel_v4_rho_below", f"{fm(B['rb4'])} Ω·m (v3 {fm(B['rb3'])}; v4 prior {fm(B['prior4'])})",
+                "v1.5: BEL v4 field ρ_below posterior, median [P5, P95]" + ex, f3, s3,
+                ref=(f"{rv}/4_bel_v4.md", "ρ_below: **v4", fm(B["rb4"])))
+        NUM.add("v15_bel_v4_coverage", f"{100*B['cov']:.1f} %", "v1.5: BEL v4 held-out 90 % coverage of the lens base" + ex, f3, s3)
+        NUM.add("v15_bel_v4_base_in", f"{B['n_in4']} of 6 (v3 {B['n_in3']} of 6)", "v1.5: DP2–DP7 bases inside the BEL v4 / v3 90 % "
+                "intervals (post hoc)" + ex, f3, s3)
+        x6 = B["X6"]
+        NUM.add("v15_X6", f"median > 4.93: {yn(x6['median'])}; interval contains 10.89–14.80: {yn(x6['interval'])}; base ≥ 5 of 6: "
+                f"{yn(x6['base'])}", "v1.5 X6 (post hoc)" + ex, f3, s3)
+        NUM.add("v15_bel_v4_learning", f"posterior 90 % width {100*B['width_post']/B['width_prior']:.0f} % of the prior's (log10)",
+                "v1.5: how much the 2018 data narrow ρ_below under prior v4" + ex, f3, s3)
+    # v1.5.1 (decision log v1.5-1): BEL checks and ablation — appended after all earlier v1.5 rows
+    if os.path.exists(os.path.join(d, "bel_checks.json")):
+        K = json.load(open(os.path.join(d, "bel_checks.json"), encoding="utf-8")); f4 = "30_bel_v4.py:report_checks"
+        for t in ("T1", "T3"):
+            o = K[t]
+            NUM.add(f"v15_bel_synth_{t}", f"{o['median']:.2f} [{o['p5']:.2f}, {o['p95']:.2f}] Ω·m; sees fresh water: {yn(o['fresh'])}",
+                    f"v1.5.1: BEL v4 on {t}/L18 synthetic data, ρ_below (median of posterior medians, pooled 90 %)" + ex, f4,
+                    "`data/processed/v1_5/bel_v4/synth.npz`", ref=(f"{rv}/5_bel_checks.md", f"| {t} | {o['n']}", f"| {o['median']:.2f} |"))
+        e = K["ERT"]
+        NUM.add("v15_bel_l24_rho_below", f"{e['median']:.2f} [{e['p5']:.2f}, {e['p95']:.2f}] Ω·m; finds fresh water: {yn(e['fresh'])}",
+                "v1.5.1: same-epoch BEL v4 on ERT.dat (L24 geometry), ρ_below median [P5, P95]" + ex, f4,
+                "`data/processed/v1_5/bel_v4_l24/`", ref=(f"{rv}/5_bel_checks.md", "ρ_below (2025 ERT line)",
+                                                          f"{e['median']:.2f} [{e['p5']:.2f}, {e['p95']:.2f}]"))
+        NUM.add("v15_bel_l24_checks", f"held-out coverage base {100*e['cov']:.1f} %, ρ_below {100*e['cov2']:.1f} %; falsification T² "
+                f"{100*e['fal']['t2']:.1f} %, robust T² {100*e['fal']['t2r']:.1f} %, Q {100*e['fal']['q']:.1f} %",
+                "v1.5.1: same-epoch BEL v4 checks" + ex, f4, "`data/processed/v1_5/bel_v4_l24/`")
+        nin = sum(r["inside"] for r in e["base"] if r["dp"] != "DP1")
+        NUM.add("v15_bel_l24_base_in", f"{nin} of 6", "v1.5.1: DP2–DP7 bases inside the same-epoch BEL v4 90 % intervals" + ex, f4,
+                "`data/processed/v1_5/bel_v4_l24/`")
+        NUM.add("v15_bel_readout", K["readout"], "v1.5.1: pre-logged read-out of the BEL checks (decision log v1.5-1)" + ex, f4,
+                "`data/processed/v1_5/bel_checks.json`", ref=(f"{rv}/5_bel_checks.md", "**", K["readout"]))
+    if os.path.exists(os.path.join(d, "ablation.json")):
+        A = json.load(open(os.path.join(d, "ablation.json"), encoding="utf-8")); f5 = "28_dp_synthetic.py:report_ablation"
+        NUM.add("v15_ablation", "; ".join(f"{k}: {len(v)} of 5" for k, v in A["ok"].items()) + f"; criterion met by: {', '.join(A['fixes']) or 'none'}",
+                "v1.5.1: log-midpoint within ±2 m at DP3–DP7 per variant and layout (ablation)" + ex, f5, "`data/processed/v1_5/dp_synth/`")
+        NUM.add("v15_dp7_line_end", f"{A['dp7_from_line_end']:.2f} m", "v1.5.1: DP7's distance from the landward end of the L24 line" + ex,
+                f5, "`data/raw/dp_zenodo_20792093/ERT.dat`", ref=(f"{rv}/6_ablation.md", "DP7 (x =", f"{A['dp7_from_line_end']:.2f} m"))
+    # v1.5.2 (decision log v1.5-2 B): layout vs time — appended after all earlier v1.5 rows
+    if os.path.exists(os.path.join(d, "layout_vs_time.json")):
+        V = json.load(open(os.path.join(d, "layout_vs_time.json"), encoding="utf-8")); f6 = "30_bel_v4.py:report_layout"
+        r7 = f"{rv}/7_layout_vs_time.md"; s6_ = "`data/processed/v1_5/bel_v4_layout/layout_vs_time.npz`"
+        t = V["T1_L24"]
+        NUM.add("v15_layout_T1_L24", f"{t['median']:.2f} [{t['p5']:.2f}, {t['p95']:.2f}] Ω·m; sees fresh water: {yn(t['fresh'])}",
+                "v1.5.2: BEL v4 (L24 ensemble) on T1/L24 synthetic data, ρ_below (median of posterior medians, pooled 90 %)" + ex, f6, s6_,
+                ref=(r7, "| T1/L24 (B1)", f"| {t['median']:.2f} |"))
+        NUM.add("v15_layout_ratio", f"{V['ratio']:.2f}", "v1.5.2: ρ_below median ratio T1/L24 ÷ T1/L18" + ex, f6, s6_,
+                ref=(r7, "Ratio r", f"**{V['ratio']:.2f}**"))
+        u = V["F18_sub"]
+        NUM.add("v15_layout_2018_stretch", f"{u['median']:.2f} [{u['p5']:.2f}, {u['p95']:.2f}] Ω·m ({u['n_data']} of 1974 G1 data); "
+                f"fresh: {yn(u['fresh'])}", "v1.5.2: BEL v4 on the 2018 data restricted to the L24 stretch (x ≥ 148.75 m), ρ_below" + ex,
+                f6, s6_, ref=(r7, "| 2018 field, L24 stretch (B2)", f"| {u['median']:.2f} |"))
+        NUM.add("v15_layout_2018_stretch_checks", f"held-out coverage base {100*u['cov']:.1f} %, ρ_below {100*u['cov2']:.1f} %; falsification "
+                f"T² {100*u['fal']['t2']:.1f} %, robust T² {100*u['fal']['t2r']:.1f} %, Q {100*u['fal']['q']:.1f} %; DP2–DP7 bases inside "
+                f"{V['base_in_sub']} of 6", "v1.5.2: checks of the 2018 L24-stretch BEL" + ex, f6, s6_)
+        NUM.add("v15_layout_readout", V["readout"], "v1.5.2: pre-logged read-out, layout vs time (decision log v1.5-2)" + ex, f6,
+                "`data/processed/v1_5/layout_vs_time.json`", ref=(r7, "**", V["readout"]))
+        if "T1_sub" in V:                                   # v1.5.3 (decision log v1.5-3)
+            w = V["T1_sub"]; s7_ = "`data/processed/v1_5/bel_v4_layout/t1_subset.npz`"
+            NUM.add("v15_layout_T1_stretch", f"{w['median']:.2f} [{w['p5']:.2f}, {w['p95']:.2f}] Ω·m; DP2–DP7 bases covered in all "
+                    f"realisations: {V['T1_sub_base_in']} of 6", "v1.5.3: BEL v4 (2018 L24-stretch BELs) on T1 restricted to the same 1141 "
+                    "quadrupoles, ρ_below (median of posterior medians, pooled 90 %)" + ex, f6, s7_,
+                    ref=(r7, "| **T1, L24-stretch subset (v1.5-3)**", f"**{w['median']:.2f}**"))
+            NUM.add("v15_layout_field_over_T1_stretch", f"{V['ratio_sub']:.2f}", "v1.5.3: 2018-subset field median ÷ T1/subset median" + ex,
+                    f6, s7_, ref=(r7, "Field ÷ T1 on the subset", f"**{V['ratio_sub']:.2f}**"))
+            NUM.add("v15_layout_readout_sub", V["readout_sub"], "v1.5.3: pre-logged read-out (decision log v1.5-3)" + ex, f6,
+                    "`data/processed/v1_5/layout_vs_time.json`", ref=(r7, "**", V["readout_sub"]))
+
+
+def extra_numbers_v14_groundtruth():
+    """v1.4 ground-truth numbers (appended after the v1.4a numbers): CPT geometry and lithology, DP comparisons E15–E21,
+    same-epoch test, E14 follow-up (27_dp_groundtruth.py cpt / dp / samedate, 26_raw_abem.py followup)."""
+    d = os.path.join(os.path.dirname(DS6), "v1_4")
+    if not os.path.exists(os.path.join(d, "dp_results.json")):
+        print("[v1.4] no DP ground-truth products — skipped", flush=True)
+        return
+    rv = "results/v1_4"
+    wc.require_input("cpt_json", "the comparison with the soundings (Tables 1–2, SI Tables S1, S7–S11, Figures 4–6 and S11–S14, expectations E15–E21)", path=os.path.join(d, "cpt.json"))
+    C = json.load(open(os.path.join(d, "cpt.json"), encoding="utf-8")); F = C["fit"]
+    fc, sc = "27_dp_groundtruth.py:cmd_cpt", "`data/raw/cpt_vrancken_2024/` (unpublished, E. Vrancken)"
+    NUM.add("v14_dp_date_confirmed", "23 September 2024 (CPT and DP; E. Vrancken); gap from 7 March 2018: 2392 days",
+            "v1.4: survey date of the CPT and DP pushes and the gap to the 2018 ERT survey", fc, sc)
+    NUM.add("v14_cpt_X0fit", f"{F['X0_fit']:.1f} m (RMS {F['rms']:.1f} m); surveyed − Task A {min(F['resid_taskA']):+.1f} … {max(F['resid_taskA']):+.1f} m",
+            "v1.4: least-squares X0 from the surveyed CPT positions vs the ERT-based X0* (independent placement check)", fc, sc,
+            ref=(f"{rv}/5_cpt_inventory.md", "Least-squares X0", f"X0 = {F['X0_fit']:.1f} m"))
+    ids = sorted(C["cpts"])
+    NUM.add("v14_cpt_x", ", ".join(f"{C['cpts'][s_]['dp']} {C['cpts'][s_]['our_x']:.1f}" for s_ in ids),
+            "v1.4: surveyed DP/CPT positions on our axis (m)", fc, sc, ref=(f"{rv}/5_cpt_inventory.md", "| DP1 | S02 |", f"| {C['cpts'][ids[0]]['our_x']:.1f} |"))
+    NUM.add("v14_cpt_offset_max", f"{max(abs(C['cpts'][s_]['offset']) for s_ in ids):.1f} m", "v1.4: largest CPT offset from our line", fc, sc)
+    dz = [C["cpts"][s_]["z"] - C["cpts"][s_]["surf2018"] for s_ in ids]
+    NUM.add("v14_cpt_ground_minus_2018", f"{min(dz):+.2f} … {max(dz):+.2f} m", "v1.4: CPT ground level (2024) minus our 2018 surface", fc, sc)
+    rft = [C["cpts"][s_]["rf_step"] for s_ in ids if C["cpts"][s_]["rf_step"] is not None]
+    NUM.add("v14_cpt_rfstep", f"{max(rft):.1f} … {min(rft):.1f} mTAW ({len(rft)} CPTs)", "v1.4: top of the Rf > 2 % unit below −20 mTAW "
+            "(descriptive clay marker)", fc, sc, ref=(f"{rv}/6_lithology.md", "A sharper marker", f"{max(rft):.1f} … {min(rft):.1f} mTAW"))
+    wc.require_input("dp_results", "the comparison with the soundings (Tables 1–2, SI Tables S1, S7–S11, Figures 4–6 and S11–S14, expectations E15–E21)", path=os.path.join(d, "dp_results.json"))
+    R = json.load(open(os.path.join(d, "dp_results.json"), encoding="utf-8")); fd = "27_dp_groundtruth.py:cmd_dp"
+    sd = "`data/raw/dp_zenodo_20792093/DP_R.xzr`, CPT, 2018 products"
+    for e, v in R["final"].items():
+        V = R["verdicts"]["primary|A"][e]
+        cnt = f"{V['n_logmid']} vs {V['n_thr3']} of {V['n']}" if e == "E19" else f"{V.get('n_ok')} of {V['n']}"
+        NUM.add(f"v14_{e}", f"{v['verdict']}" + (f" ({', '.join(v['flags'])})" if v["flags"] else "") + f"; {cnt}",
+                f"v1.4 pre-registered {e} (primary geometry, scenario A; gap 2392 days)", fd, sd,
+                ref=(f"{rv}/{'3_same_epoch' if e in ('E18', 'E19', 'E20') else '2_dp_comparison'}.md", f"**{e}**", f"**{v['verdict']}**"))
+    for n_ in sorted(R["dps"], key=lambda k: R["dps"][k]["index"]):
+        o = R["dps"][n_]["per"]["primary|A"]; sw = o["sw"]
+        NUM.add(f"v14_{n_}", f"x {o['x']:.1f} m; log-midpoint base {o['logmid']:.2f} mTAW; ρ_below,DP {o['rho_below']:.2f} Ω·m"
+                + (f"; {sw[0]:.1f} [{sw[1]:.1f}, {sw[2]:.1f}] % seawater" if sw else "; not estimable"),
+                f"v1.4: {n_} (CPT {R['dps'][n_]['cpt']}, 23 Sep 2024): DP base, clean-sand ρ_below and salinity (scenario A)", fd, sd,
+                ref=(f"{rv}/2_dp_comparison.md", f"| {n_} | {R['dps'][n_]['cpt']} |", f"**{o['logmid']:.2f}**"))
+    rbs = [R["dps"][n_]["per"]["primary|A"]["rho_below"] for n_ in R["dps"]]
+    imgs = [R["dps"][n_]["per"]["primary|A"]["sd"]["rho_below_img"] for n_ in R["dps"]]
+    NUM.add("v14_rho_below_dp_range", f"DP {min(rbs):.1f}–{max(rbs):.1f} Ω·m; same-epoch image {min(imgs):.1f}–{max(imgs):.1f} Ω·m",
+            "v1.4: ρ below the lens, DP (clean sand) vs the ERT.dat image inverted with our pipeline", fd, sd)
+    SDn = np.load(os.path.join(DS6, "..", "v1_4", "samedate", "cpt.npz")) if os.path.exists(os.path.join(DS6, "..", "v1_4", "samedate", "cpt.npz")) \
+        else np.load(os.path.join(PROJ, "data", "processed", "v1_4", "samedate", "cpt.npz"))
+    NUM.add("v14_sd_data", f"{int(SDn['n_kept'])} of {int(SDn['n_data'])} kept; χ² at λ = 50 {float(SDn['lam50_chi2']):.2f}",
+            "v1.4: same-epoch inversion of ERT.dat (Stage-1 rule, v1.0 error model)", "27_dp_groundtruth.py:cmd_samedate",
+            "`data/raw/dp_zenodo_20792093/ERT.dat`", ref=(f"{rv}/3_same_epoch.md", "- Data:", f"kept {int(SDn['n_kept'])}"))
+    pa = {n_: R["dps"][n_]["per"]["primary|A"] for n_ in R["dps"]}
+    d_bel = [pa[n_]["logmid"] - pa[n_]["bel"][0] for n_ in ("DP2", "DP3", "DP4", "DP5", "DP6", "DP7")]
+    d_80 = [pa[n_]["logmid"] - pa[n_]["sal1980"] for n_ in ("DP3", "DP4", "DP5", "DP6", "DP7")]
+    d_img = [pa[n_]["sd"]["band_logmid_pooled"][1] - pa[n_]["logmid"] for n_ in ("DP3", "DP4", "DP5", "DP6", "DP7")]
+    NUM.add("v14_dp_minus_bel", f"{min(d_bel):+.2f} … {max(d_bel):+.2f} m", "v1.4: DP log-midpoint base minus the 2018 BEL median, "
+            "DP2–DP7 (positive = DP shallower; gap 2392 days)", fd, sd)
+    NUM.add("v14_dp_minus_1980", f"{min(d_80):+.2f} … {max(d_80):+.2f} m", "v1.4: DP log-midpoint base minus the 1980 saline base, "
+            "DP3–DP7", fd, sd)
+    NUM.add("v14_image_logmid_minus_dp", f"{min(d_img):+.2f} … {max(d_img):+.2f} m", "v1.4: same-epoch image λ-pooled log-midpoint "
+            "median minus the DP log-midpoint base, DP3–DP7 (positive = image shallower)", fd, sd)
+    H = json.load(open(os.path.join(d, "e14_followup.json"), encoding="utf-8")); fh = "26_raw_abem.py:cmd_followup"
+    NUM.add("v14_E14_followup_or", f"adjusted {H['or_recent_adj']:.2f} [{H['or_recent_adj90'][0]:.2f}, {H['or_recent_adj90'][1]:.2f}] "
+            f"(crude {H['or_recent_crude']:.2f})", "v1.4 E14 follow-up: odds ratio of the recent-use flag adjusted for geometry, "
+            "signal, station and contact (90 % bootstrap)", fh, "`project.db`",
+            ref=(f"{rv}/7_e14_followup.md", "Recent-use flag", f"**{H['or_recent_adj']:.2f}**"))
+    top = sorted(H["ll_drop"].items(), key=lambda kv: -kv[1])[:3]
+    NUM.add("v14_E14_followup_top", ", ".join(f"{k} ({v:.1f})" for k, v in top), "v1.4 E14 follow-up: covariates with the largest "
+            "log-likelihood drop", fh, "`project.db`")
+    dd = H["by_dU_decile"]
+    NUM.add("v14_E14_followup_dU", f"{100*dd[0]['rate']:.1f} % (smallest |ΔU| decile) → {100*dd[-1]['rate']:.1f} % (largest)",
+            "v1.4 E14 follow-up: outlier rate by |ΔU| decile", fh, "`project.db`")
+    st = H["by_station"]
+    NUM.add("v14_E14_followup_station", ", ".join(f"station {k}: {100*v['rate']:.1f} %" for k, v in st.items()),
+            "v1.4 E14 follow-up: outlier rate by roll-along station", fh, "`project.db`")
+
+
+def extra_numbers_v14():
+    """v1.4a numbers (appended after all v1.3 numbers): the raw 2018 Terrameter project (26_raw_abem.py) and the placement
+    of the Zenodo ERT line (27_dp_groundtruth.py). No DP resistivity value is used."""
+    d = os.path.join(os.path.dirname(DS6), "v1_4")
+    if not os.path.exists(os.path.join(d, "raw2018.json")):
+        print("[v1.4] no v1.4 products — v1.4 numbers skipped", flush=True)
+        return
+    rv = "results/v1_4"; r1, rp = f"{rv}/1_raw_abem.md", f"{rv}/1_line_placement.md"
+    J = json.load(open(os.path.join(d, "raw2018.json"), encoding="utf-8"))
+    f26, s26 = "26_raw_abem.py:cmd_run", "`data/raw/Project12_LS210110079_2018-03-07_11-22-23/project.db`"
+    pc = lambda v: f"{100*v:.2f} %"
+    dist = lambda x: f"{pc(x['median'])} / {pc(x['p90'])} / {pc(x['p99'])} (n = {x['n']})"
+    c, e = J["counts"], J["errors"]
+    NUM.add("v14_raw_match", f"{c['matched']} of {c['published']}; max relative difference {c['max_rel_diff']:.1e}",
+            "v1.4: published land_data.dat rows matched to task-1 quadrupoles of the raw 2018 project", f26, s26,
+            ref=(r1, "match task-1 quadrupoles", f"All {c['matched']} of the {c['published']}"))
+    rq = J["repeats"]
+    NUM.add("v14_raw_repeats", f"{rq['n_published_repeated']} published quadrupoles measured more than once (always within one "
+            f"station); last measurement published in {rq['published_is_last']}", "v1.4: repeated quadrupoles in the raw file", f26, s26,
+            ref=(r1, "Repeats:", f"{rq['n_published_repeated']} of them published"))
+    rl = J["rule_quadrupoles"]
+    NUM.add("v14_raw_rule", f"{rl['n']} quadrupoles; not published: " + ", ".join(f"row {x['row']}" for x in rl["rule_not_published"]),
+            "v1.4: selection rule 'stacking error ≤ 1 % and R > 0' on our electrodes (distinct quadrupoles)", f26, s26,
+            ref=(r1, "Selection rule", f"{rl['n']} distinct quadrupoles"))
+    t = J["timing"]
+    for st, (a, b, n) in t["stations"].items():
+        NUM.add(f"v14_raw_time_station{st}", f"{a[11:16]}–{b[11:16]} (n = {n})", f"v1.4: published data of roll-along station {st}, "
+                "instrument clock (time zone unknown), 7 March 2018", f26, s26, ref=(r1, f"| {st} | {a[11:16]}–{b[11:16]}", f"| {n} |"))
+    NUM.add("v14_raw_session", f"published {t['published'][0][11:16]}–{t['published'][1][11:16]}; reciprocals {t['task2'][0][11:16]}–"
+            f"{t['task2'][1][11:16]}; session {t['session'][0][11:16]}–{t['session'][1][11:16]}", "v1.4: survey timing, instrument clock "
+            "(time zone unknown)", f26, s26, ref=(r1, "Published data", f"{t['published'][0][11:16]}–{t['published'][1][11:16]}"))
+    NUM.add("v14_E13", f"{'holds' if J['E13']['holds'] else 'does not hold'}: median stacking error {pc(J['E13']['median_published'])} "
+            f"(published), {pc(J['E13']['median_all'])} (all task-1)", "v1.4 pre-registered E13 (median stacking error < 3 %)", f26, s26,
+            ref=(r1, "**E13**", pc(J["E13"]["median_published"])))
+    for k, lab in (("stack_published", "stacking error, published data"), ("recip_published", "reciprocal error, pairs on published electrodes"),
+                   ("recip_all", "reciprocal error, all pairs")):
+        NUM.add(f"v14_{k}", dist(e[k]), f"v1.4: {lab} — median / P90 / P99", f26, s26, ref=(r1, f"| {lab} |", dist(e[k])))
+    NUM.add("v14_recip_pairs", f"{e['n_task2_paired']} task-2 data paired ({e['n_pairs']} pairings); {e['n_pairs_published']} on published "
+            f"electrodes; {e['n_pairs_dune']} involve dune electrodes", "v1.4: normal–reciprocal pairs (task 2 = reciprocal of station 3)",
+            f26, s26, ref=(r1, "Pairs:", f"{e['n_task2_paired']} task-2 data with a partner"))
+    NUM.add("v14_robust_sigma", f"{pc(e['robust_sigma_rel_all'])} (all pairs), {pc(e['robust_sigma_rel_published'])} (published electrodes)",
+            "v1.4: robust relative error scale 1.4826 × median reciprocal error / √2 (descriptive)", f26, s26,
+            ref=(r1, "Robust scale", pc(e["robust_sigma_rel_published"])))
+    NUM.add("v14_recip_over_stack", f"{e['recip_over_stack_median']:.1f}", "v1.4: median ratio of reciprocal to stacking error on "
+            "the same pairs", f26, s26, ref=(r1, "Median ratio reciprocal / stacking", f"{e['recip_over_stack_median']:.1f}"))
+    fa = J["fit_all"]; b_ = fa["B"]["params"]; a_ = fa["A"]["params"]
+    NUM.add("v14_errfit", f"best {fa['best']}: c = {100*b_[0]:.3g} %, f = {b_[1]:.3g} Ω (AIC {fa['B']['aic']:.1f}); A: a = {a_[0]:.3g} Ω, "
+            f"b = {100*a_[1]:.3g} % (AIC {fa['A']['aic']:.1f}); v1.0 log-likelihood {fa['v1.0']['logL']:.1f}",
+            "v1.4: Gaussian ML error models fitted to the reciprocal differences of all pairs (descriptive)", f26, s26,
+            ref=(r1, "| B: σ", f"c = {100*b_[0]:.3g} %, f = {b_[1]:.3g} Ω"))
+    NUM.add("v14_recip_scale", f"median {J['recip_scale']['median']:.2f} (P90 {J['recip_scale']['p90']:.2f})",
+            "v1.4: reciprocal-based error ÷ v1.0 error on the published data (used in the (f) sensitivity run)", f26, s26,
+            ref=(r1, "Ratio of the reciprocal-based error", f"median {J['recip_scale']['median']:.2f}"))
+    m = J["outliers"]["stack"]
+    NUM.add("v14_outlier_stack", f"median {pc(m['median_out'])} vs {pc(m['median_ret'])}; p = {m['p']:.2g}; P(outlier > retained) = "
+            f"{m['p_superiority']:.2f}", "v1.4: stacking error of the 357 v1.0 outliers vs the 1974 retained data (Mann–Whitney)", f26, s26,
+            ref=(r1, "- Stacking error:", f"median {pc(m['median_out'])}"))
+    E = J["E14"]
+    for nm in ("time", "count"):
+        v = E[nm]
+        NUM.add(f"v14_E14_{nm}", f"outlier rate {100*v['rate_low']:.1f} % (lowest quartile, ≤ {v['q1']:.0f}) vs {100*v['rate_rest']:.1f} %; "
+                f"odds ratio {v['odds_ratio']:.2f} [{v['or90'][0]:.2f}, {v['or90'][1]:.2f}]", f"v1.4 E14 charge-up test, {nm} since a "
+                "potential electrode was last a current electrode (90 % bootstrap)", f26, s26,
+                ref=(r1, f"| {nm} |", f"{v['odds_ratio']:.2f} [{v['or90'][0]:.2f}, {v['or90'][1]:.2f}]"))
+    NUM.add("v14_E14", "holds" if E["holds"] else "does not hold", "v1.4 pre-registered E14", f26, s26,
+            ref=(r1, "**E14**", "holds" if E["holds"] else "does not hold"))
+    S = J["sensitivity"]; a, b = S["g1_lam50"], S["g1_lam50_recip"]
+    NUM.add("v14_sens_chi2", f"{a['chi2']:.2f} (v1.0) vs {b['chi2']:.2f} (reciprocal-based); median error {pc(a['median_err'])} vs "
+            f"{pc(b['median_err'])}", "v1.4 (f): g1_lam50 re-run with the reciprocal-based error model (sensitivity only)", f26,
+            "`data/processed/runs/g1_lam50_recip/`", ref=(r1, "χ² (with each run's own errors)", f"v1.0 {a['chi2']:.2f}"))
+    for i, x in enumerate((150, 200, 250, 300, 350)):
+        NUM.add(f"v14_sens_x{x}", f"3 Ω·m {a['thr3'][i]:.2f} → {b['thr3'][i]:.2f}; log-midpoint {a['logmid'][i]:.2f} → {b['logmid'][i]:.2f} mTAW",
+                f"v1.4 (f): lens base at x = {x} m, v1.0 vs reciprocal-based error model (λ = 50)", f26,
+                "`data/processed/runs/g1_lam50_recip/`", ref=(r1, f"| {x} | {a['thr3'][i]:.2f}", f"{b['thr3'][i]:.2f}"))
+    dn = J["dune"]
+    NUM.add("v14_dune", f"{len(dn['positions'])} electrodes (p {dn['positions'][0]}–{dn['positions'][-1]}); {dn['n_data']} data involve them",
+            "v1.4: unpublished dune electrodes landward of E1 (not used)", f26, s26, ref=(r1, "## (g)", ""))
+    P = json.load(open(os.path.join(d, "placement.json"), encoding="utf-8"))
+    f27, s27 = "27_dp_groundtruth.py:cmd_run", "`data/raw/dp_zenodo_20792093/ERT.dat`, g1_lam50, project.db"
+    g = P["gps"]
+    NUM.add("v14_gps_datum", "; ".join(f"station {x['station']}: x {x['datum']['x']:.1f} (spread centre {x['centre_x_expected']:.1f}), "
+                                       f"without datum {x['nodatum']['x']:.1f}" for x in g if x["task"] == 1),
+            "v1.4: instrument GPS medians projected on our line, with / without the BD72 datum transformation", f27, s27,
+            ref=(rp, "| 1 (1) |", f"{g[0]['datum']['x']:.1f} / "))
+    pr, ps = P["primary"], P["pseudo"]
+    NUM.add("v14_X0", f"{pr['X0']:.1f} ± {pr['sigma']:.1f} m (RMS {pr['rms_min']:.3f}; opposite orientation {pr['rms_min_rev']:.3f})",
+            "v1.4: our x of the sea end of the Zenodo ERT line (X0*, σ_X), forward modelling through g1_lam50", f27, s27,
+            ref=(rp, "**X0* =", f"{pr['X0']:.1f} m, σ_X = {pr['sigma']:.1f} m"))
+    NUM.add("v14_X0_pseudo", f"{ps['X0']:.1f} m (r = {ps['r_max']:.2f}); opposite orientation r = {ps['r_max_rev']:.2f}",
+            "v1.4: line placement by pseudo-section correlation (secondary)", f27, s27,
+            ref=(rp, "- Best X0 =", f"{ps['X0']:.1f} m (r = {ps['r_max']:.2f})"))
+    NUM.add("v14_dp_x", ", ".join(f"{x['name']} {x['our_x']:.1f}" for x in P["dps"]), "v1.4: DP positions on our axis (our_x = X0* − "
+            "x_local; ± σ_X)", f27, s27, ref=(rp, "| DP1 |", f"**{P['dps'][0]['our_x']:.1f}**"))
+    NUM.add("v14_dp_date", "pending (asked T. Hermans)", "v1.4: survey date of the DP logs and of the Zenodo ERT line", f27,
+            "`data/raw/README_sources.md`")
+
+
+def extra_numbers_v13():
+    """v1.3 numbers (appended after all v1.1.1 numbers): Task 0 field like-for-like interface definitions
+    (25_generalisation.py field) and the factorial study (25_generalisation.py report)."""
+    d = os.path.join(os.path.dirname(DS6), "v1_3")
+    if not os.path.exists(os.path.join(d, "field.json")):
+        print("[v1.3] no v1.3 products — v1.3 numbers skipped", flush=True)
+        return
+    rv = "results/v1_3"
+    fj = json.load(open(os.path.join(d, "field.json"), encoding="utf-8"))
+    fmt = lambda b: f"{b[1]:.2f} [{b[2]:.2f}, {b[3]:.2f}] ({100*b[0]:.0f}%)"
+    for i, x in enumerate(fj["x"]):
+        for key, k, lab in (("pooled_thr3", "thr3_pooled", "3 Ω·m base, λ-pooled"),
+                            ("single_logmid", "logmid_lam50", "log-midpoint base, λ = 50")):
+            NUM.add(f"v13_field_{k}_x{x}", fmt(fj[key][i]), f"v1.3 field like-for-like: linearised {lab}, x = {x} m "
+                    "(median [P5, P95] (share present), mTAW)", "25_generalisation.py:cmd_field",
+                    "`results/runs/g1_lam50_v4/interface_definitions_bands.npz`",
+                    ref=(f"{rv}/0_field_like_for_like.md", f"| {x} |", fmt(fj[key][i])))
+    w = lambda key: [b[3] - b[2] for b in fj[key]]
+    NUM.add("v13_field_widths", f"3 Ω·m λ-pooled {min(w('pooled_thr3')):.1f}–{max(w('pooled_thr3')):.1f} m; log-midpoint "
+            f"λ = 50 {min(w('single_logmid')):.1f}–{max(w('single_logmid')):.1f} m",
+            "v1.3 field like-for-like: 90 % band widths (P95 − P5) at x = 150–350 m", "25_generalisation.py:cmd_field",
+            "`results/runs/g1_lam50_v4/interface_definitions_bands.npz`")
+    d1, d2 = fj["diff_pooled_logmid_minus_thr3"], fj["diff_lam50_logmid_minus_thr3"]
+    NUM.add("v13_field_logmid_minus_thr3", f"λ-pooled {min(d1):+.2f} … {max(d1):+.2f} m; λ = 50 {min(d2):+.2f} … {max(d2):+.2f} m",
+            "v1.3 field like-for-like: median log-midpoint minus median 3 Ω·m base at x = 150–350 m (positive = log-midpoint "
+            "shallower)", "25_generalisation.py:cmd_field", "`results/runs/g1_lam50_v4/interface_definitions_bands.npz`",
+            ref=(f"{rv}/0_field_like_for_like.md", "Median log-midpoint minus", f"λ-pooled {d1[0]:+.2f}"))
+    if os.path.exists(os.path.join(d, "v13_summary.json")):
+        extra_numbers_v13_factorial(json.load(open(os.path.join(d, "v13_summary.json"), encoding="utf-8")), rv)
+
+
+def extra_numbers_v13_factorial(sm, rv):
+    """v1.3 factorial study and rule fit (25_generalisation.py report → data/processed/v1_3/v13_summary.json): every
+    number quoted in results/v1_3/SUMMARY.md."""
+    src, fn = "`data/processed/v1_3/v13_summary.json`", "25_generalisation.py:cmd_report"
+    rep2, rep3 = f"{rv}/2_factorial_results.md", f"{rv}/3_rule_fit.md"
+    V = sm["verdicts"]; hold = lambda b: "holds" if b else "does not hold"
+    e9, e10, e11 = V["E9"], V["E10"], V["E11"]
+    NUM.add("v13_n_truths_r10", f"{sum(1 for v in sm['n_with_r10'].values() if v)} of {sm['n_truths']}",
+            "v1.3: truths with at least one (column, realisation) pair with r ≤ 10 m at the true base (λ = 50)", fn, src)
+    NUM.add("v13_E9", f"{hold(e9['holds'])}: {e9['n_ok']} of {e9['n']} cases", "v1.3 pre-registered E9: sign of the "
+            "fixed-contour bias as predicted by q (λ = 50, r ≤ 10 m, |q − 0.5| > 0.1)", fn, src,
+            ref=(rep2, "**E9**", f"{e9['n_ok']} of {e9['n']} cases"))
+    NUM.add("v13_E10", f"{hold(e10['holds'])}: {e10['n_ok']} of {e10['n']} sharp truths", "v1.3 pre-registered E10: oracle "
+            "contour |bias| ≤ 0.5 m and coverage ≥ 80 % (λ = 50, r ≤ 10 m)", fn, src,
+            ref=(rep2, "**E10**", f"{e10['n_ok']} of {e10['n']} sharp truths"))
+    a, b = e11["all"]["logmid"], e11["all"]["maxgrad"]
+    i3, oa = e11["inside3"], e11["oracle_anchor"]
+    NUM.add("v13_E11", f"{hold(e11['holds'])}: log-midpoint {a['n_ok']}/{a['n']}, max. gradient {b['n_ok']}/{b['n']}; "
+            f"3 Ω·m inside the contrast {i3['logmid']['n_ok']}/{i3['logmid']['n']} and {i3['maxgrad']['n_ok']}/{i3['maxgrad']['n']}; "
+            f"oracle anchor {oa['logmid_o']['n_ok']}/{oa['logmid_o']['n']} and {oa['maxgrad_o']['n_ok']}/{oa['maxgrad_o']['n']}",
+            "v1.3 pre-registered E11: truths with log-midpoint / max.-gradient coverage ≥ 85 % (λ = 50, r ≤ 10 m), with the "
+            "pre-registered breakdowns", fn, src, ref=(rep2, "**E11**", f"log-midpoint {a['n_ok']}/{a['n']}"))
+    f = sm["fit"]
+    NUM.add("v13_E12_rule_fit", f"{hold(f['r2'] >= 0.5)}: a = {f['a']:.3f} [{f['a90'][0]:.3f}, {f['a90'][1]:.3f}], "
+            f"R² = {f['r2']:.2f}, n = {f['n']}", "v1.3 pre-registered E12 and the rule fit bias = −a·r̄·Φ⁻¹(q) (sharp truths, "
+            "fixed contours, λ = 50, r ≤ 10 m; 90 % bootstrap over truths)", fn, src,
+            ref=(rep3, "a = **", f"{f['a']:.3f}** (90 % bootstrap [{f['a90'][0]:.3f}, {f['a90'][1]:.3f}]), R² = **{f['r2']:.2f}**"))
+    fl = sm["fit_lam"]
+    NUM.add("v13_rule_a_per_lambda", "; ".join(f"λ = {l}: {fl[l]['a']:.3f}" for l in ("5", "10", "20", "50", "100")),
+            "v1.3 rule fit with one a per λ (realisations 0–1, r̄ from λ = 50)", fn, src,
+            ref=(rep3, "| 100 |", f"| {fl['100']['a']:.3f} | [{fl['100']['a90'][0]:.3f}, {fl['100']['a90'][1]:.3f}] |"))
+    g = sm["fit_grad"]
+    NUM.add("v13_rule_gradual", f"a = {g['a']:.3f} [{g['a90'][0]:.3f}, {g['a90'][1]:.3f}], R² = {g['r2']:.2f}, n = {g['n']}",
+            "v1.3 rule fit on the gradual truths (τ = 5 m), λ = 50", fn, src,
+            ref=(rep3, "sharp-truth a", f"a = {g['a']:.3f} (90 % [{g['a90'][0]:.3f}, {g['a90'][1]:.3f}]), R² = {g['r2']:.2f}"))
+    ph = sm["posthoc"]["fit_rec"]
+    NUM.add("v13_posthoc_rule_qrec", f"a = {ph['a']:.3f} [{ph['a90'][0]:.3f}, {ph['a90'][1]:.3f}], R² = {ph['r2']:.2f}, n = {ph['n']}",
+            "v1.3 POST HOC (not pre-registered): rule fit with q from the recovered plateaus of m̂ (sharp truths, fixed "
+            "contours, λ = 50, r ≤ 10 m)", fn, src,
+            ref=(rep3, "- fixed contours, q_rec:", f"a = {ph['a']:.3f} [{ph['a90'][0]:.3f}, {ph['a90'][1]:.3f}], R² = {ph['r2']:.2f}"))
+    rec = sm["posthoc"]["recovered"]
+    import math
+    ratio = {t: math.log10(v["below"] / v["lens"]) / math.log10(int(t.split("_")[2])) for t, v in rec.items()}
+    for k in (2, 4, 8, 16):
+        ts = [t for t in rec if int(t.split("_")[2]) == k]
+        ob = [sm["oracle_bias"][t] for t in ts if sm["oracle_bias"][t] is not None]
+        NUM.add(f"v13_oracle_k{k}", f"oracle bias {min(ob):+.2f} … {max(ob):+.2f} m; recovered/true log-contrast "
+                f"{min(ratio[t] for t in ts):.2f}–{max(ratio[t] for t in ts):.2f}", f"v1.3: oracle-contour bias (λ = 50, "
+                f"r ≤ 10 m) and the recovered/true log-contrast of m̂ (post hoc) over the truths with k = {k}", fn, src)
+    for x, lab in (("thr2", "2 Ω·m"), ("thr3", "3 Ω·m"), ("thr5", "5 Ω·m"), ("oracle", "oracle √(ρ_lens·ρ_below)"),
+                   ("logmid", "log-midpoint"), ("maxgrad", "max. gradient"), ("logmid_o", "log-midpoint (oracle anchor)")):
+        for tr in ("lam50", "pooled"):
+            v = sm["agg"][f"{x}_{tr}"]
+            NUM.add(f"v13_cov_{x}_{tr}", f"median coverage {100*v['cov_med']:.0f} %; {v['n85']} of {v['n']} truths ≥ 85 %; "
+                    f"median |bias| {v['absbias_med']:.2f} m" + (f"; median scatter ratio {v['scatter_med']:.2f}" if v["scatter_med"] is not None else ""),
+                    f"v1.3 factorial, {lab}, {'λ = 50' if tr == 'lam50' else 'λ-pooled'}, r ≤ 10 m: over truths", fn, src,
+                    ref=(rep2, f"| {lab} | {tr} |", f"| {v['n']} | {100*v['cov_med']:.0f}% | {v['n85']} |"))
+    for t in ("G_1.42_4_-8_0", "G_1.42_4_-12_0"):
+        pt = sm["per_truth"][t]
+        NUM.add(f"v13_westhoeklike_{t.replace('.', 'p').replace('-', 'm')}",
+                f"3 Ω·m {100*pt['thr3'][0]:.0f} % / {pt['thr3'][1]:+.2f} m; log-midpoint {100*pt['logmid'][0]:.0f} % / {pt['logmid'][1]:+.2f} m",
+                f"v1.3 Westhoek-like truth {t} (ρ_below 5.68 Ω·m): coverage / median bias, λ = 50, r ≤ 10 m", fn, src,
+                ref=(rep2, f"| {t} |", f"{100*pt['thr3'][0]:.0f}% / {pt['thr3'][1]:+.2f}"))
+    pt = sm["per_truth"]
+    lb = [pt[t]["logmid"][1] for t in pt if int(t.split("_")[2]) >= 4 and pt[t]["logmid"][1] is not None]
+    NUM.add("v13_logmid_bias_k4plus", f"{min(lb):+.2f} … {max(lb):+.2f} m", "v1.3: log-midpoint median bias (λ = 50, r ≤ 10 m) "
+            "over the truths with k ≥ 4", fn, src)
+    fails = [(t, pt[t]["logmid"][0]) for t in pt if pt[t]["logmid"][0] is not None and pt[t]["logmid"][0] < 0.85]
+    NUM.add("v13_E11_logmid_failures", "; ".join(f"{t} {100*c:.0f} %" for t, c in fails),
+            "v1.3: truths with log-midpoint coverage < 85 % (λ = 50, r ≤ 10 m)", fn, src)
+    sc = [v["scatter_med"] for k_, v in sm["agg"].items() if k_.endswith("_lam50") and v["scatter_med"] is not None]
+    NUM.add("v13_scatter_range", f"{min(sc):.2f}–{max(sc):.2f}", "v1.3: median between-realisation scatter / predicted "
+            "σ_z per definition (λ = 50, r ≤ 10 m)", fn, src)
+    NUM.add("v13_westhoek_q3", f"{sm['westhoek_q3']:.2f}", "v1.3: q of the 3 Ω·m contour for ρ_lens = 1.42, ρ_below = 5.32 Ω·m",
+            fn, src)
+
+
+def extra_numbers_v111():
+    """v1.1.1 numbers (appended after all v1.1 numbers): post hoc truth variants T80f / T80g (decision log v1.1.1-0) and the
+    K1 comparison at x = 400 and 450 m."""
+    d = os.path.join(os.path.dirname(DS6), "v1_1")
+    if not os.path.exists(os.path.join(d, "k1_comparison.json")):
+        return
+    rv = "results/v1_1"
+    s1 = json.load(open(os.path.join(d, "lebbe1980_summary.json"), encoding="utf-8"))
+    for t in ("T80f", "T80g"):
+        v = s1["summ"].get(t)
+        if v is None:
+            print(f"[v1.1.1] {t} missing — skipped", flush=True)
+            continue
+        NUM.add(f"v111_{t}_rho_below", f"{v['rho_below_mom']:.2f} Ω·m (pooled {v['rho_below']}; true log-mean "
+                f"{v['true_below']:.2f}); {v['field_rel']} the field 90 % interval [{v['field_lo']:.2f}, {v['field_hi']:.2f}]",
+                f"v1.1.1 post hoc synthetic truth {t}: second-BEL ρ_below, median over seeds of the posterior median (pooled "
+                "median [P5, P95]); true thickness-weighted log-mean between saline base and clay; position relative to the "
+                "field ρ_below 90 % interval", "22_lebbe1980_synthetic.py:cmd_report",
+                "`data/processed/v1_1/lebbe1980/bel_results.npz`",
+                ref=(f"{rv}/T_S1_lebbe1980.csv", f"{t},", f"{t},{v['n']},{v['rho_below_mom']:.2f},"))
+        NUM.add(f"v111_{t}_coverage", f"saline base {100*v['cov_sal']:.0f} %, fresh top {100*v['cov_ft']:.0f} %; BEL median "
+                f"inside the transition at {sum(v['inside'])}/5 positions", f"v1.1.1 post hoc synthetic {t}: coverage of the "
+                "true saline base / fresh top by the BEL 90 % lens-base intervals (x = 150–350 m, all seeds)",
+                "22_lebbe1980_synthetic.py:cmd_report", "`data/processed/v1_1/lebbe1980/bel_results.npz`",
+                ref=(f"{rv}/T_S1_lebbe1980.csv", f"{t},", f"{100*v['cov_sal']:.0f}%,{100*v['cov_ft']:.0f}%,{sum(v['inside'])}/5"))
+    kc = json.load(open(os.path.join(d, "k1_comparison.json"), encoding="utf-8"))["extra"]
+    for i, x in enumerate(kc["x"]):
+        b, l = kc["bel"][i], kc["logmid"][i]
+        NUM.add(f"v111_k1_1980_x{x}", f"saline base {kc['saline_base'][i]:.2f} mTAW; BEL median {b[0]:.2f} [{b[1]:.2f}, "
+                f"{b[2]:.2f}] ({kc['bel_minus_sal'][i]:+.2f} m); log-midpoint median {l[0]:.2f} [{l[1]:.2f}, {l[2]:.2f}] "
+                f"({kc['logmid_minus_sal'][i]:+.2f} m, r = {kc['r_logmid'][i]:.1f} m); 1980 saline base inside BEL 90 %: "
+                f"{'yes' if kc['sal_in_bel90'][i] else 'no'}",
+                f"v1.1.1 K1 comparison at x = {x} m: 1980 saline base (Lebbe 1981, interpolated) vs the 2018 BEL and "
+                "λ-pooled log-midpoint medians (difference = 2018 − 1980)",
+                "21_k1_comparison.py:cmd_run", "`data/external/lebbe1981_K1_digitised.csv`, v1.0 BEL and log-midpoint",
+                ref=(f"{rv}/3_k1_comparison.md", f"| {x} |", f"| {kc['saline_base'][i]:.2f} | {kc['fresh_top'][i]:.2f} |"))
+
+
+def extra_numbers_v11():
+    """v1.1 numbers (appended after all v1.0 numbers). Sources: ROOT/data/processed/v1_1/*.json written by
+    22_lebbe1980_synthetic.py report, 20_petrophysics_sensitivity.py run/report and 21_k1_comparison.py run."""
+    d = os.path.join(os.path.dirname(DS6), "v1_1")
+    if not os.path.exists(os.path.join(d, "k1_comparison.json")):
+        print("[v1.1] no v1.1 products — v1.1 numbers skipped", flush=True)
+        return
+    rv = "results/v1_1"
+    # Task 1
+    s1 = json.load(open(os.path.join(d, "lebbe1980_summary.json"), encoding="utf-8"))
+    for t, v in s1["summ"].items():
+        if t not in V11_TRUTHS:                   # v1.1.1 variants are appended by extra_numbers_v111
+            continue
+        NUM.add(f"v11_{t}_rho_below", f"{v['rho_below_mom']:.2f} Ω·m (pooled {v['rho_below']}; true log-mean "
+                f"{v['true_below']:.2f})", f"v1.1 synthetic 1980-K1 truth {t}: second-BEL ρ_below, median over seeds of the "
+                "posterior median (pooled median [P5, P95]); true thickness-weighted log-mean between saline base and clay",
+                "22_lebbe1980_synthetic.py:cmd_report", "`data/processed/v1_1/lebbe1980/bel_results.npz`",
+                ref=(f"{rv}/T_S1_lebbe1980.csv", f"{t},", f"{t},{v['n']},{v['rho_below_mom']:.2f},"))
+        NUM.add(f"v11_{t}_coverage", f"saline base {100*v['cov_sal']:.0f} %, fresh top {100*v['cov_ft']:.0f} %; BEL median "
+                f"inside the transition at {sum(v['inside'])}/5 positions", f"v1.1 synthetic {t}: coverage of the true "
+                "saline base / fresh top by the BEL 90 % lens-base intervals (x = 150–350 m, all seeds)",
+                "22_lebbe1980_synthetic.py:cmd_report", "`data/processed/v1_1/lebbe1980/bel_results.npz`",
+                ref=(f"{rv}/T_S1_lebbe1980.csv", f"{t},", f"{100*v['cov_sal']:.0f}%,{100*v['cov_ft']:.0f}%,{sum(v['inside'])}/5"))
+    a, b = s1["summ"].get("T80a"), s1["summ"].get("T80b")
+    verdict = lambda x: "holds" if x else "does not hold"
+    NUM.add("v11_E1_E3", f"E1 {verdict(s1['E1'])}; E2 {verdict(s1['E2'])}; E3 {verdict(s1['E3'])}",
+            "v1.1 pre-registered expectations E1–E3 (docs/decision_log.md)", "22_lebbe1980_synthetic.py:cmd_report",
+            "`data/processed/v1_1/lebbe1980_summary.json`")
+    if a and b:
+        NUM.add("v11_E4_T80b_vs_T80a", f"{b['rho_below_mom']:.2f} vs {a['rho_below_mom']:.2f} Ω·m "
+                f"({b['rho_below_mom'] - a['rho_below_mom']:+.2f} Ω·m)", "v1.1 E4: second-BEL ρ_below (median of medians), "
+                "T80b (no transition) vs T80a", "22_lebbe1980_synthetic.py:cmd_report",
+                "`data/processed/v1_1/lebbe1980_summary.json`")
+    # Task 2
+    pp = json.load(open(os.path.join(d, "petrophysics.json"), encoding="utf-8"))
+    e5 = json.load(open(os.path.join(d, "petrophysics_E5.json"), encoding="utf-8"))
+    for k in ("P1", "P2", "P3", "P4", "P5"):
+        r = pp[k]
+        NUM.add(f"v11_petro_{k}", " / ".join(f"{r[u]['sw'][1]:.1f}" for u in ("lens", "below", "dis", "dune"))
+                + f" % (P0: " + " / ".join(f"{pp['P0'][u]['sw'][1]:.1f}" for u in ("lens", "below", "dis", "dune")) + ")",
+                f"v1.1 petrophysics case {k}: median % seawater lens / below / discharge / dune"
+                + (" (unclipped)" if k == "P5" else ""), "20_petrophysics_sensitivity.py:cmd_run",
+                "`data/processed/v1_1/petrophysics.json`",
+                ref=(f"{rv}/2_petrophysics_sensitivity.md", f"| {k} |", f"{r['lens']['sw'][1]:.1f} [{r['lens']['sw'][0]:.1f}, "
+                     f"{r['lens']['sw'][2]:.1f}]"))
+    NUM.add("v11_petro_P5_lens_above100", f"{100*pp['P5']['outside']['lens']['above100']:.1f} %",
+            "v1.1 petrophysics P5 (Lebbe 1999 as calibrated): share of lens draws above 100 % seawater",
+            "20_petrophysics_sensitivity.py:cmd_run", "`data/processed/v1_1/petrophysics.json`",
+            ref=(f"{rv}/2_petrophysics_sensitivity.md", "| P5 |", f"> 100 {100*pp['P5']['outside']['lens']['above100']:.1f} %"))
+    NUM.add("v11_E5", f"{verdict(e5['E5'])} (" + "; ".join(f"{u}: spread {e5['spread'][u]:.1f} vs P0 width {e5['width'][u]:.1f} pp"
+                                                            for u in ("lens", "below", "dis", "dune")) + ")",
+            "v1.1 pre-registered statement E5 (spread of P1–P5 unit medians vs the P0 90 % width)",
+            "20_petrophysics_sensitivity.py:cmd_report", "`data/processed/v1_1/petrophysics_E5.json`")
+    # Task 3
+    kc = json.load(open(os.path.join(d, "k1_comparison.json"), encoding="utf-8"))
+    for i, x in enumerate(kc["x"]):
+        NUM.add(f"v11_k1_1980_x{x}", f"saline base {kc['saline_base'][i]:.2f}, fresh top {kc['fresh_top'][i]:.2f} mTAW; BEL − "
+                f"saline base {kc['bel_minus_sal'][i]:+.2f} m; log-midpoint − saline base {kc['logmid_minus_sal'][i]:+.2f} m; "
+                f"1980 saline base inside BEL 90 %: {'yes' if kc['sal_in_bel90'][i] else 'no'}",
+                f"v1.1 K1 comparison at x = {x} m: 1980 boundaries (Lebbe 1981, interpolated) vs the 2018 lens base",
+                "21_k1_comparison.py:cmd_run", "`data/external/lebbe1981_K1_digitised.csv`, v1.0 BEL and log-midpoint",
+                ref=(f"{rv}/3_k1_comparison.md", f"| {x} |", f"| {kc['saline_base'][i]:.2f} | {kc['fresh_top'][i]:.2f} |"))
 
 
 def stage4_diagnosis():

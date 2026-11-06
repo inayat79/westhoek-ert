@@ -1,0 +1,18 @@
+# Lebbe (1981), SWIM 7, Fig. 3, panel K1 — 1980 borehole-log interpretation, digitised.
+# Provenance: digitised from Lebbe (1981) Fig. 3, panel K1 (docs/literature/swim07_018.pdf); logs of June–August 1980.
+# Vertical uncertainty: +/-1 m on every boundary.
+# x_ours = x_lebbe + 60 m, from matching the 1980 ground elevations to our electrode elevations; uncertainty +/-30 m.
+# Units: x in m along our profile; elevations in mTAW. Empty cell = boundary absent at that position.
+# saline_base: base of the saline zone (< 2.5 Ohm-m); fresh_top: top of the fresh zone (> 20 Ohm-m);
+# lower_brackish_top: top of the brackish layer on the clay; clay_top: top of the Kortrijk clay.
+x_ours_m,x_lebbe_m,ground_1980_mTAW,saline_base_mTAW,fresh_top_mTAW,lower_brackish_top_mTAW,clay_top_mTAW,note
+85,25,7.2,-5.5,-8.5,,-25.5,dune front
+105,45,5.2,-8.0,-9.0,,-25.5,
+170,109,2.9,-10.5,-13.0,,-26.5,
+225,163,2.7,-11.3,-16.2,,-26.5,
+260,200,,-10.5,-14.0,-26.0,-27.0,lower brackish wedge starts
+290,231,1.8,-10.0,-12.3,-20.5,-27.0,
+340,279,1.4,-10.3,-12.6,-21.0,-27.5,
+390,330,,-12.6,-15.5,-20.0,-27.5,
+430,370,,-14.5,-17.5,-17.5,-28.0,fresh zone pinches out
+470,409,0.4,-16.0,,-16.0,-28.0,brackish from saline base to clay

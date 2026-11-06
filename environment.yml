@@ -1,4 +1,4 @@
-name: pg
+name: westhoek-ert
 channels:
   - conda-forge
   - gimli

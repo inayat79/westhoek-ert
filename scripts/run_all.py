@@ -24,6 +24,10 @@ Always run inside the `pg` environment:  conda run -n pg python run_all.py <mode
         Write results/paper/numbers_diff.md: every number whose value differs between OLD.json (a previous
         results/paper/numbers.json) and the current one, old → new, with the reason (rules in DIFF_REASONS).
 
+  --check-inputs [--out DIR]
+        List every input of data/raw/README_sources.md (and the fetched map layers): in place with the recorded checksum,
+        changed, missing (with the command or record to obtain it) or restricted (not public; see data/README.md).
+
   --check --out DIR
         Compare a rebuilt tree with the stored project: (1) every number in DIR/results/paper/numbers.json equals the
         stored results/paper/numbers.json; (2) every number with a cross-check reference is found in that stored report;
@@ -121,6 +125,40 @@ RAW_STEPS = [
     ("16-refit", ["16_stage6_salinity.py", "refit"], "8 min", False),
     ("16-joint", ["16_stage6_salinity.py", "joint"], "10 min", False),
     ("17", ["17_salinity_v2.py", "run"], "7 min", True),
+    ("22-run", ["22_lebbe1980_synthetic.py", "run", "--workers", "4"], "3–3.5 h (40 data sets × 5 λ)", True),
+    ("22-report", ["22_lebbe1980_synthetic.py", "report"], "2 min", True),
+    ("20-run", ["20_petrophysics_sensitivity.py", "run"], "3 min", True),
+    ("20-report", ["20_petrophysics_sensitivity.py", "report"], "< 1 min", True),
+    ("21-location", ["21_k1_comparison.py", "location"], "< 1 min", True),
+    ("21-run", ["21_k1_comparison.py", "run"], "1 min", True),
+    ("21-report", ["21_k1_comparison.py", "report"], "< 1 min", True),
+    ("25-field", ["25_generalisation.py", "field"], "< 1 min", True),
+    ("25-run", ["25_generalisation.py", "run", "--workers", "6"], "see results/v1_3/1_plan.md (416 inversions)", True),
+    ("25-report", ["25_generalisation.py", "report"], "5 min", True),
+    ("26-run", ["26_raw_abem.py", "run"], "2 min (+ 1 min g1_lam50_recip)", True),
+    ("26-followup", ["26_raw_abem.py", "followup"], "1 min", True),
+    ("26-report", ["26_raw_abem.py", "report"], "< 1 min", True),
+    ("27-fetch", ["27_dp_groundtruth.py", "fetch"], "< 1 min (Zenodo download, MD5 checked)", True),
+    ("27-run", ["27_dp_groundtruth.py", "run", "--workers", "6"], "3 min", True),
+    ("27-cpt", ["27_dp_groundtruth.py", "cpt"], "< 1 min (needs the unpublished CPT archive)", True),
+    ("27-samedate", ["27_dp_groundtruth.py", "samedate"], "30 min (12 inversions)", True),
+    ("27-dp", ["27_dp_groundtruth.py", "dp"], "3 min", True),
+    ("28-run", ["28_dp_synthetic.py", "run", "--workers", "6"], "1.6 h (108 inversions; exploratory)", True),
+    ("28-report", ["28_dp_synthetic.py", "report"], "2 min", True),
+    ("29-run", ["29_detectability.py", "run", "--workers", "6"], "20 min (42 forward runs)", True),
+    ("29-report", ["29_detectability.py", "report"], "< 1 min", True),
+    ("30-run", ["30_bel_v4.py", "run", "--workers", "6"], "8 h (4873 forward runs + BEL)", True),
+    ("28-ablation", ["28_dp_synthetic.py", "run", "--ablation", "--workers", "3"], "2.3 h (108 inversions; exploratory)", True),
+    ("30-synth", ["30_bel_v4.py", "synth"], "10 min", True),
+    ("30-l24", ["30_bel_v4.py", "l24", "--workers", "5"], "5.5 h (4873 + 100 forward runs + BEL)", True),
+    ("30-layout", ["30_bel_v4.py", "layout"], "15 min (BEL refits; no forward runs)", True),
+    ("30-layout-t1", ["30_bel_v4.py", "layout-t1"], "5 min (BEL refits; no forward runs)", True),
+    ("30-report", ["30_bel_v4.py", "report"], "1 min", True),
+    ("31-run", ["31_scores.py", "run"], "30 min (re-draws of the stored BEL fits, verified; no forward runs)", True),
+    ("31-report", ["31_scores.py", "report"], "1 min", True),
+    ("32-fetch", ["32_location_map.py", "fetch"], "1 min (network, ~46 MB; skips files already recorded)", True),
+    ("32", ["32_location_map.py", "build"], "1 min", True),
+    ("27-report", ["27_dp_groundtruth.py", "report"], "< 1 min", True),
     ("19", ["19_rho_lens_bound_check.py"], "3 min", False),
     ("18", ["18_paper.py", "all"], "7 min", True),
 ]
@@ -131,10 +169,71 @@ RAW_STEPS = [
 # ─────────────────────────────────────────────────────────────────────────────
 RUN_STEP = {"deep_all": "02-F", "deep_auto": "02-Fauto", "deep_drop_data": "02-G1", "deep_drop_elec": "02-G2", "deep_downweight": "02-G3",
             "g1_lam5": "02-lam5", "g1_lam10": "02-lam10", "g1_lam50": "02-lam50", "g1_lam100": "02-lam100",
-            "g1b_thr299": "02-G1b"}
+            "g1b_thr299": "02-G1b", "g1_lam50_recip": "26-run"}
 PRODUCERS = [   # (regex, step id or callable(match) → step id, script, evidence token that must occur in the script)
     (r"^data/raw/", "raw input", None, None),
     (r"^data/external/natural_earth/ne_10m_", "NE", "run_all.py", "natural_earth"),
+    (r"^data/external/lebbe1981_K1_digitised\.csv$", "raw input", None, None),     # hand-digitised (Lebbe 1981, Fig. 3)
+    (r"^data/processed/v1_1/lebbe1980/", "22-run", "22_lebbe1980_synthetic.py", "lebbe1980"),
+    (r"^results/v1_1/0_profile_location\.md$", "21-location", "21_k1_comparison.py", "0_profile_location.md"),
+    (r"^results/v1_1/(1_lebbe1980_synthetic\.md|T_S1_lebbe1980\.csv)$", "22-report", "22_lebbe1980_synthetic.py",
+     "1_lebbe1980_synthetic.md"),
+    (r"^results/v1_1/(2_petrophysics_sensitivity\.md|T_S2_petrophysics\.(csv|md))$", "20-report",
+     "20_petrophysics_sensitivity.py", "2_petrophysics_sensitivity.md"),
+    (r"^results/v1_1/3_k1_comparison\.md$", "21-report", "21_k1_comparison.py", "3_k1_comparison.md"),
+    (r"^data/processed/v1_3/general/", "25-run", "25_generalisation.py", "general"),
+    (r"^data/raw/Project12_LS210110079_2018-03-07_11-22-23/", "raw input", None, None),   # T. Hermans, Oct 2026
+    (r"^data/raw/dp_zenodo_20792093/", "27-fetch", "27_dp_groundtruth.py", "zenodo"),
+    (r"^data/raw/cpt_vrancken_2024/", "raw input", None, None),            # E. Vrancken, unpublished, Oct 2026
+    (r"^data/processed/v1_4/(cpt\.json|T_S6_geometry\.csv)$", "27-cpt", "27_dp_groundtruth.py", "cpt.json"),
+    (r"^data/processed/v1_4/samedate/", "27-samedate", "27_dp_groundtruth.py", "samedate"),
+    (r"^data/processed/v1_1/k1_field_bel\.npz$", "21-run", "21_k1_comparison.py", "k1_field_bel.npz"),
+    (r"^data/processed/paper/bel_products\.npz$", "18", "18_paper.py", "bel_products"),
+    (r"^data/processed/v1_5/dp_synth/T2[abc]_", "28-ablation", "28_dp_synthetic.py", "ablation"),
+    (r"^data/processed/v1_5/dp_synth/fwd_T2[abc]_", "28-ablation", "28_dp_synthetic.py", "ablation"),
+    (r"^data/processed/v1_5/dp_synth/", "28-run", "28_dp_synthetic.py", "dp_synth"),
+    (r"^data/processed/v1_5/bel_v4/synth\.npz$", "30-synth", "30_bel_v4.py", "synth.npz"),
+    (r"^data/processed/v1_5/bel_v4_l24/", "30-l24", "30_bel_v4.py", "bel_v4_l24"),
+    (r"^data/processed/v1_5/bel_v4_layout/t1_subset\.npz$", "30-layout-t1", "30_bel_v4.py", "t1_subset.npz"),
+    (r"^data/processed/v1_5/bel_v4_layout/", "30-layout", "30_bel_v4.py", "bel_v4_layout"),
+    (r"^data/processed/v1_5/layout_vs_time\.json$", "30-report", "30_bel_v4.py", "layout_vs_time.json"),
+    (r"^data/processed/v1_6/(cases\.csv|regen_check\.json|rho_below_log10\.npz)$", "31-run", "31_scores.py", "cases.csv"),
+    (r"^data/processed/v1_6/scores\.json$", "31-report", "31_scores.py", "scores.json"),
+    (r"^data/external/basemap/", "32-fetch", "32_location_map.py", "basemap"),
+    (r"^data/processed/v1_7/location_map\.json$", "32", "32_location_map.py", "location_map.json"),
+    (r"^results/figs/F_01_", "32", "32_location_map.py", "F_01"),
+    (r"^results/figs/F_12b_dp_vs_2025_ert_line\.(png|pdf)$", "27-report", "27_dp_groundtruth.py", "F_12b publication copy"),
+    (r"^results/figs/F_14_synthetic_vs_field\.(png|pdf)$", "28-report", "28_dp_synthetic.py", "F_14 publication copy"),
+    (r"^results/figs/(F_17_bel_synthetic_and_2025_ert_line|F_19_layout_vs_time)\.(png|pdf)$", "30-report", "30_bel_v4.py", "F_17/F_19 publication copies"),
+    (r"^results/figs/F_20_scores\.(png|pdf)$", "31-report", "31_scores.py", "F_20 publication copy"),
+    (r"^results/v1_6/(1_scores\.md|T_S12_scores\.(csv|md))$", "31-report", "31_scores.py", "1_scores.md"),
+    (r"^results/v1_5/7_layout_vs_time\.md$", "30-report", "30_bel_v4.py", "7_layout_vs_time.md"),
+    (r"^data/processed/v1_5/bel_checks\.json$", "30-report", "30_bel_v4.py", "bel_checks.json"),
+    (r"^data/processed/v1_5/ablation\.json$", "28-report", "28_dp_synthetic.py", "ablation.json"),
+    (r"^results/v1_5/5_bel_checks\.md$", "30-report", "30_bel_v4.py", "5_bel_checks.md"),
+    (r"^results/v1_5/6_ablation\.md$", "28-report", "28_dp_synthetic.py", "6_ablation.md"),
+    (r"^data/processed/v1_5/detect/", "29-run", "29_detectability.py", "detect"),
+    (r"^data/processed/v1_5/bel_v4/", "30-run", "30_bel_v4.py", "bel_v4"),
+    (r"^data/processed/v1_5/dp_synth_summary\.json$", "28-report", "28_dp_synthetic.py", "dp_synth_summary.json"),
+    (r"^data/processed/v1_5/detect\.json$", "29-report", "29_detectability.py", "detect.json"),
+    (r"^data/processed/v1_5/bel_v4_summary\.json$", "30-report", "30_bel_v4.py", "bel_v4_summary.json"),
+    (r"^results/v1_5/(2_dp_synthetic\.md|T_S10_dp_synthetic\.(csv|md))$", "28-report", "28_dp_synthetic.py", "2_dp_synthetic.md"),
+    (r"^results/v1_5/3_detectability\.md$", "29-report", "29_detectability.py", "3_detectability.md"),
+    (r"^results/v1_5/(4_bel_v4\.md|T_S11_bel_v4\.(csv|md))$", "30-report", "30_bel_v4.py", "4_bel_v4.md"),
+    (r"^data/processed/v1_4/dp_results\.json$", "27-dp", "27_dp_groundtruth.py", "dp_results.json"),
+    (r"^data/processed/v1_4/e14_followup\.json$", "26-followup", "26_raw_abem.py", "e14_followup.json"),
+    (r"^data/processed/v1_4/(raw2018\.json|raw2018_data\.csv|raw2018_pairs\.npz|recip_err_scale\.txt)$", "26-run",
+     "26_raw_abem.py", "raw2018.json"),
+    (r"^data/processed/v1_4/placement\.json$", "27-run", "27_dp_groundtruth.py", "placement.json"),
+    (r"^results/v1_4/(1_raw_abem\.md|T_S8_raw_2018\.(csv|md)|7_e14_followup\.md)$", "26-report", "26_raw_abem.py", "1_raw_abem.md"),
+    (r"^results/v1_4/(0_inventory\.md|1_line_placement\.md|2_dp_comparison\.md|3_same_epoch\.md|4_inreview_method\.md|"
+     r"5_cpt_inventory\.md|6_lithology\.md|T_S[679]_[a-z0-9_]+\.(csv|md))$", "27-report", "27_dp_groundtruth.py", "1_line_placement.md"),
+    (r"^data/processed/v1_3/field\.json$", "25-field", "25_generalisation.py", "field.json"),
+    (r"^data/processed/v1_3/v13_summary\.json$", "25-report", "25_generalisation.py", "v13_summary.json"),
+    (r"^results/v1_3/0_field_like_for_like\.md$", "25-field", "25_generalisation.py", "0_field_like_for_like.md"),
+    (r"^results/v1_3/(2_factorial_results\.md|3_rule_fit\.md|T_S4_factorial\.(csv|md))$", "25-report",
+     "25_generalisation.py", "2_factorial_results.md"),
+    (r"^data/processed/stage6_v2/field_v2\.npz$", "17", "17_salinity_v2.py", "stage6_v2"),
     (r"^data/processed/runs/([^/]+)/westhoek_inversion_results\.npz$", lambda m: RUN_STEP.get(m.group(1)),
      "02_land_inversion.py", "westhoek_inversion_results.npz"),
     (r"^results/deep_all_droplist\.txt$", "04-F", "04_misfit_diagnostics.py", "_droplist.txt"),
@@ -185,7 +284,9 @@ def audit(out):
         raise SystemExit(f"no read trace in {trace} — run --from-cache first")
     step_ids = {sid for sid, *_ in RAW_STEPS}
     reads, orig = {}, {}
-    for line in open(trace, encoding="utf-8"):
+    import glob
+    lines = [l for fn in [trace] + sorted(glob.glob(trace + ".*")) for l in open(fn, encoding="utf-8")]
+    for line in lines:
         tag, path = line.rstrip("\n").split("\t", 1)
         key = os.path.normcase(os.path.abspath(path))
         reads.setdefault(key, set()).add(tag); orig.setdefault(key, os.path.abspath(path))
@@ -291,6 +392,10 @@ def run(argv, cwd, log):
     dt = time.time() - t0
     print(f"  {' '.join(argv[:3])} … exit {p.returncode} ({dt:.0f} s)", flush=True)
     if p.returncode != 0:
+        tail = open(log, encoding="utf-8", errors="replace").read().splitlines()[-40:]
+        msg = next((l for l in reversed(tail) if "restricted input missing:" in l), None)
+        if msg:                                          # a step that needs data that are not public (see data/README.md)
+            raise SystemExit(msg[msg.index("restricted input missing:"):] + f"\nStopped at {' '.join(argv[:2])}; the steps before it ran from public data. Log: {log}")
         raise SystemExit(f"step failed — see {log}")
     return dt
 
@@ -339,7 +444,9 @@ def check(out):
              f"{n_same if stored is not None else 'n/a (no stored numbers)'}")
     L.append(f"- cross-checks against earlier stored reports: {n_ref_ok} / {n_ref} found")
     files_same = files_diff = 0
-    for sub in (os.path.join("results", "stage6_v2"), os.path.join("results", "paper")):
+    for sub in (os.path.join("results", "stage6_v2"), os.path.join("results", "paper"), os.path.join("results", "v1_1"),
+                os.path.join("results", "v1_3"), os.path.join("results", "v1_4"), os.path.join("results", "v1_5"),
+                os.path.join("results", "v1_6"), os.path.join("results", "figs")):
         d_new = os.path.join(out, sub)
         if not os.path.isdir(d_new) or os.path.abspath(out) == ROOT:
             continue
@@ -436,14 +543,27 @@ def from_cache(out, do_check):
     log = os.path.join(logdir, "run_all_from_cache.log")
     if not in_project:                                  # read tracing only for rebuilds into a separate folder
         trace = os.path.join(out, "provenance_reads.tsv")
-        if os.path.exists(trace):
-            os.remove(trace)
+        import glob
+        for fn in [trace] + glob.glob(trace + ".*"):
+            if os.path.exists(fn):
+                os.remove(fn)
         os.environ["WESTHOEK_READ_TRACE"] = trace
     print(f"[from-cache] → {out} (log {log})")
     t = {}
     t["17"] = run(["17_salinity_v2.py", "run", "--out", out], SCRIPT_DIR, log)
+    for sid, argv in (("22r", ["22_lebbe1980_synthetic.py", "report"]), ("20", ["20_petrophysics_sensitivity.py", "run"]),
+                      ("20r", ["20_petrophysics_sensitivity.py", "report"]), ("21l", ["21_k1_comparison.py", "location"]),
+                      ("21", ["21_k1_comparison.py", "run"]), ("21r", ["21_k1_comparison.py", "report"]),
+                      ("25f", ["25_generalisation.py", "field"]), ("25r", ["25_generalisation.py", "report"]),
+                      ("26", ["26_raw_abem.py", "run"]), ("26f", ["26_raw_abem.py", "followup"]),
+                      ("26r", ["26_raw_abem.py", "report"]), ("27", ["27_dp_groundtruth.py", "run"]),
+                      ("27c", ["27_dp_groundtruth.py", "cpt"]), ("27d", ["27_dp_groundtruth.py", "dp"]),
+                      ("27r", ["27_dp_groundtruth.py", "report"]), ("28r", ["28_dp_synthetic.py", "report"]),
+                      ("29r", ["29_detectability.py", "report"]), ("30r", ["30_bel_v4.py", "report"]),
+                      ("31r", ["31_scores.py", "report"]), ("32", ["32_location_map.py", "build"])):
+        t[sid] = run(argv + ["--out", out], SCRIPT_DIR, log)
     t["18"] = run(["18_paper.py", "all", "--out", out, "--recompute"], SCRIPT_DIR, log)
-    print(f"[from-cache] done: 17 {t['17']:.0f} s, 18 {t['18']:.0f} s, total {sum(t.values())/60:.1f} min")
+    print(f"[from-cache] done: " + ", ".join(f"{k} {v:.0f} s" for k, v in t.items()) + f"; total {sum(t.values())/60:.1f} min")
     if do_check and out != ROOT:
         sys.path.insert(0, SCRIPT_DIR)
         import read_trace
@@ -482,6 +602,60 @@ def from_raw(out, execute, until):
             break
 
 
+INPUT_SECTIONS = {   # data/raw/README_sources.md section number → (folder, public?, how to obtain)
+    "1": ("data/raw", True, "download the record doi:10.14284/390 (Marine Data Archive) and unpack its files into data/raw/"),
+    "2": ("data/raw/Project12_LS210110079_2018-03-07_11-22-23", False, "not public (T. Hermans, Ghent University)"),
+    "3": ("data/raw/dp_zenodo_20792093", True, "python 27_dp_groundtruth.py fetch"),
+    "5": ("data/raw/cpt_vrancken_2024", False, "not public (E. Vrancken, Ghent University)"),
+}
+
+
+def check_inputs(root):
+    """List every input of data/raw/README_sources.md: present with the recorded checksum, changed, or missing; restricted
+    inputs are listed with what needs them. Also the fetched map layers. Exit status 0 if every public input is in place."""
+    import hashlib
+    import re
+    sys.path.insert(0, SCRIPT_DIR)
+    import westhoek_common as wc
+    txt = open(os.path.join(root, "data", "raw", "README_sources.md"), encoding="utf-8").read()
+    sec, rows = None, []
+    for ln in txt.splitlines():
+        m = re.match(r"## (\d+)\.", ln)
+        if m:
+            sec = m.group(1); continue
+        m = re.match(r"\| `([^`]+)` \| ([\d ]+) \|(.*)\|\s*$", ln)
+        if m and sec in INPUT_SECTIONS:
+            hexes = re.findall(r"\b[0-9a-f]{64}\b", m.group(3))
+            rows.append((sec, m.group(1), int(m.group(2).replace(" ", "")), hexes[-1] if hexes else None))
+    ok_public = True
+    print(f"{'status':<10} {'input':<70} how to obtain")
+    for sec, fn, size, sha in rows:
+        folder, public, how = INPUT_SECTIONS[sec]
+        p = os.path.join(root, folder, fn)
+        if not os.path.exists(p):
+            st = "missing" if public else "restricted"
+        elif sha and hashlib.sha256(open(p, "rb").read()).hexdigest() != sha:
+            st = "CHANGED"
+        else:
+            st = "ok"
+        ok_public &= (st == "ok") or not public
+        print(f"{st:<10} {folder + '/' + fn:<70} {how if st != 'ok' else ''}")
+    for folder, how in (("data/external/natural_earth", "python run_all.py --fetch-natural-earth"),
+                        ("data/external/basemap", "python 32_location_map.py fetch")):
+        files = [f for f in os.listdir(os.path.join(root, folder)) if not f.startswith("README")] if os.path.isdir(os.path.join(root, folder)) else []
+        st = "ok" if any(f.endswith((".shp", ".tif", ".png")) for f in files) else "missing"
+        ok_public &= st == "ok"
+        print(f"{st:<10} {folder + '/ (' + str(len(files)) + ' files)':<70} {how if st != 'ok' else ''}")
+    print("\nRestricted inputs and what needs them (see data/README.md):")
+    for key in ("cpt", "abem"):
+        path, what = wc.RESTRICTED_INPUTS[key]
+        print(f"  {'present' if os.path.exists(path) else 'missing':<8} {os.path.relpath(path, wc.ROOT)}: {what}")
+    print("  Steps that stop with 'restricted input missing' without them: 26-* (2018 instrument records), 27-run (GPS datum "
+          "check), 27-cpt and everything that reads its cpt.json (27-samedate, 27-dp, 27-report, 28-*, 29-*, 30-*, 31-*, 32, 18).")
+    print(f"\nPublic inputs complete: {ok_public}")
+    return ok_public
+
+
 def main():
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     g = ap.add_mutually_exclusive_group(required=True)
@@ -489,6 +663,7 @@ def main():
     g.add_argument("--check", action="store_true"); g.add_argument("--audit", action="store_true")
     g.add_argument("--diff", default=None, metavar="OLD_JSON")
     g.add_argument("--fetch-natural-earth", action="store_true")
+    g.add_argument("--check-inputs", action="store_true", help="list every input: in place (checksum), missing or restricted")
     ap.add_argument("--out", default=None)
     ap.add_argument("--no-check", action="store_true")
     ap.add_argument("--execute", action="store_true")
@@ -503,6 +678,8 @@ def main():
         from_raw(a.out, a.execute, a.until)
     elif a.diff:
         diff(os.path.abspath(a.diff), a.diff_title)
+    elif a.check_inputs:
+        sys.exit(0 if check_inputs(os.path.abspath(a.out) if a.out else ROOT) else 1)
     elif a.fetch_natural_earth:
         fetch_natural_earth(os.path.abspath(a.out) if a.out else ROOT)
     elif a.audit:
