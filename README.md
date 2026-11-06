@@ -1,5 +1,7 @@
 # Westhoek ERT interface uncertainty
 
+[![DOI](https://zenodo.org/badge/DOI/10.5281/zenodo.24012147.svg)](https://doi.org/10.5281/zenodo.24012147)
+
 **Code and data for: *Testing Coastal ERT Uncertainty Workflows for Saline Interface Depths Against Independent Soundings*
 (submitted to Water Resources Research).**
 
@@ -11,8 +13,8 @@ their own records (see [Data](#data)).
 
 Please cite the archived version:
 
-> Rahman, I. U. (2026). *Westhoek ERT interface uncertainty: Code, decision log and derived products* (Version 3.1) [Software].
-> Zenodo. https://doi.org/10.5281/zenodo.XXXXXXX
+> Rahman, I. U. (2026). Westhoek ERT interface uncertainty: Code, decision log and derived products (Version 3.1.1) [Software].
+> Zenodo. https://doi.org/10.5281/zenodo.24012147
 
 ## What this repository contains
 

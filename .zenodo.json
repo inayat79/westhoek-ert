@@ -1,12 +1,12 @@
 {
   "title": "Westhoek ERT interface uncertainty: Code, decision log and derived products",
-  "version": "3.1.0",
+  "version": "3.1.1",
   "upload_type": "software",
   "license": "MIT",
   "creators": [
     {
       "name": "Rahman, Inayat Ur",
-      "orcid": "0000-0000-0000-0000"
+      "orcid": "0009-0003-6134-3365"
     }
   ],
   "description": "<p>Code, software environment, decision log, reported numbers and the values plotted in each figure for the paper <em>Testing Coastal ERT Uncertainty Workflows for Saline Interface Depths Against Independent Soundings</em> (submitted to Water Resources Research).</p><p>A pre-registered field test of linearized posterior bands and Bayesian Evidential Learning (BEL) for the depth of the base of an upper saline lens at De Westhoek, Belgium, against independent soundings; synthetic coverage tests; a rule for the direction of the bias of fixed-contour interfaces; and the measured damping of the resistivity below the lens in smooth ERT images.</p><p>Code: MIT licence. Results, documents and figure data: CC BY 4.0 (see LICENSE-data). The field data are not included; they come from their own records (Hermans &amp; Paepen 2019, doi:10.14284/390; Vrancken et al. 2026, doi:10.5281/zenodo.20792093). The mechanical CPT logs, the surveyed sounding positions and the 2018 instrument records are not public; the values plotted in Figures S1 and S2 derive from them and are not included.</p>",

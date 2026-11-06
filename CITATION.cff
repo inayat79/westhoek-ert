@@ -1,17 +1,17 @@
 cff-version: 1.2.0
 message: "If you use this software, please cite the archived version and the paper below."
 title: "Westhoek ERT interface uncertainty: Code, decision log and derived products"
-version: 3.1.0
+version: 3.1.1
 date-released: 2026-11-06
 license: MIT
 type: software
-doi: 10.5281/zenodo.XXXXXXX
+doi: 10.5281/zenodo.24012147
 repository-code: "https://github.com/inayat79/westhoek-ert"
 authors:
   - family-names: Rahman
     given-names: Inayat Ur
     email: gigyani.rahman@gmail.com
-    orcid: "https://orcid.org/0000-0000-0000-0000"
+    orcid: "https://orcid.org/0009-0003-6134-3365"
 keywords:
   - electrical resistivity tomography
   - uncertainty quantification
@@ -25,7 +25,7 @@ preferred-citation:
   authors:
     - family-names: Rahman
       given-names: Inayat Ur
-      orcid: "https://orcid.org/0000-0000-0000-0000"
+      orcid: "https://orcid.org/0009-0003-6134-3365"
   journal: "Water Resources Research"
   status: submitted
   year: 2026
