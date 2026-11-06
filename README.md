@@ -3,6 +3,8 @@
 **Code and data for: *Testing Coastal ERT Uncertainty Workflows for Saline Interface Depths Against Independent Soundings*
 (submitted to Water Resources Research).**
 
+Repository: https://github.com/inayat79/westhoek-ert
+
 This is a **code repository**. It holds the analysis scripts, the software environment, the pre-registration (decision log),
 the numbers reported in the paper and the values plotted in each figure. The field data are not stored here; they come from
 their own records (see [Data](#data)).

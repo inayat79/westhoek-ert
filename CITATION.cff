@@ -6,6 +6,7 @@ date-released: 2026-11-06
 license: MIT
 type: software
 doi: 10.5281/zenodo.XXXXXXX
+repository-code: "https://github.com/inayat79/westhoek-ert"
 authors:
   - family-names: Rahman
     given-names: Inayat Ur
