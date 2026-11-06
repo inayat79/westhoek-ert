@@ -114,6 +114,7 @@ def project(P, X, q):
 
 
 def gps_check():
+    wc.require_input("abem", "the 2018 error analysis (SI Table S2, Figure S2, expectations E13 and E14)")
     con = sqlite3.connect(f"file:{DB.replace(os.sep, '/')}?mode=ro", uri=True)
     rows = con.execute("""select m.StationID, s.TaskID, s.PosX, m.PosLatitude, m.PosLongitude from Measures m
                           join Stations s on m.StationID = s.ID where m.PosLatitude is not null and m.PosLatitude != 0""").fetchall()
@@ -448,6 +449,7 @@ def rf_step(z, Rf):
 
 def cpt_check():
     """The extracted files must be byte-identical to the members of the original archive."""
+    wc.require_input("cpt", "SI Figure S1, the surveyed sounding geometry, the clean-sand filter and expectation E21")
     import zipfile
     if not os.path.exists(CPT_ZIP):
         raise SystemExit(f"{CPT_ZIP} missing (unpublished CPT data from E. Vrancken; not redistributed)")
@@ -467,6 +469,7 @@ def fnum(s):
 
 
 def read_cpt():
+    wc.require_input("cpt", "SI Figure S1, the surveyed sounding geometry, the clean-sand filter and expectation E21")
     L = open(os.path.join(CPT_DIR, "CPT", "Location.txt"), encoding="utf-8").read().splitlines()
     loc = {}
     for l in L[1:]:
@@ -544,6 +547,7 @@ def cmd_cpt(args):
 
 
 def report_cpt(args, plt, s18):
+    wc.require_input("cpt_json", "the comparison with the soundings (Tables 1–2, S1, S7–S11, Figures 4–6, S9–S15, expectations E15–E21)", path=os.path.join(args.out, "data", "processed", "v1_4", "cpt.json"))
     J = json.load(open(os.path.join(args.out, "data", "processed", "v1_4", "cpt.json"), encoding="utf-8"))
     res = os.path.join(args.out, "results", "v1_4"); figs = os.path.join(res, "figs")
     C = J["cpts"]; F = J["fit"]; ids = sorted(C)
@@ -682,6 +686,7 @@ SD_DIR_NAME = "samedate"
 def cpt_topography():
     """our_x → ground elevation: CPT ground levels linear in x; beyond the outermost CPTs the 2018 surface shifted by
     the outermost CPT's difference (v1.4-8)."""
+    wc.require_input("cpt_json", "the comparison with the soundings (Tables 1–2, S1, S7–S11, Figures 4–6, S9–S15, expectations E15–E21)")
     J = json.load(open(os.path.join(wc.ROOT, "data", "processed", "v1_4", "cpt.json"), encoding="utf-8"))
     C = sorted(J["cpts"].values(), key=lambda c: c["our_x"])
     xc = np.array([c["our_x"] for c in C]); zc = np.array([c["z"] for c in C])
@@ -708,6 +713,7 @@ def surface_override(xs, zs):
 
 def sd_columns():
     """Columns: each DP at its primary (surveyed) x and at the Task-A x for X0* − σ, X0*, X0* + σ."""
+    wc.require_input("cpt_json", "the comparison with the soundings (Tables 1–2, S1, S7–S11, Figures 4–6, S9–S15, expectations E15–E21)")
     J = json.load(open(os.path.join(wc.ROOT, "data", "processed", "v1_4", "cpt.json"), encoding="utf-8"))
     pl = json.load(open(os.path.join(wc.ROOT, "data", "processed", "v1_4", "placement.json"), encoding="utf-8"))
     X0s, sg = pl["primary"]["X0"], pl["primary"]["sigma"]
@@ -873,6 +879,7 @@ def cmd_dp(args):
     check_raw()
     dpp = os.path.join(args.out, "data", "processed", "v1_4"); os.makedirs(dpp, exist_ok=True)
     s18 = _load("p18", "18_paper.py"); k1 = _load("k1c", "21_k1_comparison.py"); s17 = _load("s17", "17_salinity_v2.py")
+    wc.require_input("cpt_json", "the comparison with the soundings (Tables 1–2, S1, S7–S11, Figures 4–6, S9–S15, expectations E15–E21)", path=os.path.join(dpp, "cpt.json"))
     J = json.load(open(os.path.join(dpp, "cpt.json"), encoding="utf-8"))
     pl = json.load(open(os.path.join(dpp, "placement.json"), encoding="utf-8"))
     X0s, sg = pl["primary"]["X0"], pl["primary"]["sigma"]
@@ -1255,6 +1262,7 @@ def fig_location_v14(R, names, plt, s18, path):
     from shapely.geometry import box
     tr, _ = transformer(True)
     P, X = our_line()
+    wc.require_input("cpt_json", "the comparison with the soundings (Tables 1–2, S1, S7–S11, Figures 4–6, S9–S15, expectations E15–E21)")
     J = json.load(open(os.path.join(wc.ROOT, "data", "processed", "v1_4", "cpt.json"), encoding="utf-8"))
     pl = json.load(open(os.path.join(wc.ROOT, "data", "processed", "v1_4", "placement.json"), encoding="utf-8"))
     bb = box(2.50, 51.06, 2.62, 51.13)

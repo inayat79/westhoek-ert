@@ -24,6 +24,10 @@ Always run inside the `pg` environment:  conda run -n pg python run_all.py <mode
         Write results/paper/numbers_diff.md: every number whose value differs between OLD.json (a previous
         results/paper/numbers.json) and the current one, old → new, with the reason (rules in DIFF_REASONS).
 
+  --check-inputs [--out DIR]
+        List every input of data/raw/README_sources.md (and the fetched map layers): in place with the recorded checksum,
+        changed, missing (with the command or record to obtain it) or restricted (not public; see data/README.md).
+
   --check --out DIR
         Compare a rebuilt tree with the stored project: (1) every number in DIR/results/paper/numbers.json equals the
         stored results/paper/numbers.json; (2) every number with a cross-check reference is found in that stored report;
@@ -388,6 +392,10 @@ def run(argv, cwd, log):
     dt = time.time() - t0
     print(f"  {' '.join(argv[:3])} … exit {p.returncode} ({dt:.0f} s)", flush=True)
     if p.returncode != 0:
+        tail = open(log, encoding="utf-8", errors="replace").read().splitlines()[-40:]
+        msg = next((l for l in reversed(tail) if "restricted input missing:" in l), None)
+        if msg:                                          # a step that needs data that are not public (see data/README.md)
+            raise SystemExit(msg[msg.index("restricted input missing:"):] + f"\nStopped at {' '.join(argv[:2])}; the steps before it ran from public data. Log: {log}")
         raise SystemExit(f"step failed — see {log}")
     return dt
 
@@ -594,6 +602,60 @@ def from_raw(out, execute, until):
             break
 
 
+INPUT_SECTIONS = {   # data/raw/README_sources.md section number → (folder, public?, how to obtain)
+    "1": ("data/raw", True, "download the record doi:10.14284/390 (Marine Data Archive) and unpack its files into data/raw/"),
+    "2": ("data/raw/Project12_LS210110079_2018-03-07_11-22-23", False, "not public (T. Hermans, Ghent University)"),
+    "3": ("data/raw/dp_zenodo_20792093", True, "python 27_dp_groundtruth.py fetch"),
+    "5": ("data/raw/cpt_vrancken_2024", False, "not public (E. Vrancken, Ghent University)"),
+}
+
+
+def check_inputs(root):
+    """List every input of data/raw/README_sources.md: present with the recorded checksum, changed, or missing; restricted
+    inputs are listed with what needs them. Also the fetched map layers. Exit status 0 if every public input is in place."""
+    import hashlib
+    import re
+    sys.path.insert(0, SCRIPT_DIR)
+    import westhoek_common as wc
+    txt = open(os.path.join(root, "data", "raw", "README_sources.md"), encoding="utf-8").read()
+    sec, rows = None, []
+    for ln in txt.splitlines():
+        m = re.match(r"## (\d+)\.", ln)
+        if m:
+            sec = m.group(1); continue
+        m = re.match(r"\| `([^`]+)` \| ([\d ]+) \|(.*)\|\s*$", ln)
+        if m and sec in INPUT_SECTIONS:
+            hexes = re.findall(r"\b[0-9a-f]{64}\b", m.group(3))
+            rows.append((sec, m.group(1), int(m.group(2).replace(" ", "")), hexes[-1] if hexes else None))
+    ok_public = True
+    print(f"{'status':<10} {'input':<70} how to obtain")
+    for sec, fn, size, sha in rows:
+        folder, public, how = INPUT_SECTIONS[sec]
+        p = os.path.join(root, folder, fn)
+        if not os.path.exists(p):
+            st = "missing" if public else "restricted"
+        elif sha and hashlib.sha256(open(p, "rb").read()).hexdigest() != sha:
+            st = "CHANGED"
+        else:
+            st = "ok"
+        ok_public &= (st == "ok") or not public
+        print(f"{st:<10} {folder + '/' + fn:<70} {how if st != 'ok' else ''}")
+    for folder, how in (("data/external/natural_earth", "python run_all.py --fetch-natural-earth"),
+                        ("data/external/basemap", "python 32_location_map.py fetch")):
+        files = [f for f in os.listdir(os.path.join(root, folder)) if not f.startswith("README")] if os.path.isdir(os.path.join(root, folder)) else []
+        st = "ok" if any(f.endswith((".shp", ".tif", ".png")) for f in files) else "missing"
+        ok_public &= st == "ok"
+        print(f"{st:<10} {folder + '/ (' + str(len(files)) + ' files)':<70} {how if st != 'ok' else ''}")
+    print("\nRestricted inputs and what needs them (see data/README.md):")
+    for key in ("cpt", "abem"):
+        path, what = wc.RESTRICTED_INPUTS[key]
+        print(f"  {'present' if os.path.exists(path) else 'missing':<8} {os.path.relpath(path, wc.ROOT)}: {what}")
+    print("  Steps that stop with 'restricted input missing' without them: 26-* (2018 instrument records), 27-run (GPS datum "
+          "check), 27-cpt and everything that reads its cpt.json (27-samedate, 27-dp, 27-report, 28-*, 29-*, 30-*, 31-*, 32, 18).")
+    print(f"\nPublic inputs complete: {ok_public}")
+    return ok_public
+
+
 def main():
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     g = ap.add_mutually_exclusive_group(required=True)
@@ -601,6 +663,7 @@ def main():
     g.add_argument("--check", action="store_true"); g.add_argument("--audit", action="store_true")
     g.add_argument("--diff", default=None, metavar="OLD_JSON")
     g.add_argument("--fetch-natural-earth", action="store_true")
+    g.add_argument("--check-inputs", action="store_true", help="list every input: in place (checksum), missing or restricted")
     ap.add_argument("--out", default=None)
     ap.add_argument("--no-check", action="store_true")
     ap.add_argument("--execute", action="store_true")
@@ -615,6 +678,8 @@ def main():
         from_raw(a.out, a.execute, a.until)
     elif a.diff:
         diff(os.path.abspath(a.diff), a.diff_title)
+    elif a.check_inputs:
+        sys.exit(0 if check_inputs(os.path.abspath(a.out) if a.out else ROOT) else 1)
     elif a.fetch_natural_earth:
         fetch_natural_earth(os.path.abspath(a.out) if a.out else ROOT)
     elif a.audit:

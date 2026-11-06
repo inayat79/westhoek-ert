@@ -85,6 +85,7 @@ def dp_inputs():
     """Per DP (DP1 … DP7, sorted by x): x, ground, depth/ρ log, v1.4 base, ρ_lens, ρ_below, clay top, clay ρ."""
     v14 = os.path.join(wc.ROOT, "data", "processed", "v1_4")
     R = json.load(open(os.path.join(v14, "dp_results.json"), encoding="utf-8"))
+    wc.require_input("cpt_json", "the comparison with the soundings (Tables 1–2, S1, S7–S11, Figures 4–6, S9–S15, expectations E15–E21)", path=os.path.join(v14, "cpt.json"))
     C = json.load(open(os.path.join(v14, "cpt.json"), encoding="utf-8"))
     logs = g27.read_dp_values()
     out = []

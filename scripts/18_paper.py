@@ -1528,6 +1528,7 @@ def extra_numbers_v14_groundtruth():
         print("[v1.4] no DP ground-truth products — skipped", flush=True)
         return
     rv = "results/v1_4"
+    wc.require_input("cpt_json", "the comparison with the soundings (Tables 1–2, S1, S7–S11, Figures 4–6, S9–S15, expectations E15–E21)", path=os.path.join(d, "cpt.json"))
     C = json.load(open(os.path.join(d, "cpt.json"), encoding="utf-8")); F = C["fit"]
     fc, sc = "27_dp_groundtruth.py:cmd_cpt", "`data/raw/cpt_vrancken_2024/` (unpublished, E. Vrancken)"
     NUM.add("v14_dp_date_confirmed", "23 September 2024 (CPT and DP; E. Vrancken); gap from 7 March 2018: 2392 days",

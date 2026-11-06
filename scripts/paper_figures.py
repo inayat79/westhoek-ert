@@ -1140,6 +1140,7 @@ def figS02():
 
 def figS04():
     g27 = mod("g27")
+    wc.require_input("cpt_json", "the comparison with the soundings (Tables 1–2, S1, S7–S11, Figures 4–6, S9–S15, expectations E15–E21)")
     J = json.load(open(os.path.join(ROOT, "data", "processed", "v1_4", "cpt.json"), encoding="utf-8")); Cc = J["cpts"]; ids = sorted(Cc)
     fig = new_fig(180, dense=True)
     gs = fig.add_gridspec(4, len(ids), height_ratios=[0.09, 1, 1, 1])

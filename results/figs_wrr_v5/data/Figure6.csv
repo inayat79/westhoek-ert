@@ -595,83 +595,83 @@ b,PolyCollection1,area,0.71,120,3.37881,,,Distance (m),Elevation (mTAW),
 b,PolyCollection1,area,0.72,110,10.6468,,,Distance (m),Elevation (mTAW),
 b,PolyCollection1,area,0.73,100,13.3398,,,Distance (m),Elevation (mTAW),
 b,PolyCollection1,area,0.74,100,13.3398,,,Distance (m),Elevation (mTAW),
-a,"Synthetic from soundings, 2018 layout","bar (x left, y bottom; value = height; size = width)",0,1.43022,0,0,0.169135,ρ_below (Ω·m),Density,density
-a,"Synthetic from soundings, 2018 layout","bar (x left, y bottom; value = height; size = width)",1,1.59936,0,0,0.189137,ρ_below (Ω·m),Density,density
-a,"Synthetic from soundings, 2018 layout","bar (x left, y bottom; value = height; size = width)",2,1.7885,0,0,0.211504,ρ_below (Ω·m),Density,density
-a,"Synthetic from soundings, 2018 layout","bar (x left, y bottom; value = height; size = width)",3,2,0,0,0.236516,ρ_below (Ω·m),Density,density
-a,"Synthetic from soundings, 2018 layout","bar (x left, y bottom; value = height; size = width)",4,2.23652,0,0.00378092,0.264486,ρ_below (Ω·m),Density,density
-a,"Synthetic from soundings, 2018 layout","bar (x left, y bottom; value = height; size = width)",5,2.501,0,0.00879081,0.295763,ρ_below (Ω·m),Density,density
-a,"Synthetic from soundings, 2018 layout","bar (x left, y bottom; value = height; size = width)",6,2.79677,0,0.0208623,0.33074,ρ_below (Ω·m),Density,density
-a,"Synthetic from soundings, 2018 layout","bar (x left, y bottom; value = height; size = width)",7,3.1275,0,0.0308231,0.369852,ρ_below (Ω·m),Density,density
-a,"Synthetic from soundings, 2018 layout","bar (x left, y bottom; value = height; size = width)",8,3.49736,0,0.0435213,0.41359,ρ_below (Ω·m),Density,density
-a,"Synthetic from soundings, 2018 layout","bar (x left, y bottom; value = height; size = width)",9,3.91095,0,0.0423783,0.462501,ρ_below (Ω·m),Density,density
-a,"Synthetic from soundings, 2018 layout","bar (x left, y bottom; value = height; size = width)",10,4.37345,0,0.0570384,0.517195,ρ_below (Ω·m),Density,density
-a,"Synthetic from soundings, 2018 layout","bar (x left, y bottom; value = height; size = width)",11,4.89064,0,0.0506607,0.578358,ρ_below (Ω·m),Density,density
-a,"Synthetic from soundings, 2018 layout","bar (x left, y bottom; value = height; size = width)",12,5.469,0,0.0545803,0.646753,ρ_below (Ω·m),Density,density
-a,"Synthetic from soundings, 2018 layout","bar (x left, y bottom; value = height; size = width)",13,6.11575,0,0.0499145,0.723237,ρ_below (Ω·m),Density,density
-a,"Synthetic from soundings, 2018 layout","bar (x left, y bottom; value = height; size = width)",14,6.83899,0,0.0466143,0.808765,ρ_below (Ω·m),Density,density
-a,"Synthetic from soundings, 2018 layout","bar (x left, y bottom; value = height; size = width)",15,7.64776,0,0.0469921,0.904408,ρ_below (Ω·m),Density,density
-a,"Synthetic from soundings, 2018 layout","bar (x left, y bottom; value = height; size = width)",16,8.55216,0,0.0424181,1.01136,ρ_below (Ω·m),Density,density
-a,"Synthetic from soundings, 2018 layout","bar (x left, y bottom; value = height; size = width)",17,9.56352,0,0.0373133,1.13096,ρ_below (Ω·m),Density,density
-a,"Synthetic from soundings, 2018 layout","bar (x left, y bottom; value = height; size = width)",18,10.6945,0,0.0344744,1.26471,ρ_below (Ω·m),Density,density
-a,"Synthetic from soundings, 2018 layout","bar (x left, y bottom; value = height; size = width)",19,11.9592,0,0.0311115,1.41427,ρ_below (Ω·m),Density,density
-a,"Synthetic from soundings, 2018 layout","bar (x left, y bottom; value = height; size = width)",20,13.3735,0,0.0267464,1.58152,ρ_below (Ω·m),Density,density
-a,"Synthetic from soundings, 2018 layout","bar (x left, y bottom; value = height; size = width)",21,14.955,0,0.0241441,1.76855,ρ_below (Ω·m),Density,density
-a,"Synthetic from soundings, 2018 layout","bar (x left, y bottom; value = height; size = width)",22,16.7235,0,0.0215403,1.97769,ρ_below (Ω·m),Density,density
-a,"Synthetic from soundings, 2018 layout","bar (x left, y bottom; value = height; size = width)",23,18.7012,0,0.0196241,2.21157,ρ_below (Ω·m),Density,density
-a,"Synthetic from soundings, 2018 layout","bar (x left, y bottom; value = height; size = width)",24,20.9128,0,0.0173871,2.4731,ρ_below (Ω·m),Density,density
-a,"Synthetic from soundings, 2018 layout","bar (x left, y bottom; value = height; size = width)",25,23.3859,0,0.0138127,2.76557,ρ_below (Ω·m),Density,density
-a,"Synthetic from soundings, 2018 layout","bar (x left, y bottom; value = height; size = width)",26,26.1515,0,0.0137101,3.09262,ρ_below (Ω·m),Density,density
-a,"Synthetic from soundings, 2018 layout","bar (x left, y bottom; value = height; size = width)",27,29.2441,0,0.0100626,3.45835,ρ_below (Ω·m),Density,density
-a,"Synthetic from soundings, 2018 layout","bar (x left, y bottom; value = height; size = width)",28,32.7024,0,0.00933462,3.86732,ρ_below (Ω·m),Density,density
-a,"Synthetic from soundings, 2018 layout","bar (x left, y bottom; value = height; size = width)",29,36.5698,0,0.00689071,4.32466,ρ_below (Ω·m),Density,density
-a,"Synthetic from soundings, 2018 layout","bar (x left, y bottom; value = height; size = width)",30,40.8944,0,0.00645149,4.83609,ρ_below (Ω·m),Density,density
-a,"Synthetic from soundings, 2018 layout","bar (x left, y bottom; value = height; size = width)",31,45.7305,0,0.00493713,5.408,ρ_below (Ω·m),Density,density
-a,"Synthetic from soundings, 2018 layout","bar (x left, y bottom; value = height; size = width)",32,51.1385,0,0.00413392,6.04754,ρ_below (Ω·m),Density,density
-a,"Synthetic from soundings, 2018 layout","bar (x left, y bottom; value = height; size = width)",33,57.186,0,0.0035193,6.7627,ρ_below (Ω·m),Density,density
-a,"Synthetic from soundings, 2018 layout","bar (x left, y bottom; value = height; size = width)",34,63.9487,0,0.00255208,7.56245,ρ_below (Ω·m),Density,density
-a,"Synthetic from soundings, 2018 layout","bar (x left, y bottom; value = height; size = width)",35,71.5112,0,0.00197475,8.45677,ρ_below (Ω·m),Density,density
-a,"Synthetic from soundings, 2018 layout","bar (x left, y bottom; value = height; size = width)",36,79.968,0,0.00124777,9.45685,ρ_below (Ω·m),Density,density
-a,"Synthetic from soundings, 2018 layout","bar (x left, y bottom; value = height; size = width)",37,89.4248,0,0.000718663,10.5752,ρ_below (Ω·m),Density,density
-a,"Synthetic from soundings, 2018 layout","bar (x left, y bottom; value = height; size = width)",38,100,0,0,11.8258,ρ_below (Ω·m),Density,density
-a,"Synthetic from soundings, 2018 layout","bar (x left, y bottom; value = height; size = width)",39,111.826,0,0,13.2243,ρ_below (Ω·m),Density,density
-a,"Synthetic from soundings, 2025 layout","bar (x left, y bottom; value = height; size = width)",0,1.43022,0,0,0.169135,ρ_below (Ω·m),Density,density
-a,"Synthetic from soundings, 2025 layout","bar (x left, y bottom; value = height; size = width)",1,1.59936,0,0,0.189137,ρ_below (Ω·m),Density,density
-a,"Synthetic from soundings, 2025 layout","bar (x left, y bottom; value = height; size = width)",2,1.7885,0,0,0.211504,ρ_below (Ω·m),Density,density
-a,"Synthetic from soundings, 2025 layout","bar (x left, y bottom; value = height; size = width)",3,2,0,0,0.236516,ρ_below (Ω·m),Density,density
-a,"Synthetic from soundings, 2025 layout","bar (x left, y bottom; value = height; size = width)",4,2.23652,0,0,0.264486,ρ_below (Ω·m),Density,density
-a,"Synthetic from soundings, 2025 layout","bar (x left, y bottom; value = height; size = width)",5,2.501,0,0,0.295763,ρ_below (Ω·m),Density,density
-a,"Synthetic from soundings, 2025 layout","bar (x left, y bottom; value = height; size = width)",6,2.79677,0,0,0.33074,ρ_below (Ω·m),Density,density
-a,"Synthetic from soundings, 2025 layout","bar (x left, y bottom; value = height; size = width)",7,3.1275,0,0,0.369852,ρ_below (Ω·m),Density,density
-a,"Synthetic from soundings, 2025 layout","bar (x left, y bottom; value = height; size = width)",8,3.49736,0,0.000967141,0.41359,ρ_below (Ω·m),Density,density
-a,"Synthetic from soundings, 2025 layout","bar (x left, y bottom; value = height; size = width)",9,3.91095,0,0.00302702,0.462501,ρ_below (Ω·m),Density,density
-a,"Synthetic from soundings, 2025 layout","bar (x left, y bottom; value = height; size = width)",10,4.37345,0,0.00367366,0.517195,ρ_below (Ω·m),Density,density
-a,"Synthetic from soundings, 2025 layout","bar (x left, y bottom; value = height; size = width)",11,4.89064,0,0.00536001,0.578358,ρ_below (Ω·m),Density,density
-a,"Synthetic from soundings, 2025 layout","bar (x left, y bottom; value = height; size = width)",12,5.469,0,0.00912249,0.646753,ρ_below (Ω·m),Density,density
-a,"Synthetic from soundings, 2025 layout","bar (x left, y bottom; value = height; size = width)",13,6.11575,0,0.00774297,0.723237,ρ_below (Ω·m),Density,density
-a,"Synthetic from soundings, 2025 layout","bar (x left, y bottom; value = height; size = width)",14,6.83899,0,0.0112517,0.808765,ρ_below (Ω·m),Density,density
-a,"Synthetic from soundings, 2025 layout","bar (x left, y bottom; value = height; size = width)",15,7.64776,0,0.0131578,0.904408,ρ_below (Ω·m),Density,density
-a,"Synthetic from soundings, 2025 layout","bar (x left, y bottom; value = height; size = width)",16,8.55216,0,0.0129528,1.01136,ρ_below (Ω·m),Density,density
-a,"Synthetic from soundings, 2025 layout","bar (x left, y bottom; value = height; size = width)",17,9.56352,0,0.0171535,1.13096,ρ_below (Ω·m),Density,density
-a,"Synthetic from soundings, 2025 layout","bar (x left, y bottom; value = height; size = width)",18,10.6945,0,0.0167628,1.26471,ρ_below (Ω·m),Density,density
-a,"Synthetic from soundings, 2025 layout","bar (x left, y bottom; value = height; size = width)",19,11.9592,0,0.0173234,1.41427,ρ_below (Ω·m),Density,density
-a,"Synthetic from soundings, 2025 layout","bar (x left, y bottom; value = height; size = width)",20,13.3735,0,0.0171354,1.58152,ρ_below (Ω·m),Density,density
-a,"Synthetic from soundings, 2025 layout","bar (x left, y bottom; value = height; size = width)",21,14.955,0,0.0159453,1.76855,ρ_below (Ω·m),Density,density
-a,"Synthetic from soundings, 2025 layout","bar (x left, y bottom; value = height; size = width)",22,16.7235,0,0.0200234,1.97769,ρ_below (Ω·m),Density,density
-a,"Synthetic from soundings, 2025 layout","bar (x left, y bottom; value = height; size = width)",23,18.7012,0,0.0175893,2.21157,ρ_below (Ω·m),Density,density
-a,"Synthetic from soundings, 2025 layout","bar (x left, y bottom; value = height; size = width)",24,20.9128,0,0.0165379,2.4731,ρ_below (Ω·m),Density,density
-a,"Synthetic from soundings, 2025 layout","bar (x left, y bottom; value = height; size = width)",25,23.3859,0,0.0155483,2.76557,ρ_below (Ω·m),Density,density
-a,"Synthetic from soundings, 2025 layout","bar (x left, y bottom; value = height; size = width)",26,26.1515,0,0.0129664,3.09262,ρ_below (Ω·m),Density,density
-a,"Synthetic from soundings, 2025 layout","bar (x left, y bottom; value = height; size = width)",27,29.2441,0,0.0134168,3.45835,ρ_below (Ω·m),Density,density
-a,"Synthetic from soundings, 2025 layout","bar (x left, y bottom; value = height; size = width)",28,32.7024,0,0.0127478,3.86732,ρ_below (Ω·m),Density,density
-a,"Synthetic from soundings, 2025 layout","bar (x left, y bottom; value = height; size = width)",29,36.5698,0,0.0117003,4.32466,ρ_below (Ω·m),Density,density
-a,"Synthetic from soundings, 2025 layout","bar (x left, y bottom; value = height; size = width)",30,40.8944,0,0.0110833,4.83609,ρ_below (Ω·m),Density,density
-a,"Synthetic from soundings, 2025 layout","bar (x left, y bottom; value = height; size = width)",31,45.7305,0,0.0100962,5.408,ρ_below (Ω·m),Density,density
-a,"Synthetic from soundings, 2025 layout","bar (x left, y bottom; value = height; size = width)",32,51.1385,0,0.010219,6.04754,ρ_below (Ω·m),Density,density
-a,"Synthetic from soundings, 2025 layout","bar (x left, y bottom; value = height; size = width)",33,57.186,0,0.00993685,6.7627,ρ_below (Ω·m),Density,density
-a,"Synthetic from soundings, 2025 layout","bar (x left, y bottom; value = height; size = width)",34,63.9487,0,0.008767,7.56245,ρ_below (Ω·m),Density,density
-a,"Synthetic from soundings, 2025 layout","bar (x left, y bottom; value = height; size = width)",35,71.5112,0,0.00723681,8.45677,ρ_below (Ω·m),Density,density
-a,"Synthetic from soundings, 2025 layout","bar (x left, y bottom; value = height; size = width)",36,79.968,0,0.00621772,9.45685,ρ_below (Ω·m),Density,density
-a,"Synthetic from soundings, 2025 layout","bar (x left, y bottom; value = height; size = width)",37,89.4248,0,0.00519139,10.5752,ρ_below (Ω·m),Density,density
-a,"Synthetic from soundings, 2025 layout","bar (x left, y bottom; value = height; size = width)",38,100,0,0,11.8258,ρ_below (Ω·m),Density,density
-a,"Synthetic from soundings, 2025 layout","bar (x left, y bottom; value = height; size = width)",39,111.826,0,0,13.2243,ρ_below (Ω·m),Density,density
+a,"Synthetic from soundings, 2018 layout","bar (x left, y bottom; value = height; size = width)",0,1.43022,0,0,0.169135,ρ_below (Ω·m),Density,bar height
+a,"Synthetic from soundings, 2018 layout","bar (x left, y bottom; value = height; size = width)",1,1.59936,0,0,0.189137,ρ_below (Ω·m),Density,bar height
+a,"Synthetic from soundings, 2018 layout","bar (x left, y bottom; value = height; size = width)",2,1.7885,0,0,0.211504,ρ_below (Ω·m),Density,bar height
+a,"Synthetic from soundings, 2018 layout","bar (x left, y bottom; value = height; size = width)",3,2,0,0,0.236516,ρ_below (Ω·m),Density,bar height
+a,"Synthetic from soundings, 2018 layout","bar (x left, y bottom; value = height; size = width)",4,2.23652,0,0.00378092,0.264486,ρ_below (Ω·m),Density,bar height
+a,"Synthetic from soundings, 2018 layout","bar (x left, y bottom; value = height; size = width)",5,2.501,0,0.00879081,0.295763,ρ_below (Ω·m),Density,bar height
+a,"Synthetic from soundings, 2018 layout","bar (x left, y bottom; value = height; size = width)",6,2.79677,0,0.0208623,0.33074,ρ_below (Ω·m),Density,bar height
+a,"Synthetic from soundings, 2018 layout","bar (x left, y bottom; value = height; size = width)",7,3.1275,0,0.0308231,0.369852,ρ_below (Ω·m),Density,bar height
+a,"Synthetic from soundings, 2018 layout","bar (x left, y bottom; value = height; size = width)",8,3.49736,0,0.0435213,0.41359,ρ_below (Ω·m),Density,bar height
+a,"Synthetic from soundings, 2018 layout","bar (x left, y bottom; value = height; size = width)",9,3.91095,0,0.0423783,0.462501,ρ_below (Ω·m),Density,bar height
+a,"Synthetic from soundings, 2018 layout","bar (x left, y bottom; value = height; size = width)",10,4.37345,0,0.0570384,0.517195,ρ_below (Ω·m),Density,bar height
+a,"Synthetic from soundings, 2018 layout","bar (x left, y bottom; value = height; size = width)",11,4.89064,0,0.0506607,0.578358,ρ_below (Ω·m),Density,bar height
+a,"Synthetic from soundings, 2018 layout","bar (x left, y bottom; value = height; size = width)",12,5.469,0,0.0545803,0.646753,ρ_below (Ω·m),Density,bar height
+a,"Synthetic from soundings, 2018 layout","bar (x left, y bottom; value = height; size = width)",13,6.11575,0,0.0499145,0.723237,ρ_below (Ω·m),Density,bar height
+a,"Synthetic from soundings, 2018 layout","bar (x left, y bottom; value = height; size = width)",14,6.83899,0,0.0466143,0.808765,ρ_below (Ω·m),Density,bar height
+a,"Synthetic from soundings, 2018 layout","bar (x left, y bottom; value = height; size = width)",15,7.64776,0,0.0469921,0.904408,ρ_below (Ω·m),Density,bar height
+a,"Synthetic from soundings, 2018 layout","bar (x left, y bottom; value = height; size = width)",16,8.55216,0,0.0424181,1.01136,ρ_below (Ω·m),Density,bar height
+a,"Synthetic from soundings, 2018 layout","bar (x left, y bottom; value = height; size = width)",17,9.56352,0,0.0373133,1.13096,ρ_below (Ω·m),Density,bar height
+a,"Synthetic from soundings, 2018 layout","bar (x left, y bottom; value = height; size = width)",18,10.6945,0,0.0344744,1.26471,ρ_below (Ω·m),Density,bar height
+a,"Synthetic from soundings, 2018 layout","bar (x left, y bottom; value = height; size = width)",19,11.9592,0,0.0311115,1.41427,ρ_below (Ω·m),Density,bar height
+a,"Synthetic from soundings, 2018 layout","bar (x left, y bottom; value = height; size = width)",20,13.3735,0,0.0267464,1.58152,ρ_below (Ω·m),Density,bar height
+a,"Synthetic from soundings, 2018 layout","bar (x left, y bottom; value = height; size = width)",21,14.955,0,0.0241441,1.76855,ρ_below (Ω·m),Density,bar height
+a,"Synthetic from soundings, 2018 layout","bar (x left, y bottom; value = height; size = width)",22,16.7235,0,0.0215403,1.97769,ρ_below (Ω·m),Density,bar height
+a,"Synthetic from soundings, 2018 layout","bar (x left, y bottom; value = height; size = width)",23,18.7012,0,0.0196241,2.21157,ρ_below (Ω·m),Density,bar height
+a,"Synthetic from soundings, 2018 layout","bar (x left, y bottom; value = height; size = width)",24,20.9128,0,0.0173871,2.4731,ρ_below (Ω·m),Density,bar height
+a,"Synthetic from soundings, 2018 layout","bar (x left, y bottom; value = height; size = width)",25,23.3859,0,0.0138127,2.76557,ρ_below (Ω·m),Density,bar height
+a,"Synthetic from soundings, 2018 layout","bar (x left, y bottom; value = height; size = width)",26,26.1515,0,0.0137101,3.09262,ρ_below (Ω·m),Density,bar height
+a,"Synthetic from soundings, 2018 layout","bar (x left, y bottom; value = height; size = width)",27,29.2441,0,0.0100626,3.45835,ρ_below (Ω·m),Density,bar height
+a,"Synthetic from soundings, 2018 layout","bar (x left, y bottom; value = height; size = width)",28,32.7024,0,0.00933462,3.86732,ρ_below (Ω·m),Density,bar height
+a,"Synthetic from soundings, 2018 layout","bar (x left, y bottom; value = height; size = width)",29,36.5698,0,0.00689071,4.32466,ρ_below (Ω·m),Density,bar height
+a,"Synthetic from soundings, 2018 layout","bar (x left, y bottom; value = height; size = width)",30,40.8944,0,0.00645149,4.83609,ρ_below (Ω·m),Density,bar height
+a,"Synthetic from soundings, 2018 layout","bar (x left, y bottom; value = height; size = width)",31,45.7305,0,0.00493713,5.408,ρ_below (Ω·m),Density,bar height
+a,"Synthetic from soundings, 2018 layout","bar (x left, y bottom; value = height; size = width)",32,51.1385,0,0.00413392,6.04754,ρ_below (Ω·m),Density,bar height
+a,"Synthetic from soundings, 2018 layout","bar (x left, y bottom; value = height; size = width)",33,57.186,0,0.0035193,6.7627,ρ_below (Ω·m),Density,bar height
+a,"Synthetic from soundings, 2018 layout","bar (x left, y bottom; value = height; size = width)",34,63.9487,0,0.00255208,7.56245,ρ_below (Ω·m),Density,bar height
+a,"Synthetic from soundings, 2018 layout","bar (x left, y bottom; value = height; size = width)",35,71.5112,0,0.00197475,8.45677,ρ_below (Ω·m),Density,bar height
+a,"Synthetic from soundings, 2018 layout","bar (x left, y bottom; value = height; size = width)",36,79.968,0,0.00124777,9.45685,ρ_below (Ω·m),Density,bar height
+a,"Synthetic from soundings, 2018 layout","bar (x left, y bottom; value = height; size = width)",37,89.4248,0,0.000718663,10.5752,ρ_below (Ω·m),Density,bar height
+a,"Synthetic from soundings, 2018 layout","bar (x left, y bottom; value = height; size = width)",38,100,0,0,11.8258,ρ_below (Ω·m),Density,bar height
+a,"Synthetic from soundings, 2018 layout","bar (x left, y bottom; value = height; size = width)",39,111.826,0,0,13.2243,ρ_below (Ω·m),Density,bar height
+a,"Synthetic from soundings, 2025 layout","bar (x left, y bottom; value = height; size = width)",0,1.43022,0,0,0.169135,ρ_below (Ω·m),Density,bar height
+a,"Synthetic from soundings, 2025 layout","bar (x left, y bottom; value = height; size = width)",1,1.59936,0,0,0.189137,ρ_below (Ω·m),Density,bar height
+a,"Synthetic from soundings, 2025 layout","bar (x left, y bottom; value = height; size = width)",2,1.7885,0,0,0.211504,ρ_below (Ω·m),Density,bar height
+a,"Synthetic from soundings, 2025 layout","bar (x left, y bottom; value = height; size = width)",3,2,0,0,0.236516,ρ_below (Ω·m),Density,bar height
+a,"Synthetic from soundings, 2025 layout","bar (x left, y bottom; value = height; size = width)",4,2.23652,0,0,0.264486,ρ_below (Ω·m),Density,bar height
+a,"Synthetic from soundings, 2025 layout","bar (x left, y bottom; value = height; size = width)",5,2.501,0,0,0.295763,ρ_below (Ω·m),Density,bar height
+a,"Synthetic from soundings, 2025 layout","bar (x left, y bottom; value = height; size = width)",6,2.79677,0,0,0.33074,ρ_below (Ω·m),Density,bar height
+a,"Synthetic from soundings, 2025 layout","bar (x left, y bottom; value = height; size = width)",7,3.1275,0,0,0.369852,ρ_below (Ω·m),Density,bar height
+a,"Synthetic from soundings, 2025 layout","bar (x left, y bottom; value = height; size = width)",8,3.49736,0,0.000967141,0.41359,ρ_below (Ω·m),Density,bar height
+a,"Synthetic from soundings, 2025 layout","bar (x left, y bottom; value = height; size = width)",9,3.91095,0,0.00302702,0.462501,ρ_below (Ω·m),Density,bar height
+a,"Synthetic from soundings, 2025 layout","bar (x left, y bottom; value = height; size = width)",10,4.37345,0,0.00367366,0.517195,ρ_below (Ω·m),Density,bar height
+a,"Synthetic from soundings, 2025 layout","bar (x left, y bottom; value = height; size = width)",11,4.89064,0,0.00536001,0.578358,ρ_below (Ω·m),Density,bar height
+a,"Synthetic from soundings, 2025 layout","bar (x left, y bottom; value = height; size = width)",12,5.469,0,0.00912249,0.646753,ρ_below (Ω·m),Density,bar height
+a,"Synthetic from soundings, 2025 layout","bar (x left, y bottom; value = height; size = width)",13,6.11575,0,0.00774297,0.723237,ρ_below (Ω·m),Density,bar height
+a,"Synthetic from soundings, 2025 layout","bar (x left, y bottom; value = height; size = width)",14,6.83899,0,0.0112517,0.808765,ρ_below (Ω·m),Density,bar height
+a,"Synthetic from soundings, 2025 layout","bar (x left, y bottom; value = height; size = width)",15,7.64776,0,0.0131578,0.904408,ρ_below (Ω·m),Density,bar height
+a,"Synthetic from soundings, 2025 layout","bar (x left, y bottom; value = height; size = width)",16,8.55216,0,0.0129528,1.01136,ρ_below (Ω·m),Density,bar height
+a,"Synthetic from soundings, 2025 layout","bar (x left, y bottom; value = height; size = width)",17,9.56352,0,0.0171535,1.13096,ρ_below (Ω·m),Density,bar height
+a,"Synthetic from soundings, 2025 layout","bar (x left, y bottom; value = height; size = width)",18,10.6945,0,0.0167628,1.26471,ρ_below (Ω·m),Density,bar height
+a,"Synthetic from soundings, 2025 layout","bar (x left, y bottom; value = height; size = width)",19,11.9592,0,0.0173234,1.41427,ρ_below (Ω·m),Density,bar height
+a,"Synthetic from soundings, 2025 layout","bar (x left, y bottom; value = height; size = width)",20,13.3735,0,0.0171354,1.58152,ρ_below (Ω·m),Density,bar height
+a,"Synthetic from soundings, 2025 layout","bar (x left, y bottom; value = height; size = width)",21,14.955,0,0.0159453,1.76855,ρ_below (Ω·m),Density,bar height
+a,"Synthetic from soundings, 2025 layout","bar (x left, y bottom; value = height; size = width)",22,16.7235,0,0.0200234,1.97769,ρ_below (Ω·m),Density,bar height
+a,"Synthetic from soundings, 2025 layout","bar (x left, y bottom; value = height; size = width)",23,18.7012,0,0.0175893,2.21157,ρ_below (Ω·m),Density,bar height
+a,"Synthetic from soundings, 2025 layout","bar (x left, y bottom; value = height; size = width)",24,20.9128,0,0.0165379,2.4731,ρ_below (Ω·m),Density,bar height
+a,"Synthetic from soundings, 2025 layout","bar (x left, y bottom; value = height; size = width)",25,23.3859,0,0.0155483,2.76557,ρ_below (Ω·m),Density,bar height
+a,"Synthetic from soundings, 2025 layout","bar (x left, y bottom; value = height; size = width)",26,26.1515,0,0.0129664,3.09262,ρ_below (Ω·m),Density,bar height
+a,"Synthetic from soundings, 2025 layout","bar (x left, y bottom; value = height; size = width)",27,29.2441,0,0.0134168,3.45835,ρ_below (Ω·m),Density,bar height
+a,"Synthetic from soundings, 2025 layout","bar (x left, y bottom; value = height; size = width)",28,32.7024,0,0.0127478,3.86732,ρ_below (Ω·m),Density,bar height
+a,"Synthetic from soundings, 2025 layout","bar (x left, y bottom; value = height; size = width)",29,36.5698,0,0.0117003,4.32466,ρ_below (Ω·m),Density,bar height
+a,"Synthetic from soundings, 2025 layout","bar (x left, y bottom; value = height; size = width)",30,40.8944,0,0.0110833,4.83609,ρ_below (Ω·m),Density,bar height
+a,"Synthetic from soundings, 2025 layout","bar (x left, y bottom; value = height; size = width)",31,45.7305,0,0.0100962,5.408,ρ_below (Ω·m),Density,bar height
+a,"Synthetic from soundings, 2025 layout","bar (x left, y bottom; value = height; size = width)",32,51.1385,0,0.010219,6.04754,ρ_below (Ω·m),Density,bar height
+a,"Synthetic from soundings, 2025 layout","bar (x left, y bottom; value = height; size = width)",33,57.186,0,0.00993685,6.7627,ρ_below (Ω·m),Density,bar height
+a,"Synthetic from soundings, 2025 layout","bar (x left, y bottom; value = height; size = width)",34,63.9487,0,0.008767,7.56245,ρ_below (Ω·m),Density,bar height
+a,"Synthetic from soundings, 2025 layout","bar (x left, y bottom; value = height; size = width)",35,71.5112,0,0.00723681,8.45677,ρ_below (Ω·m),Density,bar height
+a,"Synthetic from soundings, 2025 layout","bar (x left, y bottom; value = height; size = width)",36,79.968,0,0.00621772,9.45685,ρ_below (Ω·m),Density,bar height
+a,"Synthetic from soundings, 2025 layout","bar (x left, y bottom; value = height; size = width)",37,89.4248,0,0.00519139,10.5752,ρ_below (Ω·m),Density,bar height
+a,"Synthetic from soundings, 2025 layout","bar (x left, y bottom; value = height; size = width)",38,100,0,0,11.8258,ρ_below (Ω·m),Density,bar height
+a,"Synthetic from soundings, 2025 layout","bar (x left, y bottom; value = height; size = width)",39,111.826,0,0,13.2243,ρ_below (Ω·m),Density,bar height

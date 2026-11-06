@@ -1,0 +1,287 @@
+panel,series,kind,item,x,y,value,size,x_axis (name and unit),y_axis (name and unit),value_name (unit)
+a,line0,vline,0,10.89,,,,ρ_below (Ω·m),Density,
+a,line1,vline,0,13.57,,,,ρ_below (Ω·m),Density,
+a,line2,vline,0,14.8,,,,ρ_below (Ω·m),Density,
+a,line3,vline,0,4.93,,,,ρ_below (Ω·m),Density,
+a,"BEL (prior v4), 2025 ERT line",polygon,78.0,1.5,0,,,ρ_below (Ω·m),Density,
+a,"BEL (prior v4), 2025 ERT line",polygon,78.1,1.5,0,,,ρ_below (Ω·m),Density,
+a,"BEL (prior v4), 2025 ERT line",polygon,78.2,1.67837,0,,,ρ_below (Ω·m),Density,
+a,"BEL (prior v4), 2025 ERT line",polygon,78.3,1.67837,0,,,ρ_below (Ω·m),Density,
+a,"BEL (prior v4), 2025 ERT line",polygon,78.4,1.87796,0,,,ρ_below (Ω·m),Density,
+a,"BEL (prior v4), 2025 ERT line",polygon,78.5,1.87796,0,,,ρ_below (Ω·m),Density,
+a,"BEL (prior v4), 2025 ERT line",polygon,78.6,2.10127,0,,,ρ_below (Ω·m),Density,
+a,"BEL (prior v4), 2025 ERT line",polygon,78.7,2.10127,0,,,ρ_below (Ω·m),Density,
+a,"BEL (prior v4), 2025 ERT line",polygon,78.8,2.35115,0,,,ρ_below (Ω·m),Density,
+a,"BEL (prior v4), 2025 ERT line",polygon,78.9,2.35115,0,,,ρ_below (Ω·m),Density,
+a,"BEL (prior v4), 2025 ERT line",polygon,78.10,2.63074,0,,,ρ_below (Ω·m),Density,
+a,"BEL (prior v4), 2025 ERT line",polygon,78.11,2.63074,0,,,ρ_below (Ω·m),Density,
+a,"BEL (prior v4), 2025 ERT line",polygon,78.12,2.94357,0,,,ρ_below (Ω·m),Density,
+a,"BEL (prior v4), 2025 ERT line",polygon,78.13,2.94357,0.00142843,,,ρ_below (Ω·m),Density,
+a,"BEL (prior v4), 2025 ERT line",polygon,78.14,3.2936,0.00142843,,,ρ_below (Ω·m),Density,
+a,"BEL (prior v4), 2025 ERT line",polygon,78.15,3.2936,0,,,ρ_below (Ω·m),Density,
+a,"BEL (prior v4), 2025 ERT line",polygon,78.16,3.68526,0,,,ρ_below (Ω·m),Density,
+a,"BEL (prior v4), 2025 ERT line",polygon,78.17,3.68526,0.00570471,,,ρ_below (Ω·m),Density,
+a,"BEL (prior v4), 2025 ERT line",polygon,78.18,4.1235,0.00570471,,,ρ_below (Ω·m),Density,
+a,"BEL (prior v4), 2025 ERT line",polygon,78.19,4.1235,0.00815749,,,ρ_below (Ω·m),Density,
+a,"BEL (prior v4), 2025 ERT line",polygon,78.20,4.61385,0.00815749,,,ρ_below (Ω·m),Density,
+a,"BEL (prior v4), 2025 ERT line",polygon,78.21,4.61385,0.0127584,,,ρ_below (Ω·m),Density,
+a,"BEL (prior v4), 2025 ERT line",polygon,78.22,5.1625,0.0127584,,,ρ_below (Ω·m),Density,
+a,"BEL (prior v4), 2025 ERT line",polygon,78.23,5.1625,0.0203616,,,ρ_below (Ω·m),Density,
+a,"BEL (prior v4), 2025 ERT line",polygon,78.24,5.7764,0.0203616,,,ρ_below (Ω·m),Density,
+a,"BEL (prior v4), 2025 ERT line",polygon,78.25,5.7764,0.0218372,,,ρ_below (Ω·m),Density,
+a,"BEL (prior v4), 2025 ERT line",polygon,78.26,6.4633,0.0218372,,,ρ_below (Ω·m),Density,
+a,"BEL (prior v4), 2025 ERT line",polygon,78.27,6.4633,0.0240702,,,ρ_below (Ω·m),Density,
+a,"BEL (prior v4), 2025 ERT line",polygon,78.28,7.23189,0.0240702,,,ρ_below (Ω·m),Density,
+a,"BEL (prior v4), 2025 ERT line",polygon,78.29,7.23189,0.0296518,,,ρ_below (Ω·m),Density,
+a,"BEL (prior v4), 2025 ERT line",polygon,78.30,8.09187,0.0296518,,,ρ_below (Ω·m),Density,
+a,"BEL (prior v4), 2025 ERT line",polygon,78.31,8.09187,0.0275397,,,ρ_below (Ω·m),Density,
+a,"BEL (prior v4), 2025 ERT line",polygon,78.32,9.05412,0.0275397,,,ρ_below (Ω·m),Density,
+a,"BEL (prior v4), 2025 ERT line",polygon,78.33,9.05412,0.0297212,,,ρ_below (Ω·m),Density,
+a,"BEL (prior v4), 2025 ERT line",polygon,78.34,10.1308,0.0297212,,,ρ_below (Ω·m),Density,
+a,"BEL (prior v4), 2025 ERT line",polygon,78.35,10.1308,0.0278076,,,ρ_below (Ω·m),Density,
+a,"BEL (prior v4), 2025 ERT line",polygon,78.36,11.3355,0.0278076,,,ρ_below (Ω·m),Density,
+a,"BEL (prior v4), 2025 ERT line",polygon,78.37,11.3355,0.0233686,,,ρ_below (Ω·m),Density,
+a,"BEL (prior v4), 2025 ERT line",polygon,78.38,12.6835,0.0233686,,,ρ_below (Ω·m),Density,
+a,"BEL (prior v4), 2025 ERT line",polygon,78.39,12.6835,0.0238686,,,ρ_below (Ω·m),Density,
+a,"BEL (prior v4), 2025 ERT line",polygon,78.40,14.1917,0.0238686,,,ρ_below (Ω·m),Density,
+a,"BEL (prior v4), 2025 ERT line",polygon,78.41,14.1917,0.0269612,,,ρ_below (Ω·m),Density,
+a,"BEL (prior v4), 2025 ERT line",polygon,78.42,15.8793,0.0269612,,,ρ_below (Ω·m),Density,
+a,"BEL (prior v4), 2025 ERT line",polygon,78.43,15.8793,0.0264789,,,ρ_below (Ω·m),Density,
+a,"BEL (prior v4), 2025 ERT line",polygon,78.44,17.7676,0.0264789,,,ρ_below (Ω·m),Density,
+a,"BEL (prior v4), 2025 ERT line",polygon,78.45,17.7676,0.0163287,,,ρ_below (Ω·m),Density,
+a,"BEL (prior v4), 2025 ERT line",polygon,78.46,19.8805,0.0163287,,,ρ_below (Ω·m),Density,
+a,"BEL (prior v4), 2025 ERT line",polygon,78.47,19.8805,0.0209383,,,ρ_below (Ω·m),Density,
+a,"BEL (prior v4), 2025 ERT line",polygon,78.48,22.2445,0.0209383,,,ρ_below (Ω·m),Density,
+a,"BEL (prior v4), 2025 ERT line",polygon,78.49,22.2445,0.0189021,,,ρ_below (Ω·m),Density,
+a,"BEL (prior v4), 2025 ERT line",polygon,78.50,24.8898,0.0189021,,,ρ_below (Ω·m),Density,
+a,"BEL (prior v4), 2025 ERT line",polygon,78.51,24.8898,0.0143592,,,ρ_below (Ω·m),Density,
+a,"BEL (prior v4), 2025 ERT line",polygon,78.52,27.8495,0.0143592,,,ρ_below (Ω·m),Density,
+a,"BEL (prior v4), 2025 ERT line",polygon,78.53,27.8495,0.014041,,,ρ_below (Ω·m),Density,
+a,"BEL (prior v4), 2025 ERT line",polygon,78.54,31.1613,0.014041,,,ρ_below (Ω·m),Density,
+a,"BEL (prior v4), 2025 ERT line",polygon,78.55,31.1613,0.0110645,,,ρ_below (Ω·m),Density,
+a,"BEL (prior v4), 2025 ERT line",polygon,78.56,34.8668,0.0110645,,,ρ_below (Ω·m),Density,
+a,"BEL (prior v4), 2025 ERT line",polygon,78.57,34.8668,0.0112151,,,ρ_below (Ω·m),Density,
+a,"BEL (prior v4), 2025 ERT line",polygon,78.58,39.013,0.0112151,,,ρ_below (Ω·m),Density,
+a,"BEL (prior v4), 2025 ERT line",polygon,78.59,39.013,0.0109932,,,ρ_below (Ω·m),Density,
+a,"BEL (prior v4), 2025 ERT line",polygon,78.60,43.6522,0.0109932,,,ρ_below (Ω·m),Density,
+a,"BEL (prior v4), 2025 ERT line",polygon,78.61,43.6522,0.00924692,,,ρ_below (Ω·m),Density,
+a,"BEL (prior v4), 2025 ERT line",polygon,78.62,48.8432,0.00924692,,,ρ_below (Ω·m),Density,
+a,"BEL (prior v4), 2025 ERT line",polygon,78.63,48.8432,0.00800593,,,ρ_below (Ω·m),Density,
+a,"BEL (prior v4), 2025 ERT line",polygon,78.64,54.6514,0.00800593,,,ρ_below (Ω·m),Density,
+a,"BEL (prior v4), 2025 ERT line",polygon,78.65,54.6514,0.00700121,,,ρ_below (Ω·m),Density,
+a,"BEL (prior v4), 2025 ERT line",polygon,78.66,61.1502,0.00700121,,,ρ_below (Ω·m),Density,
+a,"BEL (prior v4), 2025 ERT line",polygon,78.67,61.1502,0.00543202,,,ρ_below (Ω·m),Density,
+a,"BEL (prior v4), 2025 ERT line",polygon,78.68,68.4219,0.00543202,,,ρ_below (Ω·m),Density,
+a,"BEL (prior v4), 2025 ERT line",polygon,78.69,68.4219,0.0043631,,,ρ_below (Ω·m),Density,
+a,"BEL (prior v4), 2025 ERT line",polygon,78.70,76.5583,0.0043631,,,ρ_below (Ω·m),Density,
+a,"BEL (prior v4), 2025 ERT line",polygon,78.71,76.5583,0.00340511,,,ρ_below (Ω·m),Density,
+a,"BEL (prior v4), 2025 ERT line",polygon,78.72,85.6623,0.00340511,,,ρ_below (Ω·m),Density,
+a,"BEL (prior v4), 2025 ERT line",polygon,78.73,85.6623,0.00392675,,,ρ_below (Ω·m),Density,
+a,"BEL (prior v4), 2025 ERT line",polygon,78.74,95.8488,0.00392675,,,ρ_below (Ω·m),Density,
+a,"BEL (prior v4), 2025 ERT line",polygon,78.75,95.8488,0.00105283,,,ρ_below (Ω·m),Density,
+a,"BEL (prior v4), 2025 ERT line",polygon,78.76,107.247,0.00105283,,,ρ_below (Ω·m),Density,
+a,"BEL (prior v4), 2025 ERT line",polygon,78.77,107.247,0,,,ρ_below (Ω·m),Density,
+a,"BEL (prior v4), 2025 ERT line",polygon,78.78,120,0,,,ρ_below (Ω·m),Density,
+a,"BEL (prior v4), 2025 ERT line",polygon,78.79,120,0,,,ρ_below (Ω·m),Density,
+b,"BEL (prior v4), 2025 ERT line",line,0,150,-11.769,,,Distance (m),Elevation (mTAW),
+b,"BEL (prior v4), 2025 ERT line",line,1,160,-11.9964,,,Distance (m),Elevation (mTAW),
+b,"BEL (prior v4), 2025 ERT line",line,2,170,-12.2017,,,Distance (m),Elevation (mTAW),
+b,"BEL (prior v4), 2025 ERT line",line,3,180,-12.6434,,,Distance (m),Elevation (mTAW),
+b,"BEL (prior v4), 2025 ERT line",line,4,190,-13.3635,,,Distance (m),Elevation (mTAW),
+b,"BEL (prior v4), 2025 ERT line",line,5,200,-14.3337,,,Distance (m),Elevation (mTAW),
+b,"BEL (prior v4), 2025 ERT line",line,6,210,-15.3461,,,Distance (m),Elevation (mTAW),
+b,"BEL (prior v4), 2025 ERT line",line,7,220,-16.2528,,,Distance (m),Elevation (mTAW),
+b,"BEL (prior v4), 2025 ERT line",line,8,230,-16.9007,,,Distance (m),Elevation (mTAW),
+b,"BEL (prior v4), 2025 ERT line",line,9,240,-17.1827,,,Distance (m),Elevation (mTAW),
+b,"BEL (prior v4), 2025 ERT line",line,10,250,-17.0471,,,Distance (m),Elevation (mTAW),
+b,"BEL (prior v4), 2025 ERT line",line,11,260,-16.5931,,,Distance (m),Elevation (mTAW),
+b,"BEL (prior v4), 2025 ERT line",line,12,270,-15.8634,,,Distance (m),Elevation (mTAW),
+b,"BEL (prior v4), 2025 ERT line",line,13,280,-15.0898,,,Distance (m),Elevation (mTAW),
+b,"BEL (prior v4), 2025 ERT line",line,14,290,-14.3572,,,Distance (m),Elevation (mTAW),
+b,"BEL (prior v4), 2025 ERT line",line,15,300,-13.7809,,,Distance (m),Elevation (mTAW),
+b,"BEL (prior v4), 2025 ERT line",line,16,310,-13.4964,,,Distance (m),Elevation (mTAW),
+b,"BEL (prior v4), 2025 ERT line",line,17,320,-13.3984,,,Distance (m),Elevation (mTAW),
+b,"BEL (prior v4), 2025 ERT line",line,18,330,-13.2865,,,Distance (m),Elevation (mTAW),
+b,"BEL (prior v4), 2025 ERT line",line,19,340,-12.1734,,,Distance (m),Elevation (mTAW),
+b,"BEL (prior v4), 2025 ERT line",line,20,350,-11.8871,,,Distance (m),Elevation (mTAW),
+b,"BEL (prior v4), 2025 ERT line",line,21,360,-9.85602,,,Distance (m),Elevation (mTAW),
+b,"BEL (prior v4), 2025 ERT line",line,22,370,-7.05522,,,Distance (m),Elevation (mTAW),
+b,"BEL (prior v4), 2025 ERT line",line,23,380,-6.52537,,,Distance (m),Elevation (mTAW),
+b,"BEL (prior v4), 2025 ERT line",line,24,390,-4.41391,,,Distance (m),Elevation (mTAW),
+b,"BEL (prior v4), 2025 ERT line",line,25,400,-4.47036,,,Distance (m),Elevation (mTAW),
+b,"BEL (prior v4), 2025 ERT line",line,26,410,-7.87501,,,Distance (m),Elevation (mTAW),
+b,"BEL (prior v4), 2025 ERT line",line,27,420,-7.88999,,,Distance (m),Elevation (mTAW),
+b,"BEL (prior v4), 2025 ERT line",line,28,430,-8.01866,,,Distance (m),Elevation (mTAW),
+b,"BEL (prior v4), 2025 ERT line",line,29,440,-8.12524,,,Distance (m),Elevation (mTAW),
+b,"BEL (prior v4), 2025 ERT line",line,30,450,-8.8731,,,Distance (m),Elevation (mTAW),
+b,line1,line,0,457.148,-2.00347,,,Distance (m),Elevation (mTAW),
+b,line1,line,1,407.683,-1.81751,,,Distance (m),Elevation (mTAW),
+b,line1,line,2,355.826,-6.70127,,,Distance (m),Elevation (mTAW),
+b,line1,line,3,307.8,-9.31473,,,Distance (m),Elevation (mTAW),
+b,line1,line,4,256.587,-8.1,,,Distance (m),Elevation (mTAW),
+b,line1,line,5,206.456,-9.1,,,Distance (m),Elevation (mTAW),
+b,line1,line,6,155.744,-7.13189,,,Distance (m),Elevation (mTAW),
+b,Sounding base (2024),line,0,454.148,-16.594,,,Distance (m),Elevation (mTAW),
+b,Sounding base (2024),line,1,404.683,-3.49746,,,Distance (m),Elevation (mTAW),
+b,Sounding base (2024),line,2,352.826,-11.5209,,,Distance (m),Elevation (mTAW),
+b,Sounding base (2024),line,3,304.8,-11.853,,,Distance (m),Elevation (mTAW),
+b,Sounding base (2024),line,4,253.587,-13.3906,,,Distance (m),Elevation (mTAW),
+b,Sounding base (2024),line,5,203.456,-12.9675,,,Distance (m),Elevation (mTAW),
+b,Sounding base (2024),line,6,152.744,-12.4365,,,Distance (m),Elevation (mTAW),
+b,PolyCollection0,area,0.0,150,-6.41186,,,Distance (m),Elevation (mTAW),
+b,PolyCollection0,area,0.1,150,-17.343,,,Distance (m),Elevation (mTAW),
+b,PolyCollection0,area,0.2,160,-17.9657,,,Distance (m),Elevation (mTAW),
+b,PolyCollection0,area,0.3,170,-18.3238,,,Distance (m),Elevation (mTAW),
+b,PolyCollection0,area,0.4,180,-18.5247,,,Distance (m),Elevation (mTAW),
+b,PolyCollection0,area,0.5,190,-18.6927,,,Distance (m),Elevation (mTAW),
+b,PolyCollection0,area,0.6,200,-18.9173,,,Distance (m),Elevation (mTAW),
+b,PolyCollection0,area,0.7,210,-19.4301,,,Distance (m),Elevation (mTAW),
+b,PolyCollection0,area,0.8,220,-20.3069,,,Distance (m),Elevation (mTAW),
+b,PolyCollection0,area,0.9,230,-21.3293,,,Distance (m),Elevation (mTAW),
+b,PolyCollection0,area,0.10,240,-21.8582,,,Distance (m),Elevation (mTAW),
+b,PolyCollection0,area,0.11,250,-21.5282,,,Distance (m),Elevation (mTAW),
+b,PolyCollection0,area,0.12,260,-20.8137,,,Distance (m),Elevation (mTAW),
+b,PolyCollection0,area,0.13,270,-19.8167,,,Distance (m),Elevation (mTAW),
+b,PolyCollection0,area,0.14,280,-18.972,,,Distance (m),Elevation (mTAW),
+b,PolyCollection0,area,0.15,290,-18.4339,,,Distance (m),Elevation (mTAW),
+b,PolyCollection0,area,0.16,300,-18.1931,,,Distance (m),Elevation (mTAW),
+b,PolyCollection0,area,0.17,310,-17.9379,,,Distance (m),Elevation (mTAW),
+b,PolyCollection0,area,0.18,320,-17.5392,,,Distance (m),Elevation (mTAW),
+b,PolyCollection0,area,0.19,330,-16.9183,,,Distance (m),Elevation (mTAW),
+b,PolyCollection0,area,0.20,340,-16.4133,,,Distance (m),Elevation (mTAW),
+b,PolyCollection0,area,0.21,350,-16.8323,,,Distance (m),Elevation (mTAW),
+b,PolyCollection0,area,0.22,360,-15.3748,,,Distance (m),Elevation (mTAW),
+b,PolyCollection0,area,0.23,370,-13.4978,,,Distance (m),Elevation (mTAW),
+b,PolyCollection0,area,0.24,380,-12.9237,,,Distance (m),Elevation (mTAW),
+b,PolyCollection0,area,0.25,390,-10.8823,,,Distance (m),Elevation (mTAW),
+b,PolyCollection0,area,0.26,400,-10.5562,,,Distance (m),Elevation (mTAW),
+b,PolyCollection0,area,0.27,410,-13.6658,,,Distance (m),Elevation (mTAW),
+b,PolyCollection0,area,0.28,420,-13.4753,,,Distance (m),Elevation (mTAW),
+b,PolyCollection0,area,0.29,430,-13.417,,,Distance (m),Elevation (mTAW),
+b,PolyCollection0,area,0.30,440,-13.5728,,,Distance (m),Elevation (mTAW),
+b,PolyCollection0,area,0.31,450,-14.5402,,,Distance (m),Elevation (mTAW),
+b,PolyCollection0,area,0.32,450,-2.40308,,,Distance (m),Elevation (mTAW),
+b,PolyCollection0,area,0.33,450,-2.40308,,,Distance (m),Elevation (mTAW),
+b,PolyCollection0,area,0.34,440,-2.35217,,,Distance (m),Elevation (mTAW),
+b,PolyCollection0,area,0.35,430,-2.28751,,,Distance (m),Elevation (mTAW),
+b,PolyCollection0,area,0.36,420,-2.1014,,,Distance (m),Elevation (mTAW),
+b,PolyCollection0,area,0.37,410,-1.81449,,,Distance (m),Elevation (mTAW),
+b,PolyCollection0,area,0.38,400,1.70865,,,Distance (m),Elevation (mTAW),
+b,PolyCollection0,area,0.39,390,2.01091,,,Distance (m),Elevation (mTAW),
+b,PolyCollection0,area,0.40,380,-0.109485,,,Distance (m),Elevation (mTAW),
+b,PolyCollection0,area,0.41,370,-0.758528,,,Distance (m),Elevation (mTAW),
+b,PolyCollection0,area,0.42,360,-4.38019,,,Distance (m),Elevation (mTAW),
+b,PolyCollection0,area,0.43,350,-7.19908,,,Distance (m),Elevation (mTAW),
+b,PolyCollection0,area,0.44,340,-7.95566,,,Distance (m),Elevation (mTAW),
+b,PolyCollection0,area,0.45,330,-9.12236,,,Distance (m),Elevation (mTAW),
+b,PolyCollection0,area,0.46,320,-8.80898,,,Distance (m),Elevation (mTAW),
+b,PolyCollection0,area,0.47,310,-8.81376,,,Distance (m),Elevation (mTAW),
+b,PolyCollection0,area,0.48,300,-9.22833,,,Distance (m),Elevation (mTAW),
+b,PolyCollection0,area,0.49,290,-10.1504,,,Distance (m),Elevation (mTAW),
+b,PolyCollection0,area,0.50,280,-11.1624,,,Distance (m),Elevation (mTAW),
+b,PolyCollection0,area,0.51,270,-11.9017,,,Distance (m),Elevation (mTAW),
+b,PolyCollection0,area,0.52,260,-12.3922,,,Distance (m),Elevation (mTAW),
+b,PolyCollection0,area,0.53,250,-12.716,,,Distance (m),Elevation (mTAW),
+b,PolyCollection0,area,0.54,240,-12.879,,,Distance (m),Elevation (mTAW),
+b,PolyCollection0,area,0.55,230,-12.7261,,,Distance (m),Elevation (mTAW),
+b,PolyCollection0,area,0.56,220,-12.116,,,Distance (m),Elevation (mTAW),
+b,PolyCollection0,area,0.57,210,-11.1663,,,Distance (m),Elevation (mTAW),
+b,PolyCollection0,area,0.58,200,-9.70222,,,Distance (m),Elevation (mTAW),
+b,PolyCollection0,area,0.59,190,-8.19314,,,Distance (m),Elevation (mTAW),
+b,PolyCollection0,area,0.60,180,-6.91995,,,Distance (m),Elevation (mTAW),
+b,PolyCollection0,area,0.61,170,-6.21593,,,Distance (m),Elevation (mTAW),
+b,PolyCollection0,area,0.62,160,-6.21612,,,Distance (m),Elevation (mTAW),
+b,PolyCollection0,area,0.63,150,-6.41186,,,Distance (m),Elevation (mTAW),
+b,PolyCollection0,area,0.64,150,-6.41186,,,Distance (m),Elevation (mTAW),
+b,LineCollection1,segment,0.0,457.148,-5.70326,,,Distance (m),Elevation (mTAW),
+b,LineCollection1,segment,0.1,457.148,-1.20275,,,Distance (m),Elevation (mTAW),
+b,LineCollection1,segment,1.0,407.683,-4.49747,,,Distance (m),Elevation (mTAW),
+b,LineCollection1,segment,1.1,407.683,-1.43039,,,Distance (m),Elevation (mTAW),
+b,LineCollection1,segment,2.0,355.826,-10.4891,,,Distance (m),Elevation (mTAW),
+b,LineCollection1,segment,2.1,355.826,-0.236614,,,Distance (m),Elevation (mTAW),
+b,LineCollection1,segment,3.0,307.8,-11.7,,,Distance (m),Elevation (mTAW),
+b,LineCollection1,segment,3.1,307.8,-4.95064,,,Distance (m),Elevation (mTAW),
+b,LineCollection1,segment,4.0,256.587,-13.0998,,,Distance (m),Elevation (mTAW),
+b,LineCollection1,segment,4.1,256.587,-5.91706,,,Distance (m),Elevation (mTAW),
+b,LineCollection1,segment,5.0,206.456,-12.2984,,,Distance (m),Elevation (mTAW),
+b,LineCollection1,segment,5.1,206.456,-4.72205,,,Distance (m),Elevation (mTAW),
+b,LineCollection1,segment,6.0,155.744,-20.5,,,Distance (m),Elevation (mTAW),
+b,LineCollection1,segment,6.1,155.744,-3.38873,,,Distance (m),Elevation (mTAW),
+a,"BEL (prior v4), synthetic from soundings (T1), 2018 layout","bar (x left, y bottom; value = height; size = width)",0,1.5,0,0,0.178373,ρ_below (Ω·m),Density,bar height
+a,"BEL (prior v4), synthetic from soundings (T1), 2018 layout","bar (x left, y bottom; value = height; size = width)",1,1.67837,0,0,0.199584,ρ_below (Ω·m),Density,bar height
+a,"BEL (prior v4), synthetic from soundings (T1), 2018 layout","bar (x left, y bottom; value = height; size = width)",2,1.87796,0,0,0.223318,ρ_below (Ω·m),Density,bar height
+a,"BEL (prior v4), synthetic from soundings (T1), 2018 layout","bar (x left, y bottom; value = height; size = width)",3,2.10127,0,0.00160081,0.249874,ρ_below (Ω·m),Density,bar height
+a,"BEL (prior v4), synthetic from soundings (T1), 2018 layout","bar (x left, y bottom; value = height; size = width)",4,2.35115,0,0.00393437,0.279587,ρ_below (Ω·m),Density,bar height
+a,"BEL (prior v4), synthetic from soundings (T1), 2018 layout","bar (x left, y bottom; value = height; size = width)",5,2.63074,0,0.0124667,0.312834,ρ_below (Ω·m),Density,bar height
+a,"BEL (prior v4), synthetic from soundings (T1), 2018 layout","bar (x left, y bottom; value = height; size = width)",6,2.94357,0,0.0294256,0.350035,ρ_below (Ω·m),Density,bar height
+a,"BEL (prior v4), synthetic from soundings (T1), 2018 layout","bar (x left, y bottom; value = height; size = width)",7,3.2936,0,0.03549,0.39166,ρ_below (Ω·m),Density,bar height
+a,"BEL (prior v4), synthetic from soundings (T1), 2018 layout","bar (x left, y bottom; value = height; size = width)",8,3.68526,0,0.0467787,0.438234,ρ_below (Ω·m),Density,bar height
+a,"BEL (prior v4), synthetic from soundings (T1), 2018 layout","bar (x left, y bottom; value = height; size = width)",9,4.1235,0,0.0458859,0.490347,ρ_below (Ω·m),Density,bar height
+a,"BEL (prior v4), synthetic from soundings (T1), 2018 layout","bar (x left, y bottom; value = height; size = width)",10,4.61385,0,0.0524919,0.548656,ρ_below (Ω·m),Density,bar height
+a,"BEL (prior v4), synthetic from soundings (T1), 2018 layout","bar (x left, y bottom; value = height; size = width)",11,5.1625,0,0.0545691,0.6139,ρ_below (Ω·m),Density,bar height
+a,"BEL (prior v4), synthetic from soundings (T1), 2018 layout","bar (x left, y bottom; value = height; size = width)",12,5.7764,0,0.0518269,0.686902,ρ_below (Ω·m),Density,bar height
+a,"BEL (prior v4), synthetic from soundings (T1), 2018 layout","bar (x left, y bottom; value = height; size = width)",13,6.4633,0,0.0499619,0.768585,ρ_below (Ω·m),Density,bar height
+a,"BEL (prior v4), synthetic from soundings (T1), 2018 layout","bar (x left, y bottom; value = height; size = width)",14,7.23189,0,0.0462801,0.859982,ρ_below (Ω·m),Density,bar height
+a,"BEL (prior v4), synthetic from soundings (T1), 2018 layout","bar (x left, y bottom; value = height; size = width)",15,8.09187,0,0.0442714,0.962247,ρ_below (Ω·m),Density,bar height
+a,"BEL (prior v4), synthetic from soundings (T1), 2018 layout","bar (x left, y bottom; value = height; size = width)",16,9.05412,0,0.0412382,1.07667,ρ_below (Ω·m),Density,bar height
+a,"BEL (prior v4), synthetic from soundings (T1), 2018 layout","bar (x left, y bottom; value = height; size = width)",17,10.1308,0,0.0348633,1.20471,ρ_below (Ω·m),Density,bar height
+a,"BEL (prior v4), synthetic from soundings (T1), 2018 layout","bar (x left, y bottom; value = height; size = width)",18,11.3355,0,0.0324935,1.34796,ρ_below (Ω·m),Density,bar height
+a,"BEL (prior v4), synthetic from soundings (T1), 2018 layout","bar (x left, y bottom; value = height; size = width)",19,12.6835,0,0.0295706,1.50826,ρ_below (Ω·m),Density,bar height
+a,"BEL (prior v4), synthetic from soundings (T1), 2018 layout","bar (x left, y bottom; value = height; size = width)",20,14.1917,0,0.0251243,1.68761,ρ_below (Ω·m),Density,bar height
+a,"BEL (prior v4), synthetic from soundings (T1), 2018 layout","bar (x left, y bottom; value = height; size = width)",21,15.8793,0,0.0216068,1.88829,ρ_below (Ω·m),Density,bar height
+a,"BEL (prior v4), synthetic from soundings (T1), 2018 layout","bar (x left, y bottom; value = height; size = width)",22,17.7676,0,0.0211564,2.11284,ρ_below (Ω·m),Density,bar height
+a,"BEL (prior v4), synthetic from soundings (T1), 2018 layout","bar (x left, y bottom; value = height; size = width)",23,19.8805,0,0.0179773,2.36409,ρ_below (Ω·m),Density,bar height
+a,"BEL (prior v4), synthetic from soundings (T1), 2018 layout","bar (x left, y bottom; value = height; size = width)",24,22.2445,0,0.0159155,2.64522,ρ_below (Ω·m),Density,bar height
+a,"BEL (prior v4), synthetic from soundings (T1), 2018 layout","bar (x left, y bottom; value = height; size = width)",25,24.8898,0,0.013447,2.95977,ρ_below (Ω·m),Density,bar height
+a,"BEL (prior v4), synthetic from soundings (T1), 2018 layout","bar (x left, y bottom; value = height; size = width)",26,27.8495,0,0.0115951,3.31173,ρ_below (Ω·m),Density,bar height
+a,"BEL (prior v4), synthetic from soundings (T1), 2018 layout","bar (x left, y bottom; value = height; size = width)",27,31.1613,0,0.00998503,3.70555,ρ_below (Ω·m),Density,bar height
+a,"BEL (prior v4), synthetic from soundings (T1), 2018 layout","bar (x left, y bottom; value = height; size = width)",28,34.8668,0,0.00779028,4.14619,ρ_below (Ω·m),Density,bar height
+a,"BEL (prior v4), synthetic from soundings (T1), 2018 layout","bar (x left, y bottom; value = height; size = width)",29,39.013,0,0.00657435,4.63924,ρ_below (Ω·m),Density,bar height
+a,"BEL (prior v4), synthetic from soundings (T1), 2018 layout","bar (x left, y bottom; value = height; size = width)",30,43.6522,0,0.00539404,5.19092,ρ_below (Ω·m),Density,bar height
+a,"BEL (prior v4), synthetic from soundings (T1), 2018 layout","bar (x left, y bottom; value = height; size = width)",31,48.8432,0,0.00475191,5.8082,ρ_below (Ω·m),Density,bar height
+a,"BEL (prior v4), synthetic from soundings (T1), 2018 layout","bar (x left, y bottom; value = height; size = width)",32,54.6514,0,0.00346214,6.49888,ρ_below (Ω·m),Density,bar height
+a,"BEL (prior v4), synthetic from soundings (T1), 2018 layout","bar (x left, y bottom; value = height; size = width)",33,61.1502,0,0.00302543,7.27169,ρ_below (Ω·m),Density,bar height
+a,"BEL (prior v4), synthetic from soundings (T1), 2018 layout","bar (x left, y bottom; value = height; size = width)",34,68.4219,0,0.00215083,8.13641,ρ_below (Ω·m),Density,bar height
+a,"BEL (prior v4), synthetic from soundings (T1), 2018 layout","bar (x left, y bottom; value = height; size = width)",35,76.5583,0,0.00159271,9.10395,ρ_below (Ω·m),Density,bar height
+a,"BEL (prior v4), synthetic from soundings (T1), 2018 layout","bar (x left, y bottom; value = height; size = width)",36,85.6623,0,0.000873701,10.1866,ρ_below (Ω·m),Density,bar height
+a,"BEL (prior v4), synthetic from soundings (T1), 2018 layout","bar (x left, y bottom; value = height; size = width)",37,95.8488,0,0.000210565,11.3979,ρ_below (Ω·m),Density,bar height
+a,"BEL (prior v4), synthetic from soundings (T1), 2018 layout","bar (x left, y bottom; value = height; size = width)",38,107.247,0,0,12.7533,ρ_below (Ω·m),Density,bar height
+a,"BEL (prior v4), brackish below (T3), 2018 layout","bar (x left, y bottom; value = height; size = width)",0,1.5,0,0,0.178373,ρ_below (Ω·m),Density,bar height
+a,"BEL (prior v4), brackish below (T3), 2018 layout","bar (x left, y bottom; value = height; size = width)",1,1.67837,0,0,0.199584,ρ_below (Ω·m),Density,bar height
+a,"BEL (prior v4), brackish below (T3), 2018 layout","bar (x left, y bottom; value = height; size = width)",2,1.87796,0,0.0223896,0.223318,ρ_below (Ω·m),Density,bar height
+a,"BEL (prior v4), brackish below (T3), 2018 layout","bar (x left, y bottom; value = height; size = width)",3,2.10127,0,0.168885,0.249874,ρ_below (Ω·m),Density,bar height
+a,"BEL (prior v4), brackish below (T3), 2018 layout","bar (x left, y bottom; value = height; size = width)",4,2.35115,0,0.270756,0.279587,ρ_below (Ω·m),Density,bar height
+a,"BEL (prior v4), brackish below (T3), 2018 layout","bar (x left, y bottom; value = height; size = width)",5,2.63074,0,0.291528,0.312834,ρ_below (Ω·m),Density,bar height
+a,"BEL (prior v4), brackish below (T3), 2018 layout","bar (x left, y bottom; value = height; size = width)",6,2.94357,0,0.281115,0.350035,ρ_below (Ω·m),Density,bar height
+a,"BEL (prior v4), brackish below (T3), 2018 layout","bar (x left, y bottom; value = height; size = width)",7,3.2936,0,0.224174,0.39166,ρ_below (Ω·m),Density,bar height
+a,"BEL (prior v4), brackish below (T3), 2018 layout","bar (x left, y bottom; value = height; size = width)",8,3.68526,0,0.180041,0.438234,ρ_below (Ω·m),Density,bar height
+a,"BEL (prior v4), brackish below (T3), 2018 layout","bar (x left, y bottom; value = height; size = width)",9,4.1235,0,0.135618,0.490347,ρ_below (Ω·m),Density,bar height
+a,"BEL (prior v4), brackish below (T3), 2018 layout","bar (x left, y bottom; value = height; size = width)",10,4.61385,0,0.111545,0.548656,ρ_below (Ω·m),Density,bar height
+a,"BEL (prior v4), brackish below (T3), 2018 layout","bar (x left, y bottom; value = height; size = width)",11,5.1625,0,0.0790031,0.6139,ρ_below (Ω·m),Density,bar height
+a,"BEL (prior v4), brackish below (T3), 2018 layout","bar (x left, y bottom; value = height; size = width)",12,5.7764,0,0.0672585,0.686902,ρ_below (Ω·m),Density,bar height
+a,"BEL (prior v4), brackish below (T3), 2018 layout","bar (x left, y bottom; value = height; size = width)",13,6.4633,0,0.0507426,0.768585,ρ_below (Ω·m),Density,bar height
+a,"BEL (prior v4), brackish below (T3), 2018 layout","bar (x left, y bottom; value = height; size = width)",14,7.23189,0,0.0452335,0.859982,ρ_below (Ω·m),Density,bar height
+a,"BEL (prior v4), brackish below (T3), 2018 layout","bar (x left, y bottom; value = height; size = width)",15,8.09187,0,0.0349183,0.962247,ρ_below (Ω·m),Density,bar height
+a,"BEL (prior v4), brackish below (T3), 2018 layout","bar (x left, y bottom; value = height; size = width)",16,9.05412,0,0.0271206,1.07667,ρ_below (Ω·m),Density,bar height
+a,"BEL (prior v4), brackish below (T3), 2018 layout","bar (x left, y bottom; value = height; size = width)",17,10.1308,0,0.021499,1.20471,ρ_below (Ω·m),Density,bar height
+a,"BEL (prior v4), brackish below (T3), 2018 layout","bar (x left, y bottom; value = height; size = width)",18,11.3355,0,0.0126116,1.34796,ρ_below (Ω·m),Density,bar height
+a,"BEL (prior v4), brackish below (T3), 2018 layout","bar (x left, y bottom; value = height; size = width)",19,12.6835,0,0.0120006,1.50826,ρ_below (Ω·m),Density,bar height
+a,"BEL (prior v4), brackish below (T3), 2018 layout","bar (x left, y bottom; value = height; size = width)",20,14.1917,0,0.00811799,1.68761,ρ_below (Ω·m),Density,bar height
+a,"BEL (prior v4), brackish below (T3), 2018 layout","bar (x left, y bottom; value = height; size = width)",21,15.8793,0,0.00826143,1.88829,ρ_below (Ω·m),Density,bar height
+a,"BEL (prior v4), brackish below (T3), 2018 layout","bar (x left, y bottom; value = height; size = width)",22,17.7676,0,0.00515893,2.11284,ρ_below (Ω·m),Density,bar height
+a,"BEL (prior v4), brackish below (T3), 2018 layout","bar (x left, y bottom; value = height; size = width)",23,19.8805,0,0.00414536,2.36409,ρ_below (Ω·m),Density,bar height
+a,"BEL (prior v4), brackish below (T3), 2018 layout","bar (x left, y bottom; value = height; size = width)",24,22.2445,0,0.00336457,2.64522,ρ_below (Ω·m),Density,bar height
+a,"BEL (prior v4), brackish below (T3), 2018 layout","bar (x left, y bottom; value = height; size = width)",25,24.8898,0,0.00280427,2.95977,ρ_below (Ω·m),Density,bar height
+a,"BEL (prior v4), brackish below (T3), 2018 layout","bar (x left, y bottom; value = height; size = width)",26,27.8495,0,0.0021137,3.31173,ρ_below (Ω·m),Density,bar height
+a,"BEL (prior v4), brackish below (T3), 2018 layout","bar (x left, y bottom; value = height; size = width)",27,31.1613,0,0.00145727,3.70555,ρ_below (Ω·m),Density,bar height
+a,"BEL (prior v4), brackish below (T3), 2018 layout","bar (x left, y bottom; value = height; size = width)",28,34.8668,0,0.000844148,4.14619,ρ_below (Ω·m),Density,bar height
+a,"BEL (prior v4), brackish below (T3), 2018 layout","bar (x left, y bottom; value = height; size = width)",29,39.013,0,0.00086221,4.63924,ρ_below (Ω·m),Density,bar height
+a,"BEL (prior v4), brackish below (T3), 2018 layout","bar (x left, y bottom; value = height; size = width)",30,43.6522,0,0.000558668,5.19092,ρ_below (Ω·m),Density,bar height
+a,"BEL (prior v4), brackish below (T3), 2018 layout","bar (x left, y bottom; value = height; size = width)",31,48.8432,0,0.000516512,5.8082,ρ_below (Ω·m),Density,bar height
+a,"BEL (prior v4), brackish below (T3), 2018 layout","bar (x left, y bottom; value = height; size = width)",32,54.6514,0,0.000184647,6.49888,ρ_below (Ω·m),Density,bar height
+a,"BEL (prior v4), brackish below (T3), 2018 layout","bar (x left, y bottom; value = height; size = width)",33,61.1502,0,0.000165023,7.27169,ρ_below (Ω·m),Density,bar height
+a,"BEL (prior v4), brackish below (T3), 2018 layout","bar (x left, y bottom; value = height; size = width)",34,68.4219,0,6.14522e-05,8.13641,ρ_below (Ω·m),Density,bar height
+a,"BEL (prior v4), brackish below (T3), 2018 layout","bar (x left, y bottom; value = height; size = width)",35,76.5583,0,3.29527e-05,9.10395,ρ_below (Ω·m),Density,bar height
+a,"BEL (prior v4), brackish below (T3), 2018 layout","bar (x left, y bottom; value = height; size = width)",36,85.6623,0,4.90843e-05,10.1866,ρ_below (Ω·m),Density,bar height
+a,"BEL (prior v4), brackish below (T3), 2018 layout","bar (x left, y bottom; value = height; size = width)",37,95.8488,0,0,11.3979,ρ_below (Ω·m),Density,bar height
+a,"BEL (prior v4), brackish below (T3), 2018 layout","bar (x left, y bottom; value = height; size = width)",38,107.247,0,0,12.7533,ρ_below (Ω·m),Density,bar height

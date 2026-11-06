@@ -190,6 +190,7 @@ def read_gps():
 
 
 def read_cpt_locations():
+    wc.require_input("cpt", "the sounding positions in Figure 1")
     L = open(os.path.join(wc.ROOT, "data", "raw", "cpt_vrancken_2024", "CPT", "Location.txt"), encoding="utf-8").read().split("\n")
     out = {}
     for l in L[1:]:

@@ -31,6 +31,28 @@ FIG_DIR       = os.path.join(ROOT, "figures")
 RESULTS_DIR   = os.path.join(ROOT, "results")
 ELEC_FILE     = os.path.join(ROOT, "data", "raw", "elec.dat")
 
+# Inputs that are not public (see data/README.md): the scripts that need them stop with require_input()'s message.
+RESTRICTED_INPUTS = {
+    "cpt": (os.path.join(ROOT, "data", "raw", "cpt_vrancken_2024"),
+            "mechanical CPT logs and surveyed positions of 23 September 2024 (E. Vrancken, Ghent University; not public)"),
+    "abem": (os.path.join(ROOT, "data", "raw", "Project12_LS210110079_2018-03-07_11-22-23", "project.db"),
+             "2018 Terrameter LS instrument project (T. Hermans, Ghent University; not public)"),
+    "cpt_json": (os.path.join(ROOT, "data", "processed", "v1_4", "cpt.json"),
+                 "sounding geometry and lithology derived from the mechanical CPTs by `27_dp_groundtruth.py cpt`"),
+}
+
+
+def require_input(key, needed_for, path=None):
+    """Stop with a clear message when a restricted input (or a product derived from one) is missing. `path` overrides the
+    default location (for scripts writing to another --out tree)."""
+    default, what = RESTRICTED_INPUTS[key]
+    path = path or default
+    if not os.path.exists(path):
+        raise SystemExit(f"restricted input missing: {os.path.relpath(path, ROOT)} ({what}). Needed for {needed_for}. "
+                         "See data/README.md: this step can be rerun once the data owners publish the data.")
+    return path
+
+
 LOG3 = np.log10(3.0)
 Z_FLOOR = -45.0          # sections are drawn down to this elevation (mTAW)
 VE = 3.0                 # vertical exaggeration of section figures

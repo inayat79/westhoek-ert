@@ -53,6 +53,7 @@ N_BOOT = 2000
 
 
 def connect():
+    wc.require_input("abem", "the 2018 error analysis (SI Table S2, Figure S2, expectations E13 and E14)")
     return sqlite3.connect(f"file:{DB.replace(os.sep, '/')}?mode=ro", uri=True)
 
 

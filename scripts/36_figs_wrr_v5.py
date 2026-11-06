@@ -294,23 +294,52 @@ def group_bounds_svg(path, fig, lines):
 
 
 def append_hist_bars(fig, path):
-    """v2.2: make_paper_figures.figure_rows skips histogram bars (it compares the patch's full transform, not its data
-    transform, with transData). Append the bars of Figure 6(a) — series, left edge x, height (density), width — so the CSV
-    holds every plotted value. Other figures' CSVs are not changed."""
+    """make_paper_figures.figure_rows skips bars drawn by hist()/bar()/barh() (it compares the patch's full transform, not
+    its data transform, with transData). Append them — panel, series, left edge x, bottom y, height, width — so the CSV holds
+    every plotted value (v2.2: Figure 6a; v3.1: every axes of every figure). Panel names as in figure_rows."""
     import csv
+    import re
     from matplotlib.patches import Rectangle
-    ax = fig.axes[0]; rows = []
-    for c in ax.containers:
-        lab = c.get_label() or ""
-        if lab.startswith("_") and len(c) and not (c[0].get_label() or "_").startswith("_"):
-            lab = c[0].get_label()                     # hist() puts the series label on the first bar
-        for i, p in enumerate(c):
-            if isinstance(p, Rectangle) and p.get_data_transform() == ax.transData:
-                rows.append(["a", lab, "bar (x left, y bottom; value = height; size = width)", i, f"{p.get_x():.6g}", f"{p.get_y():.6g}",
-                             f"{p.get_height():.6g}", f"{p.get_width():.6g}", "ρ_below (Ω·m)", "Density", "density"])
+    import make_paper_figures as mpf
+    rows = []
+    axes = [a for a in mpf.all_axes(fig) if not mpf._is_cbar(a)]
+    for ia, ax in enumerate(axes):
+        pl = next((t.get_text().split(")")[0] + ")" for t in ax.texts if re.match(r"^\([a-z]\)", t.get_text())), None)
+        panel = pl.strip("()") if pl else f"ax{ia}"
+        xl, yl = mpf._ax_label(ax, "x"), mpf._ax_label(ax, "y")
+        for c in ax.containers:
+            lab = c.get_label() or ""
+            if lab.startswith("_") and len(c) and hasattr(c[0], "get_label") and not (c[0].get_label() or "_").startswith("_"):
+                lab = c[0].get_label()                 # hist() puts the series label on the first bar
+            for i, p in enumerate(c):
+                if isinstance(p, Rectangle) and p.get_data_transform() == ax.transData:
+                    rows.append([panel, lab, "bar (x left, y bottom; value = height; size = width)", i, f"{p.get_x():.6g}", f"{p.get_y():.6g}",
+                                 f"{p.get_height():.6g}", f"{p.get_width():.6g}", xl, yl, "bar height"])
     with open(path, "a", encoding="utf-8", newline="") as f:
         csv.writer(f, lineterminator="\n").writerows(rows)
     return len(rows)
+
+
+# v3.1: CSVs of plotted values that would reproduce restricted data (see data/README.md)
+RESTRICTED_CSV = {"FigureS1": "CPT logs (qc, Rf, I_SBT per depth) of the unpublished mechanical CPTs",
+                  "FigureS2": "per-pair and per-datum errors from the 2018 instrument records (not public)"}
+
+
+def redact_figure1_csv(path):
+    """Figure 1(c) plots the soundings at their surveyed map coordinates, which are not public. Replace those rows by the
+    soundings' positions projected on the K1 line, as printed in SI Table S1 (paper_figures.DP_X)."""
+    import csv
+    rows = list(csv.reader(open(path, encoding="utf-8")))
+    hdr, body = rows[0], rows[1:]
+    keep = [r for r in body if not (r[0] == "c" and r[1].startswith("CPT / CPT-EC"))]
+    n_removed = len(body) - len(keep)
+    at = next((i for i, r in enumerate(body) if r[0] == "c" and r[1].startswith("CPT / CPT-EC")), len(keep))
+    new = [["c", "CPT / CPT-EC (2024)†: position projected on the K1 line (SI Table S1; map coordinates not public)", "point (projected)",
+            nm, f"{x:g}", "", "", "", "x along K1 (m; E1 = 0, dune → sea)", "", ""] for nm, x in sorted(pf.DP_X.items())]
+    out = keep[:at] + new + keep[at:]
+    with open(path, "w", encoding="utf-8", newline="") as f:
+        csv.writer(f, lineterminator="\n").writerows([hdr] + out)
+    return n_removed, len(new)
 
 
 def build(label, short, byname, s03, corel=False):
@@ -342,6 +371,9 @@ def main():
     import make_paper_figures as mpf
     ap = argparse.ArgumentParser(); ap.add_argument("only", nargs="?", default=None); ap.add_argument("--corel", action="store_true")
     ap.add_argument("--corel-dir", default=COREL, help="output folder of --corel (v2.1: Coral Draw/v2.1; v2.2: Coral Draw/v2.2)")
+    ap.add_argument("--csv-only", action="store_true", help="v3.1: write only the CSV of plotted values (no image is re-rendered)")
+    ap.add_argument("--include-restricted", action="store_true", help="also write Figure S1/S2 and the unredacted Figure 1 CSV (needs the restricted inputs; never into results/)")
+    ap.add_argument("--csv-dir", default=None, help="folder for the CSVs (default results/figs_wrr_v5/data)")
     ap.add_argument("--csv", action="store_true", help="also write the plotted values to results/figs_wrr_v5/data/<label>.csv")
     a = ap.parse_args()
     only = set(a.only.split(",")) if a.only else None
@@ -379,10 +411,17 @@ def main():
                         r["prior_bounds_svg"] = group_bounds_svg(pth, fig, bl)
             print(label, short, note, "smallest", r["smallest_pt"], "clipped", r["clipped"], "clips kept", r["clip_kept"], flush=True)
         else:
-            if a.csv:
-                os.makedirs(os.path.join(OUT, "data"), exist_ok=True); mpf.write_figure_csv(fig, label, short, os.path.join(OUT, "data"))
-                if label == "Figure6":
-                    append_hist_bars(fig, os.path.join(OUT, "data", f"{label}.csv"))
+            if a.csv or a.csv_only:
+                dd = a.csv_dir or os.path.join(OUT, "data"); os.makedirs(dd, exist_ok=True)
+                public = os.path.abspath(dd) == os.path.abspath(os.path.join(OUT, "data")) and not a.include_restricted
+                if public and label in RESTRICTED_CSV:
+                    print(f"[csv] {label}: not written to the public results ({RESTRICTED_CSV[label]}); use --include-restricted --csv-dir <private folder>", flush=True)
+                else:
+                    info, _ = mpf.write_figure_csv(fig, label, short, dd); nb = append_hist_bars(fig, os.path.join(dd, f"{label}.csv"))
+                    red = redact_figure1_csv(os.path.join(dd, f"{label}.csv")) if (public and label == "Figure1") else None
+                    print(f"[csv] {label}: {info['rows']} rows + {nb} bars" + (f"; map positions of the soundings replaced by SI Table S1 ({red[0]} → {red[1]} rows)" if red else ""), flush=True)
+            if a.csv_only:
+                plt.close(fig); continue
             files, smallest, clipped = eps.savefig(fig, label, OUT, 190, formats=("tif", "pdf"))
             r = dict(source=short, function=name, note=note, smallest_font_pt=smallest, clipped=clipped,
                      overlaps=(ov if isinstance(ov, (list, dict)) else str(ov)), files=[os.path.relpath(f, ROOT) for f in files])
@@ -390,6 +429,8 @@ def main():
         log[label] = r
         plt.close(fig)
     eps.corel_mode(False)
+    if a.csv_only:
+        return                                         # no image written: the figure log stays as it is
     p = os.path.join(out, f"figs_{os.path.basename(os.path.normpath(out)).replace('.', '')}_corel_log.json" if a.corel else "figs_v5_log.json")
     old = json.load(open(p, encoding="utf-8")) if os.path.exists(p) and only else {}
     old.update(log)
