@@ -3,7 +3,7 @@
 
     python 37_corel_v21.py inspect <dir> <out.json>    dump the shape tree (type, name, box, outline, fill, text font/size) of every
                                                         .cdr in <dir> — used on *copies* of the author's files only
-    python 37_corel_v21.py build <svg_dir> <cdr_dir> <report.json>
+    python 37_corel_v21.py build <svg_dir> <cdr_dir> <report.json> [names] [render_dir]
                                                         import each SVG on a page of its size, save as .cdr, reopen and count;
                                                         render each reopened .cdr to PNG for the contact sheet
 
@@ -112,11 +112,12 @@ def count(doc):
     return n
 
 
-def cmd_build(svg_dir, cdr_dir, report):
+def cmd_build(svg_dir, cdr_dir, report, names=None, render_dir=None):
     a = app(); res = {}
     os.makedirs(cdr_dir, exist_ok=True)
+    keep = set(names.split(",")) if names else None                  # only these SVGs (other files in svg_dir are never opened)
     for fn in sorted(os.listdir(svg_dir)):
-        if not fn.endswith(".svg"):
+        if not fn.endswith(".svg") or (keep is not None and fn[:-4] not in keep):
             continue
         name = fn[:-4]; t0 = time.time()
         doc = a.CreateDocument(); doc.Unit = MM
@@ -131,7 +132,7 @@ def cmd_build(svg_dir, cdr_dir, report):
         so = a.CreateStructSaveAsOptions(); doc.SaveAs(os.path.abspath(p), so); doc.Close()
         doc = a.OpenDocument(os.path.abspath(p), 0); doc.Unit = MM
         again = count(doc)
-        png = os.path.join(cdr_dir, "_render_" + name + ".png")
+        png = os.path.join(render_dir or cdr_dir, (name + "_cdr_render.png") if render_dir else ("_render_" + name + ".png"))
         try:
             pw, ph = doc.ActivePage.SizeWidth, doc.ActivePage.SizeHeight
             ex = doc.ExportBitmap(os.path.abspath(png), 802, 1, 4, int(round(pw / 25.4 * 300)), int(round(ph / 25.4 * 300)), 300, 300,
