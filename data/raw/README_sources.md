@@ -60,7 +60,8 @@ placement on our profile: `results/v1_4/1_line_placement.md`.
 
 - Source: E. Vrancken, Ghent University; received 8 October 2026. Survey date 23 September 2024 (E. Vrancken, pers. comm.).
 - Status: **unpublished, used with permission, not to be redistributed.** The folder `cpt_vrancken_2024/` is in
-  `.gitignore`; only derived tables and figures are committed. The raw files are available from the data owner.
+  `.gitignore`. Neither the raw files nor tables or figure data derived from them are in the public repository
+  (see `data/README.md`). The raw files are available from the data owner.
 - Per E. Vrancken and T. Hermans (October 2026) the Zenodo DP resistivity logs are CPT-EC measurements from the same pushes.
 - `CPT/` is the extracted content of `CPT.zip`; `27_dp_groundtruth.py cpt` checks that every file is byte-identical to its archive member.
 

@@ -16,3 +16,36 @@ data/external/basemap/*.png
 
 # v2.0 A8 archive (git bundle + source zip; not uploaded from here)
 release_v2.0/
+
+# v3.1 public code repository: only code, the decision log, the reported numbers and the plotted values are tracked.
+# Inputs come from their own records (data/README.md); restricted and copyrighted material is never committed.
+data/raw/*
+!data/raw/README_sources.md
+data/external/natural_earth/
+data/external/basemap/*
+!data/external/basemap/README_sources.md
+restricted_local/
+*.confidential*
+*.zip
+release*/
+results/*
+!results/paper/
+results/paper/*
+!results/paper/numbers.md
+!results/v2_0/
+results/v2_0/*
+!results/v2_0/numbers_v20.md
+!results/figs_wrr_v5/
+results/figs_wrr_v5/*
+!results/figs_wrr_v5/data/
+results/figs_wrr_v5/data/FigureS1.csv
+results/figs_wrr_v5/data/FigureS2.csv
+Coral Draw/
+coral draw figures/
+Claude outputs/
+Idea 1/
+Papers/
+CPT/
+Project1*/
+Hermans-Paepen ERT Westhoek/
+~$*

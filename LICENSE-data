@@ -1,0 +1,22 @@
+Results, documents and figure data: Creative Commons Attribution 4.0 International (CC BY 4.0)
+
+Copyright (c) 2026 Inayat Ur Rahman
+
+Scope. This licence applies to:
+  - results/ (the reported numbers and the values plotted in each figure),
+  - docs/ (the decision log and the commit map),
+  - the README files under data/ and the digitised profile data/external/lebbe1981_K1_digitised.csv.
+The code (scripts/ and the configuration files) is under the MIT licence in LICENSE.
+
+You are free to share and adapt this material for any purpose, including commercially, provided you give appropriate
+credit, provide a link to the licence and indicate if changes were made. Full legal code:
+https://creativecommons.org/licenses/by/4.0/legalcode
+
+Attribution: Rahman, I. U. (2026). Westhoek ERT interface uncertainty: Code, decision log and derived products
+(Version 3.1) [Software]. Zenodo. https://doi.org/10.5281/zenodo.XXXXXXX
+
+Third-party data. The input data are not part of this repository and keep the licences of their own records: Hermans &
+Paepen (2019), doi:10.14284/390; Vrancken, Paepen & Hermans (2026), doi:10.5281/zenodo.20792093 (CC BY 4.0); EMODnet
+Bathymetry DTM 2024 (CC BY 4.0); Copernicus DEM GLO-30 (Copernicus DEM licence); Digitaal Vlaanderen orthophoto
+(Modellicentie Gratis Hergebruik); Natural Earth (public domain). The digitised profile reproduces values read from
+Lebbe (1981), Fig. 3; cite that publication as well when you use them.
