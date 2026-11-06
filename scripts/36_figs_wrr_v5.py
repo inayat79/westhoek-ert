@@ -66,6 +66,7 @@ def add_fig5(fig):
 
 
 def add_fig6(fig):
+    pf.wc.require_input("dp_results", "the comparison with the soundings (Tables 1–2, SI Tables S1, S7–S11, Figures 4–6 and S11–S14, expectations E15–E21)", path=os.path.join(ROOT, "data", "processed", "v1_4", "dp_results.json"))
     R = json.load(open(os.path.join(ROOT, "data", "processed", "v1_4", "dp_results.json"), encoding="utf-8"))["dps"]
     ax = fig.axes[0]
     for ln in list(ax.lines):        # the three dotted v1.5 reference values are replaced; the grey 8 Ω·m line (v1.5 rule threshold) is removed (v2.1)

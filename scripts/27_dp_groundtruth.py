@@ -547,7 +547,7 @@ def cmd_cpt(args):
 
 
 def report_cpt(args, plt, s18):
-    wc.require_input("cpt_json", "the comparison with the soundings (Tables 1–2, S1, S7–S11, Figures 4–6, S9–S15, expectations E15–E21)", path=os.path.join(args.out, "data", "processed", "v1_4", "cpt.json"))
+    wc.require_input("cpt_json", "the comparison with the soundings (Tables 1–2, SI Tables S1, S7–S11, Figures 4–6 and S11–S14, expectations E15–E21)", path=os.path.join(args.out, "data", "processed", "v1_4", "cpt.json"))
     J = json.load(open(os.path.join(args.out, "data", "processed", "v1_4", "cpt.json"), encoding="utf-8"))
     res = os.path.join(args.out, "results", "v1_4"); figs = os.path.join(res, "figs")
     C = J["cpts"]; F = J["fit"]; ids = sorted(C)
@@ -686,7 +686,7 @@ SD_DIR_NAME = "samedate"
 def cpt_topography():
     """our_x → ground elevation: CPT ground levels linear in x; beyond the outermost CPTs the 2018 surface shifted by
     the outermost CPT's difference (v1.4-8)."""
-    wc.require_input("cpt_json", "the comparison with the soundings (Tables 1–2, S1, S7–S11, Figures 4–6, S9–S15, expectations E15–E21)")
+    wc.require_input("cpt_json", "the comparison with the soundings (Tables 1–2, SI Tables S1, S7–S11, Figures 4–6 and S11–S14, expectations E15–E21)")
     J = json.load(open(os.path.join(wc.ROOT, "data", "processed", "v1_4", "cpt.json"), encoding="utf-8"))
     C = sorted(J["cpts"].values(), key=lambda c: c["our_x"])
     xc = np.array([c["our_x"] for c in C]); zc = np.array([c["z"] for c in C])
@@ -713,7 +713,7 @@ def surface_override(xs, zs):
 
 def sd_columns():
     """Columns: each DP at its primary (surveyed) x and at the Task-A x for X0* − σ, X0*, X0* + σ."""
-    wc.require_input("cpt_json", "the comparison with the soundings (Tables 1–2, S1, S7–S11, Figures 4–6, S9–S15, expectations E15–E21)")
+    wc.require_input("cpt_json", "the comparison with the soundings (Tables 1–2, SI Tables S1, S7–S11, Figures 4–6 and S11–S14, expectations E15–E21)")
     J = json.load(open(os.path.join(wc.ROOT, "data", "processed", "v1_4", "cpt.json"), encoding="utf-8"))
     pl = json.load(open(os.path.join(wc.ROOT, "data", "processed", "v1_4", "placement.json"), encoding="utf-8"))
     X0s, sg = pl["primary"]["X0"], pl["primary"]["sigma"]
@@ -879,7 +879,7 @@ def cmd_dp(args):
     check_raw()
     dpp = os.path.join(args.out, "data", "processed", "v1_4"); os.makedirs(dpp, exist_ok=True)
     s18 = _load("p18", "18_paper.py"); k1 = _load("k1c", "21_k1_comparison.py"); s17 = _load("s17", "17_salinity_v2.py")
-    wc.require_input("cpt_json", "the comparison with the soundings (Tables 1–2, S1, S7–S11, Figures 4–6, S9–S15, expectations E15–E21)", path=os.path.join(dpp, "cpt.json"))
+    wc.require_input("cpt_json", "the comparison with the soundings (Tables 1–2, SI Tables S1, S7–S11, Figures 4–6 and S11–S14, expectations E15–E21)", path=os.path.join(dpp, "cpt.json"))
     J = json.load(open(os.path.join(dpp, "cpt.json"), encoding="utf-8"))
     pl = json.load(open(os.path.join(dpp, "placement.json"), encoding="utf-8"))
     X0s, sg = pl["primary"]["X0"], pl["primary"]["sigma"]
@@ -1012,6 +1012,7 @@ def final_verdicts(res):
 def report_dp(args, plt, s18):
     """2_dp_comparison.md, 3_same_epoch.md, T_S6, T_S7, F_12, F_12b, F_13, F_1b."""
     dpp = os.path.join(args.out, "data", "processed", "v1_4"); res = os.path.join(args.out, "results", "v1_4"); figs = os.path.join(res, "figs")
+    wc.require_input("dp_results", "the comparison with the soundings (Tables 1–2, SI Tables S1, S7–S11, Figures 4–6 and S11–S14, expectations E15–E21)", path=os.path.join(dpp, "dp_results.json"))
     R = json.load(open(os.path.join(dpp, "dp_results.json"), encoding="utf-8"))
     names = sorted(R["dps"], key=lambda n: R["dps"][n]["index"])
     f_ = lambda v, fmt="{:.2f}": "—" if v is None or (isinstance(v, float) and not np.isfinite(v)) else fmt.format(v)
@@ -1262,7 +1263,7 @@ def fig_location_v14(R, names, plt, s18, path):
     from shapely.geometry import box
     tr, _ = transformer(True)
     P, X = our_line()
-    wc.require_input("cpt_json", "the comparison with the soundings (Tables 1–2, S1, S7–S11, Figures 4–6, S9–S15, expectations E15–E21)")
+    wc.require_input("cpt_json", "the comparison with the soundings (Tables 1–2, SI Tables S1, S7–S11, Figures 4–6 and S11–S14, expectations E15–E21)")
     J = json.load(open(os.path.join(wc.ROOT, "data", "processed", "v1_4", "cpt.json"), encoding="utf-8"))
     pl = json.load(open(os.path.join(wc.ROOT, "data", "processed", "v1_4", "placement.json"), encoding="utf-8"))
     bb = box(2.50, 51.06, 2.62, 51.13)

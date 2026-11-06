@@ -138,6 +138,7 @@ class Rows:
 # run
 # ─────────────────────────────────────────────────────────────────────────────
 def dp_list():
+    wc.require_input("dp_results", "the comparison with the soundings (Tables 1–2, SI Tables S1, S7–S11, Figures 4–6 and S11–S14, expectations E15–E21)", path=os.path.join(wc.ROOT, "data", "processed", "v1_4", "dp_results.json"))
     R = json.load(open(os.path.join(wc.ROOT, "data", "processed", "v1_4", "dp_results.json"), encoding="utf-8"))
     names = sorted(R["dps"], key=lambda n: R["dps"][n]["index"])
     return [dict(dp=n, **{k: R["dps"][n]["per"]["primary|A"][k] for k in ("x", "logmid", "thr3", "rho_below")}) for n in names]
@@ -509,6 +510,7 @@ def cmd_report(args):
                              f"v1.5 {t}, DP2–DP7: BEL v4")
     out["s4"] = S4
     # ── ρ_below (descriptive) ──
+    wc.require_input("dp_results", "the comparison with the soundings (Tables 1–2, SI Tables S1, S7–S11, Figures 4–6 and S11–S14, expectations E15–E21)", path=os.path.join(wc.ROOT, "data", "processed", "v1_4", "dp_results.json"))
     R = json.load(open(os.path.join(wc.ROOT, "data", "processed", "v1_4", "dp_results.json"), encoding="utf-8"))
     rho_dp = [R["dps"][n]["per"]["primary|A"]["rho_below"] for n in ("DP3", "DP4", "DP5", "DP6")]
     y_rb = float(np.log10(np.median(rho_dp)))

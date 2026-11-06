@@ -210,6 +210,7 @@ def cmd_report(args):
     TX = Z["TX"]; Pf4, P24 = Z["Pf"], Z["P2"]; Pf3, P23 = B3["Pf"], B3["P2"]
     fal = json.loads(str(Z["fal"])); ap = json.loads(str(Z["approx"])); nn = json.loads(str(Z["n"]))
     plan = json.load(open(os.path.join(D4(), "plan.json"), encoding="utf-8"))
+    wc.require_input("dp_results", "the comparison with the soundings (Tables 1–2, SI Tables S1, S7–S11, Figures 4–6 and S11–S14, expectations E15–E21)", path=os.path.join(wc.ROOT, "data", "processed", "v1_4", "dp_results.json"))
     R = json.load(open(os.path.join(wc.ROOT, "data", "processed", "v1_4", "dp_results.json"), encoding="utf-8"))
     names = sorted(R["dps"], key=lambda n: R["dps"][n]["index"])
     q = lambda v: [float(np.median(v)), float(np.percentile(v, 5)), float(np.percentile(v, 95))]
@@ -497,6 +498,7 @@ def report_checks(args):
     import matplotlib.pyplot as plt
     res = os.path.join(args.out, "results", "v1_5"); figs = os.path.join(res, "figs")
     dpp = os.path.join(args.out, "data", "processed", "v1_5")
+    wc.require_input("dp_results", "the comparison with the soundings (Tables 1–2, SI Tables S1, S7–S11, Figures 4–6 and S11–S14, expectations E15–E21)", path=os.path.join(wc.ROOT, "data", "processed", "v1_4", "dp_results.json"))
     R = json.load(open(os.path.join(wc.ROOT, "data", "processed", "v1_4", "dp_results.json"), encoding="utf-8"))
     names = sorted(R["dps"], key=lambda n: R["dps"][n]["index"])
     S = np.load(os.path.join(D4(), "synth.npz")); L = np.load(os.path.join(D4L(), "bel_v4_l24.npz"), allow_pickle=True)

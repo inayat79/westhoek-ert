@@ -610,6 +610,7 @@ def steep_logmid_window(v, z, lo, hi):
 
 def cmd_a7(args):
     g27 = _load("g27", "27_dp_groundtruth.py"); g31 = _load("g31", "31_scores.py")
+    wc.require_input("dp_results", "the comparison with the soundings (Tables 1–2, SI Tables S1, S7–S11, Figures 4–6 and S11–S14, expectations E15–E21)", path=os.path.join(wc.ROOT, "data", "processed", "v1_4", "dp_results.json"))
     R = json.load(open(os.path.join(wc.ROOT, "data", "processed", "v1_4", "dp_results.json"), encoding="utf-8"))
     names = sorted(R["dps"], key=lambda n: R["dps"][n]["index"])
     O = {n: R["dps"][n]["per"]["primary|A"] for n in names}
@@ -661,6 +662,7 @@ def cmd_a7(args):
 def cmd_a5(args):
     g27 = _load("g27", "27_dp_groundtruth.py"); s17 = _load("s17", "17_salinity_v2.py")
     v14 = os.path.join(wc.ROOT, "data", "processed", "v1_4")
+    wc.require_input("dp_results", "the comparison with the soundings (Tables 1–2, SI Tables S1, S7–S11, Figures 4–6 and S11–S14, expectations E15–E21)", path=os.path.join(v14, "dp_results.json"))
     R = json.load(open(os.path.join(v14, "dp_results.json"), encoding="utf-8"))
     J = json.load(open(os.path.join(v14, "cpt.json"), encoding="utf-8"))
     SD = np.load(os.path.join(v14, g27.SD_DIR_NAME, "cpt.npz"), allow_pickle=True)

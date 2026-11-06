@@ -39,6 +39,8 @@ RESTRICTED_INPUTS = {
              "2018 Terrameter LS instrument project (T. Hermans, Ghent University; not public)"),
     "cpt_json": (os.path.join(ROOT, "data", "processed", "v1_4", "cpt.json"),
                  "sounding geometry and lithology derived from the mechanical CPTs by `27_dp_groundtruth.py cpt`"),
+    "dp_results": (os.path.join(ROOT, "data", "processed", "v1_4", "dp_results.json"),
+                   "sounding bases and resistivities from `27_dp_groundtruth.py dp`, which needs the mechanical CPTs"),
 }
 
 

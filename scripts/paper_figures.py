@@ -172,6 +172,7 @@ def xwin(x, v, lo=130.0, hi=450.0):
 
 
 def dp_records():
+    wc.require_input("dp_results", "the comparison with the soundings (Tables 1–2, SI Tables S1, S7–S11, Figures 4–6 and S11–S14, expectations E15–E21)", path=os.path.join(ROOT, "data", "processed", "v1_4", "dp_results.json"))
     R = json.load(open(os.path.join(ROOT, "data", "processed", "v1_4", "dp_results.json"), encoding="utf-8"))
     names = sorted(R["dps"], key=lambda n: R["dps"][n]["index"])
     return R, names
@@ -1140,7 +1141,7 @@ def figS02():
 
 def figS04():
     g27 = mod("g27")
-    wc.require_input("cpt_json", "the comparison with the soundings (Tables 1–2, S1, S7–S11, Figures 4–6, S9–S15, expectations E15–E21)")
+    wc.require_input("cpt_json", "the comparison with the soundings (Tables 1–2, SI Tables S1, S7–S11, Figures 4–6 and S11–S14, expectations E15–E21)")
     J = json.load(open(os.path.join(ROOT, "data", "processed", "v1_4", "cpt.json"), encoding="utf-8")); Cc = J["cpts"]; ids = sorted(Cc)
     fig = new_fig(180, dense=True)
     gs = fig.add_gridspec(4, len(ids), height_ratios=[0.09, 1, 1, 1])
